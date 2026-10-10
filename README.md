@@ -34,6 +34,12 @@ O foco deste projeto foi construir uma experiência de uso clara em momentos dif
 
 O painel administrativo segue a direção visual **“clinical blueprint on frosted paper”**: alto contraste, papel claro, tipografia objetiva, números tabulares e poucos elementos visuais para priorizar leitura rápida durante a operação.
 
+### Landing page
+
+<p align="center">
+  <img src="docs/screenshots/landing-page.png" alt="Landing page do Kardap" width="900" />
+</p>
+
 ### Acesso à plataforma
 
 <p align="center">
