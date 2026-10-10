@@ -1,0 +1,652 @@
+
+> kardap@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 1868ms
+ ○ Compiling /[...path] ...
+
+[1m[33mwarn[39m[22m - The `content` option in your Tailwind CSS configuration is missing or empty.
+[1m[33mwarn[39m[22m - Configure your content sources or your generated CSS will be missing styles.
+[1m[33mwarn[39m[22m - https://tailwindcss.com/docs/content-configuration
+ ✓ Compiled /[...path] in 2.7s (610 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /_next/static/webpack/61a5cf854cdbc2b9.webpack.hot-update.json 200 in 3302ms
+ GET /dashboard/qrcodes 200 in 3302ms
+ ✓ Compiled / in 186ms (598 modules)
+ GET / 200 in 239ms
+ GET /dashboard 200 in 77ms
+ GET / 200 in 59ms
+ ✓ Compiled in 647ms (598 modules)
+ ✓ Compiled in 362ms (600 modules)
+ ✓ Compiled in 353ms (614 modules)
+ GET /dashboard/qrcodes 200 in 120ms
+ GET /r/pizzaria-do-joao?mesa=01 200 in 39ms
+ ✓ Compiled in 625ms (598 modules)
+ ✓ Compiled in 317ms (612 modules)
+ GET /r/pizzaria-do-joao?mesa=01 200 in 84ms
+ ✓ Compiled in 473ms (598 modules)
+ ✓ Compiled in 339ms (612 modules)
+ GET /r/pizzaria-do-joao?mesa=01 200 in 92ms
+ GET /dashboard/personalizacao 200 in 42ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 200 in 78ms
+ ✓ Compiled in 377ms (612 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 200 in 97ms
+ GET /r/pizzaria-do-joao?mesa=01 200 in 79ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 200 in 36ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 200 in 36ms
+ ✓ Compiled in 446ms (598 modules)
+ ✓ Compiled in 327ms (612 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 200 in 112ms
+ ✓ Compiled /_not-found in 409ms (601 modules)
+ GET /dashboard/configuracoes 200 in 76ms
+ GET /_next/static/css/app/layout.css?v=1791521218611 200 in 49ms
+ GET /_next/static/chunks/main-app.js?v=1791521218611 200 in 48ms
+ GET /_next/static/chunks/app-pages-internals.js 200 in 47ms
+ GET /_next/static/chunks/app/page.js 200 in 48ms
+ ⨯ Failed to generate static paths for /[...path]:
+Error: Cannot find module './vendor-chunks/next.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ]
+}
+ ⨯ Failed to generate static paths for /[...path]:
+Error: Cannot find module './vendor-chunks/next.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ]
+}
+ ⨯ Failed to generate static paths for /[...path]:
+Error: Cannot find module './vendor-chunks/next.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ]
+}
+ ⨯ Failed to generate static paths for /[...path]:
+Error: Cannot find module './vendor-chunks/next.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ]
+}
+ ⨯ Failed to generate static paths for /[...path]:
+Error: Cannot find module './vendor-chunks/next.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ]
+}
+ ⨯ Error: Cannot find module './vendor-chunks/next.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/_next/static/chunks/app/page.js'
+}
+ ⨯ Error: Cannot find module './vendor-chunks/next.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/_next/static/chunks/app/page.js'
+}
+ ⨯ Error: Cannot find module './vendor-chunks/next.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/_next/static/chunks/app/page.js'
+}
+ ○ Compiling /_error ...
+Watchpack Error (initial scan): Error: EINVAL: invalid argument, lstat 'D:\DumpStack.log.tmp'
+Watchpack Error (initial scan): Error: EINVAL: invalid argument, lstat 'D:\System Volume Information'
+Watchpack Error (initial scan): Error: EINVAL: invalid argument, lstat 'D:\pagefile.sys'
+ ✓ Compiled /_error in 1635ms (828 modules)
+Watchpack Error (initial scan): Error: EINVAL: invalid argument, lstat 'D:\pagefile.sys'
+Watchpack Error (initial scan): Error: EINVAL: invalid argument, lstat 'D:\System Volume Information'
+Watchpack Error (initial scan): Error: EINVAL: invalid argument, lstat 'D:\DumpStack.log.tmp'
+ GET /_next/static/chunks/main-app.js?v=1791521218611 500 in 2548ms
+ GET /_next/static/chunks/app-pages-internals.js 500 in 2546ms
+ GET /_next/static/chunks/app/page.js 500 in 2546ms
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/r/pizzaria-do-joao'
+}
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/r/pizzaria-do-joao'
+}
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/r/pizzaria-do-joao'
+}
+ GET /r/pizzaria-do-joao?mesa=01 500 in 322ms
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/.well-known/appspecific/com.chrome.devtools.json'
+}
+ GET /.well-known/appspecific/com.chrome.devtools.json 500 in 333ms
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/.well-known/appspecific/com.chrome.devtools.json'
+}
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/.well-known/appspecific/com.chrome.devtools.json'
+}
+ GET /favicon.ico 500 in 334ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 500 in 279ms
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/dashboard/configuracoes'
+}
+ GET /dashboard/configuracoes 500 in 280ms
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/favicon.ico'
+}
+ GET /favicon.ico 500 in 289ms
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'D:\PROJETOS\KARDAP\.next\server\vendor-chunks\lucide-react.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/lucide-react' in D:\PROJETOS\KARDAP\.next\server for build dependencies doesn't lead to expected result 'D:\PROJETOS\KARDAP\.next\server\vendor-chunks\lucide-react.js', but to 'Error: Can't resolve './vendor-chunks/lucide-react' in 'D:\PROJETOS\KARDAP\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/lucide-react (expected D:\PROJETOS\KARDAP\.next\server\vendor-chunks\lucide-react.js)
+<w>  at file dependencies D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+<w>  at file D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+<w>  at file dependencies D:\PROJETOS\KARDAP\.next\server\pages\_error.js
+<w>  at file D:\PROJETOS\KARDAP\.next\server\pages\_error.js
+<w>  at file dependencies D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+<w>  at file D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+<w>  at file dependencies D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+<w>  at file D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+<w>  at file D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+<w>  at file dependencies D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/qrcode.react' in D:\PROJETOS\KARDAP\.next\server for build dependencies doesn't lead to expected result 'D:\PROJETOS\KARDAP\.next\server\vendor-chunks\qrcode.react.js', but to 'Error: Can't resolve './vendor-chunks/qrcode.react' in 'D:\PROJETOS\KARDAP\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/qrcode.react (expected D:\PROJETOS\KARDAP\.next\server\vendor-chunks\qrcode.react.js)
+<w>  at file dependencies D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+<w>  at file D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+<w>  at file dependencies D:\PROJETOS\KARDAP\.next\server\pages\_error.js
+<w>  at file D:\PROJETOS\KARDAP\.next\server\pages\_error.js
+<w>  at file dependencies D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+<w>  at file D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+<w>  at file dependencies D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+<w>  at file D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+<w>  at file D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+<w>  at file dependencies D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+ ⨯ Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- D:\PROJETOS\KARDAP\.next\server\webpack-runtime.js
+- D:\PROJETOS\KARDAP\.next\server\app\[...path]\page.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\load-components.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\build\utils.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (D:\PROJETOS\CSR SORTEIOS\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\webpack-runtime.js',
+    'D:\\PROJETOS\\KARDAP\\.next\\server\\app\\[...path]\\page.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\require.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\load-components.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\build\\utils.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'D:\\PROJETOS\\CSR SORTEIOS\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ],
+  page: '/dashboard/configuracoes'
+}
+ GET /dashboard/configuracoes 500 in 278ms
+ GET /dashboard/configuracoes 200 in 391ms
+ GET /_next/static/chunks/app/page.js 200 in 32ms
+ GET /favicon.ico 200 in 40ms
+ GET /_next/static/chunks/app/page.js 200 in 18ms
+ GET /r/pizzaria-do-joao?mesa=01 200 in 88ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 200 in 33ms
+ GET /_next/static/chunks/app/page.js 200 in 37ms
+ GET /_next/static/chunks/app/page.js 200 in 32ms
+ GET /favicon.ico 200 in 26ms
+[?25h

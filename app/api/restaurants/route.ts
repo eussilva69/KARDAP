@@ -1,0 +1,33 @@
+import { FieldValue } from "firebase-admin/firestore";
+import { NextRequest, NextResponse } from "next/server";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
+
+const slugify = (value: string) => value
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+
+export async function POST(request: NextRequest) {
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  if (!token) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  try {
+    const decoded = await adminAuth().verifyIdToken(token);
+    const payload = await request.json();
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    if (name.length < 2 || name.length > 100) {
+      return NextResponse.json({ error: "Nome do restaurante inválido" }, { status: 400 });
+    }
+    const db = adminDb();
+    const restaurant = db.collection("restaurantes").doc();
+    const now = FieldValue.serverTimestamp();
+    await db.runTransaction(async (tx) => {
+      tx.set(restaurant, { name, slug: `${slugify(name)}-${restaurant.id.slice(0, 6)}`, ownerId: decoded.uid, status: "active", createdAt: now, updatedAt: now });
+      tx.set(restaurant.collection("membros").doc(decoded.uid), { uid: decoded.uid, role: "owner", permissions: ["*"], active: true, createdAt: now });
+      tx.set(restaurant.collection("configuracoes").doc("geral"), { brand: { logo: "", cover: "" }, settings: { waiter: true, bill: true, google: true, sound: false }, createdAt: now, updatedAt: now });
+      tx.set(db.collection("usuarios").doc(decoded.uid), { email: decoded.email ?? null, displayName: decoded.name ?? null, restaurantIds: [restaurant.id], updatedAt: now });
+    });
+    return NextResponse.json({ restaurantId: restaurant.id }, { status: 201 });
+  } catch (error) {
+    console.error("restaurant provisioning failed", error);
+    return NextResponse.json({ error: "Não foi possível criar o restaurante" }, { status: 500 });
+  }
+}

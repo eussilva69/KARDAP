@@ -1,0 +1,19 @@
+
+> kardap@0.1.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use, trying 3001 instead.
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3001
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.2s
+ ○ Compiling /[...path] ...
+ ✓ Compiled /[...path] in 4.9s (804 modules)
+ ✓ Compiled in 409ms (325 modules)
+ GET /login 200 in 5696ms
+ GET /criar-conta 200 in 30ms
+ ✓ Compiled in 947ms (804 modules)
+ GET /login 200 in 176ms
+[?25h

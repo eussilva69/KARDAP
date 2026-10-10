@@ -1,0 +1,26 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function member(restaurantId) {
+      return signedIn() && firestore.exists(/databases/(default)/documents/restaurantes/$(restaurantId)/membros/$(request.auth.uid));
+    }
+    match /restaurantes/{restaurantId}/produtos/videos/{fileName} {
+      allow read: if true;
+      allow write: if member(restaurantId) && request.resource.size < 100 * 1024 * 1024 && request.resource.contentType.matches('video/(mp4|webm|quicktime)');
+    }
+    match /restaurantes/{restaurantId}/produtos/imagens/{fileName} {
+      allow read: if true;
+      allow write: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+    }
+    match /restaurantes/{restaurantId}/logos/{fileName} {
+      allow read: if true;
+      allow write: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/(png|jpeg|webp)');
+    }
+    match /restaurantes/{restaurantId}/capas/{fileName} {
+      allow read: if true;
+      allow write: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/(png|jpeg|webp)');
+    }
+    match /restaurantes/{restaurantId}/{allPaths=**} { allow read, write: if false; }
+  }
+}

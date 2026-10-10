@@ -1,0 +1,28 @@
+VibeCloner — Relatório de Mirror
+==================================
+URL: https://sundayapp.com/
+Capturado em: 2026-10-10T02:07:25.460Z
+
+Recursos detectados na página: 195
+Assets estáticos tentados: 151
+Baixados para o mirror: 145
+Falharam: 6
+
+FALHAS (URL — tipo — erro):
+---------------------------
+[css] HTTP 404
+    https://sundayapp.com/app/themes/sunday/static/HelveticaNeueLTStd-Md.woff2
+[css] HTTP 404
+    https://sundayapp.com/app/themes/sunday/static/HelveticaNeueLTStd-Md.woff
+[script] HTTP 404
+    https://www.googletagmanager.com/lya29tw35gwpum0.js?id=AW-387802455&gtm=4e6a72&cx=c
+[script] HTTP 404
+    https://www.googletagmanager.com/lya29tw35gwpum0.js?id=AW-17858752416&gtm=4e6a72&cx=c
+[script] HTTP 404
+    https://www.googletagmanager.com/lya29tw35gwpum0.js?id=AW-17840403640&gtm=4e6a72&cx=c
+[script] HTTP 403
+    https://ddwl4m2hdecbv.cloudfront.net/b/R6G5YH82Y965/R6G5YH82Y965.js.gz
+
+Obs.: recursos que falharam mantêm a URL original no HTML (carregam
+da web quando o clone é servido com internet). Envie este arquivo
+para diagnóstico se algo estiver faltando.

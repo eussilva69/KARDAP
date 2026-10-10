@@ -1,0 +1,302 @@
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, QueryDocumentSnapshot, runTransaction, setDoc, startAfter, updateDoc, where, writeBatch } from "firebase/firestore";
+import { getDb } from "./firebase";
+import { withTimeout, withWriteTimeout } from "./async";
+
+export type SnapshotMeta = { fromCache: boolean };
+export type Pending = { pending?: boolean };
+
+// Cada restaurante terá seu próprio documento. Quando houver cadastro de
+// restaurantes, use o slug real no lugar deste valor padrão.
+export function getRestaurantId() {
+  return typeof window === "undefined"
+    ? "unassigned"
+    : localStorage.getItem("kardap-restaurant-id") || "unassigned";
+}
+
+export function publicMenuPath() {
+  const slug = typeof window === "undefined" ? "seu-cardapio" : localStorage.getItem("kardap-restaurant-slug") || "seu-cardapio";
+  return `/r/${slug}`;
+}
+
+function restaurantRef() {
+  return doc(getDb(), "restaurantes", getRestaurantId());
+}
+
+export type RestaurantData = Record<string, unknown>;
+export type RestaurantTable = { id: string; restaurantId?: string; number: number; name: string; capacity: number; status: "livre" | "ocupada"; qrToken: string };
+export type RestaurantCategory = { id: string; name: string; description: string; order: number; active: boolean; createdAt?: string; updatedAt?: string };
+export type RestaurantProduct = { id: string; name: string; categoryId: string; category: string; description: string; price: string; priceCents: number; image?: string; videoUrl?: string; available: boolean; createdAt?: string; updatedAt?: string };
+
+export function watchRestaurant(
+  onData: (data: RestaurantData | null, meta: SnapshotMeta) => void,
+  onError: (error: Error) => void,
+) {
+  return onSnapshot(
+    restaurantRef(),
+    (snapshot) => onData(snapshot.exists() ? snapshot.data() : null, { fromCache: snapshot.metadata.fromCache }),
+    onError,
+  );
+}
+
+/** Observa o restaurante pelo slug para o cardápio público, sem depender da sessão do dono. */
+export function watchPublicRestaurant(
+  slug: string,
+  onData: (data: (RestaurantData & { id: string }) | null, meta: SnapshotMeta) => void,
+  onError: (error: Error) => void,
+) {
+  return onSnapshot(
+    query(collection(getDb(), "restaurantes"), where("slug", "==", slug), limit(1)),
+    (snapshot) => {
+      const restaurant = snapshot.docs[0];
+      onData(restaurant ? ({ id: restaurant.id, ...restaurant.data() } as RestaurantData & { id: string }) : null, { fromCache: snapshot.metadata.fromCache });
+    },
+    onError,
+  );
+}
+
+export async function saveRestaurant(data: RestaurantData) {
+  // `async` transforma erros de validação síncronos do SDK em Promise rejeitada,
+  // permitindo que os chamadores tratem a falha sem derrubar a interface.
+  return withWriteTimeout(setDoc(restaurantRef(), data, { merge: true }));
+}
+
+export function watchRestaurantTables(
+  onData: (tables: (RestaurantTable & Pending)[], meta: SnapshotMeta) => void,
+  onError: (error: Error) => void,
+) {
+  return onSnapshot(
+    query(collection(restaurantRef(), "mesas"), orderBy("number", "asc")),
+    { includeMetadataChanges: true },
+    (snapshot) => onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantTable & Pending)), { fromCache: snapshot.metadata.fromCache }),
+    onError,
+  );
+}
+
+export function watchRestaurantCategories(onData: (categories: (RestaurantCategory & Pending)[], meta: SnapshotMeta) => void, onError: (error: Error) => void) {
+  return onSnapshot(query(collection(restaurantRef(), "categorias"), orderBy("order", "asc")), { includeMetadataChanges: true }, (snapshot) =>
+    onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantCategory & Pending)), { fromCache: snapshot.metadata.fromCache }), onError);
+}
+
+export async function createRestaurantCategory(input: Pick<RestaurantCategory, "name" | "description" | "order" | "active">) {
+  const now = new Date().toISOString();
+  return withWriteTimeout(addDoc(collection(restaurantRef(), "categorias"), { ...input, name: input.name.trim(), createdAt: now, updatedAt: now }));
+}
+
+export async function updateRestaurantCategory(id: string, input: Partial<Pick<RestaurantCategory, "name" | "description" | "order" | "active">>) {
+  await withWriteTimeout(updateDoc(doc(restaurantRef(), "categorias", id), { ...input, ...(input.name ? { name: input.name.trim() } : {}), updatedAt: new Date().toISOString() }));
+}
+
+export async function deleteRestaurantCategory(id: string) {
+  const linked = await withTimeout(getDocs(query(collection(restaurantRef(), "produtos"), where("categoryId", "==", id), limit(1))));
+  if (!linked.empty) throw new Error("Não é possível excluir uma categoria com produtos vinculados.");
+  await withWriteTimeout(deleteDoc(doc(restaurantRef(), "categorias", id)));
+}
+
+export function watchRestaurantProducts(onData: (products: (RestaurantProduct & Pending)[], meta: SnapshotMeta) => void, onError: (error: Error) => void) {
+  return onSnapshot(query(collection(restaurantRef(), "produtos"), orderBy("createdAt", "desc")), { includeMetadataChanges: true }, (snapshot) =>
+    onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantProduct & Pending)), { fromCache: snapshot.metadata.fromCache }), onError);
+}
+
+export function watchPublicRestaurantProducts(restaurantId: string, onData: (products: RestaurantProduct[], meta: SnapshotMeta) => void, onError: (error: Error) => void) {
+  return onSnapshot(query(collection(getDb(), "restaurantes", restaurantId, "produtos"), where("available", "==", true)), (snapshot) =>
+    onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as RestaurantProduct)).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), { fromCache: snapshot.metadata.fromCache }), onError);
+}
+
+export async function createRestaurantProduct(input: Omit<RestaurantProduct, "id" | "createdAt" | "updatedAt">) {
+  const category = await withTimeout(getDoc(doc(restaurantRef(), "categorias", input.categoryId)));
+  if (!category.exists() || !category.data().active) throw new Error("Selecione uma categoria ativa deste estabelecimento.");
+  const now = new Date().toISOString();
+  return withWriteTimeout(addDoc(collection(restaurantRef(), "produtos"), { ...input, name: input.name.trim(), createdAt: now, updatedAt: now }));
+}
+
+export async function updateRestaurantProduct(id: string, input: Partial<Omit<RestaurantProduct, "id" | "createdAt" | "updatedAt">>) {
+  if (input.categoryId) {
+    const category = await withTimeout(getDoc(doc(restaurantRef(), "categorias", input.categoryId)));
+    if (!category.exists() || !category.data().active) throw new Error("Selecione uma categoria ativa deste estabelecimento.");
+  }
+  const clean = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
+  await withWriteTimeout(updateDoc(doc(restaurantRef(), "produtos", id), { ...clean, ...(input.name ? { name: input.name.trim() } : {}), updatedAt: new Date().toISOString() }));
+}
+
+export async function deleteRestaurantProduct(id: string) {
+  await withWriteTimeout(deleteDoc(doc(restaurantRef(), "produtos", id)));
+}
+
+/** Resolve o token do QR para uma mesa real dentro do restaurante público. */
+export function watchPublicTable(
+  restaurantId: string,
+  token: string,
+  onData: (table: RestaurantTable | null) => void,
+  onError: (error: Error) => void,
+) {
+  return onSnapshot(
+    query(collection(getDb(), "restaurantes", restaurantId, "mesas"), where("qrToken", "==", token), limit(1)),
+    (snapshot) => {
+      const table = snapshot.docs[0];
+      onData(table ? ({ id: table.id, ...table.data() } as RestaurantTable) : null);
+    },
+    onError,
+  );
+}
+
+export async function createInitialTables(quantity: number) {
+  if (!Number.isInteger(quantity) || quantity < 0 || quantity > 200) {
+    throw new Error("Informe entre 0 e 200 mesas.");
+  }
+  if (quantity === 0) return [] as RestaurantTable[];
+  const tables = collection(restaurantRef(), "mesas");
+  const existing = await withTimeout(getDocs(tables));
+  const existingByNumber = new Map(existing.docs.map((item) => [Number(item.data().number), item.data() as RestaurantTable]));
+  const batch = writeBatch(getDb());
+  const created: RestaurantTable[] = [];
+  for (let number = 1; number <= quantity; number += 1) {
+    if (existingByNumber.has(number)) continue;
+    const id = `mesa-${String(number).padStart(3, "0")}`;
+    const table: RestaurantTable = { id, restaurantId: getRestaurantId(), number, name: `Mesa ${String(number).padStart(2, "0")}`, capacity: 4, status: "livre", qrToken: crypto.randomUUID() };
+    batch.set(doc(tables, id), { ...table, createdAt: new Date().toISOString() });
+    created.push(table);
+  }
+  if (created.length) await withWriteTimeout(batch.commit(), 20000);
+  return created;
+}
+
+export async function createRestaurantTable(name?: string) {
+  const tables = collection(restaurantRef(), "mesas");
+  const existing = await withTimeout(getDocs(tables));
+  const number = existing.docs.reduce((highest, item) => Math.max(highest, Number(item.data().number) || 0), 0) + 1;
+  const tableName = name?.trim() || `Mesa ${String(number).padStart(2, "0")}`;
+  if (existing.docs.some((item) => String(item.data().name).toLowerCase() === tableName.toLowerCase())) {
+    throw new Error("Essa mesa já existe.");
+  }
+  const id = `mesa-${String(number).padStart(3, "0")}`;
+  const table: RestaurantTable = { id, restaurantId: getRestaurantId(), number, name: tableName, capacity: 4, status: "livre", qrToken: crypto.randomUUID() };
+  await withWriteTimeout(setDoc(doc(tables, id), { ...table, createdAt: new Date().toISOString() }));
+  return table;
+}
+
+async function tableDocumentByName(name: string) {
+  const snapshot = await withTimeout(getDocs(query(collection(restaurantRef(), "mesas"), where("name", "==", name), limit(1))));
+  return snapshot.docs[0] || null;
+}
+
+export async function renameRestaurantTable(currentName: string, nextName: string) {
+  const table = await tableDocumentByName(currentName);
+  if (!table) throw new Error("Mesa não encontrada.");
+  await withWriteTimeout(setDoc(table.ref, { name: nextName.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
+}
+
+export async function deleteRestaurantTable(name: string) {
+  const table = await tableDocumentByName(name);
+  if (!table) throw new Error("Mesa não encontrada.");
+  await withWriteTimeout(deleteDoc(table.ref));
+}
+
+export async function ensureRestaurant(ownerId: string, ownerName?: string | null) {
+  const existingId = typeof window === "undefined" ? null : localStorage.getItem("kardap-restaurant-id");
+  if (existingId) return existingId;
+
+  const db = getDb();
+  const restaurant = doc(collection(db, "restaurantes"));
+  // Gravar o id antes da operação torna uma nova tentativa idempotente no mesmo navegador.
+  localStorage.setItem("kardap-restaurant-id", restaurant.id);
+  localStorage.setItem("kardap-restaurant-owner", ownerId);
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+  batch.set(restaurant, {
+    name: "",
+    slug: "",
+    ownerId,
+    status: "active",
+    onboarding: { completed: false, currentStep: 1, startedAt: now },
+    createdAt: now,
+    updatedAt: now,
+  });
+  batch.set(doc(restaurant, "membros", ownerId), {
+    uid: ownerId,
+    name: ownerName || null,
+    role: "owner",
+    permissions: ["*"],
+    active: true,
+    createdAt: now,
+  });
+  batch.set(doc(restaurant, "configuracoes", "geral"), {
+    brand: { logo: "", cover: "" },
+    settings: { waiter: true, bill: true, google: true, sound: false },
+    createdAt: now,
+    updatedAt: now,
+  });
+  try {
+    await withWriteTimeout(batch.commit(), 20000);
+    return restaurant.id;
+  } catch (error) {
+    localStorage.removeItem("kardap-restaurant-id");
+    throw error;
+  }
+}
+
+const slugify = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 54) || "cardapio";
+
+export async function reserveMenuSlug(name: string) {
+  const db = getDb();
+  const restaurantId = getRestaurantId();
+  const base = slugify(name);
+  for (let suffix = 1; suffix < 1000; suffix += 1) {
+    const slug = suffix === 1 ? base : `${base}-${suffix}`;
+    const claim = doc(db, "menuSlugs", slug);
+    const reserved = await withTimeout(runTransaction(db, async (transaction) => {
+      const existing = await transaction.get(claim);
+      if (existing.exists() && existing.data().restaurantId !== restaurantId) return false;
+      if (!existing.exists()) transaction.set(claim, { restaurantId, createdAt: new Date().toISOString() });
+      return true;
+    }), 20000);
+    if (reserved) return slug;
+  }
+  throw new Error("Não foi possível gerar um link disponível para o cardápio.");
+}
+
+export type ChamadoDoc = { id: string; table: string; type: string; status: "ativo" | "andamento" | "concluido"; createdAt: string };
+
+/** Observa a primeira página de chamados em tempo real (subcoleção paginada). */
+export function watchChamados(
+  pageSize: number,
+  onData: (items: ChamadoDoc[], meta: SnapshotMeta & { lastCursor: QueryDocumentSnapshot | null; hasMore: boolean }) => void,
+  onError: (error: Error) => void,
+) {
+  const q = query(collection(restaurantRef(), "chamados"), orderBy("createdAt", "desc"), limit(pageSize + 1));
+  return onSnapshot(
+    q,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      const hasMore = snapshot.docs.length > pageSize;
+      const docs = hasMore ? snapshot.docs.slice(0, pageSize) : snapshot.docs;
+      const items = docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ChamadoDoc, "id">) }));
+      const lastCursor = docs.length ? docs[docs.length - 1] : null;
+      onData(items, { fromCache: snapshot.metadata.fromCache, lastCursor, hasMore });
+    },
+    onError,
+  );
+}
+
+/** Carrega a próxima página de chamados após um cursor (one-shot, não escuta). */
+export async function fetchChamadosPage(cursor: QueryDocumentSnapshot | null, pageSize: number) {
+  const base = query(collection(restaurantRef(), "chamados"), orderBy("createdAt", "desc"), limit(pageSize + 1));
+  const q = cursor ? query(base, startAfter(cursor)) : base;
+  const snapshot = await withTimeout(getDocs(q));
+  const hasMore = snapshot.docs.length > pageSize;
+  const docs = hasMore ? snapshot.docs.slice(0, pageSize) : snapshot.docs;
+  const items = docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ChamadoDoc, "id">) }));
+  const lastCursor = docs.length ? docs[docs.length - 1] : null;
+  return { items, lastCursor, hasMore };
+}
+
+export async function updateChamadoStatus(id: string, status: ChamadoDoc["status"]) {
+  await withWriteTimeout(updateDoc(doc(restaurantRef(), "chamados", id), { status, updatedAt: new Date().toISOString() }));
+}
+
+/** Chamado enviado pelo cliente no cardápio público: grava na subcoleção paginada do restaurante. */
+export async function addPublicCall(restaurantId: string, call: { table: string; type: string }) {
+  const now = new Date().toISOString();
+  const entry = { ...call, status: "ativo" as const, createdAt: now };
+  const ref = await withWriteTimeout(addDoc(collection(getDb(), "restaurantes", restaurantId, "chamados"), entry), 12000);
+  return { id: ref.id, ...entry, time: "agora" };
+}

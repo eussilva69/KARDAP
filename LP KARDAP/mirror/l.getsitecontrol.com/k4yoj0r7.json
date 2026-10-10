@@ -1,0 +1,714 @@
+{
+    "widgets": [
+        {
+            "id": 440184,
+            "type": "form",
+            "layout": "inline",
+            "sort_order": -6.0,
+            "version": "V1",
+            "name": "Inline \u2013 la newsletter des restaurateurs",
+            "meta_title": "<div>la newsletter des restaurateurs</div>",
+            "meta_description": "<div>Rejoignez plus de 5 000 restaurateurs qui optimisent leur quotidien</div>",
+            "pages": [
+                {
+                    "data": {
+                        "note": "",
+                        "title": "<div>la newsletter des restaurateurs</div>",
+                        "fields": [
+                            {
+                                "id": "470624774",
+                                "name": "email",
+                                "type": "email",
+                                "label": "",
+                                "required": true,
+                                "placeholder": "email"
+                            }
+                        ],
+                        "buttons": [
+                            {
+                                "id": "891509202",
+                                "type": "primary",
+                                "label": "je rejoins le club",
+                                "actions": [
+                                    {
+                                        "type": "submit"
+                                    }
+                                ],
+                                "visible": true
+                            }
+                        ],
+                        "description": "<div>Rejoignez plus de 5 000 restaurateurs qui optimisent leur quotidien</div>",
+                        "backgroundActions": []
+                    },
+                    "name": "page-1",
+                    "type": "form",
+                    "style": {
+                        "media": {
+                            "mobile": {
+                                "width": "100%",
+                                "images": [],
+                                "padding": {
+                                    "top": "40px",
+                                    "left": "40px",
+                                    "right": "40px",
+                                    "bottom": "40px"
+                                },
+                                "maxWidth": "414px",
+                                "overflow": "hidden",
+                                "background": []
+                            },
+                            "desktop": {
+                                "width": "100%",
+                                "images": [],
+                                "padding": {
+                                    "top": "48px",
+                                    "left": "160px",
+                                    "right": "160px",
+                                    "bottom": "48px"
+                                },
+                                "maxWidth": "720px",
+                                "overflow": "hidden",
+                                "background": []
+                            }
+                        }
+                    }
+                }
+            ],
+            "teaser": null,
+            "style": {
+                "css": "/*#region Colors */\n/*#endregion*/\n@import url('https://fonts.googleapis.com/css?family=Lato:400,700,900&display=swap');\n.root {\n  margin: auto;\n}\n@keyframes fade-in {\n  0% {\n    opacity: 0;\n  }\n  100% {\n    opacity: 1;\n  }\n}\n.tooltip {\n  display: block;\n  position: absolute;\n  width: max-content;\n  max-width: 250px;\n  white-space: normal;\n  pointer-events: none;\n  animation: fade-in 250ms linear both;\n  padding: 4px 8px;\n  line-height: 1.71428571;\n  font-size: 14px;\n  font-weight: normal;\n  background: #ffffff;\n  color: #0f0f0f;\n}\n.tooltip:after {\n  position: absolute;\n  width: 0;\n  height: 0;\n  border: 4px solid transparent;\n  content: '';\n}\n.tooltip-top {\n  bottom: calc(100% + 10px);\n}\n.tooltip-top,\n.tooltip-top:after {\n  left: 50%;\n  transform: translate3d(-50%, 0, 0);\n}\n.tooltip-top:after {\n  top: 100%;\n  border-top-color: #ffffff;\n}\n.tooltip-bottom {\n  top: calc(100% + 10px);\n}\n.tooltip-bottom,\n.tooltip-bottom:after {\n  left: 50%;\n  transform: translate3d(-50%, 0, 0);\n}\n.tooltip-bottom:after {\n  bottom: 100%;\n  border-bottom-color: #ffffff;\n}\n.tooltip-left {\n  right: calc(100% + 10px);\n}\n.tooltip-left,\n.tooltip-left:after {\n  top: 50%;\n  transform: translate3d(0, -50%, 0);\n}\n.tooltip-left:after {\n  left: 100%;\n  border-left-color: #ffffff;\n}\n.tooltip-right {\n  left: calc(100% + 10px);\n}\n.tooltip-right,\n.tooltip-right:after {\n  top: 50%;\n  transform: translate3d(0, -50%, 0);\n}\n.tooltip-right:after {\n  right: 100%;\n  border-right-color: #ffffff;\n}\n.notification {\n  position: absolute;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  z-index: 3;\n  font-size: 18px;\n  background-color: rgba(15, 15, 15, 0.7);\n  color: #ffffff;\n  animation: fade-in 250ms linear both;\n}\n.container {\n  font-family: Lato, \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n}\n.title {\n  font-weight: 900;\n}\n.buttons {\n  margin: -6px;\n}\n.buttons .button {\n  margin: 6px;\n}\n.button.normal,\n.button.normal.icon {\n  font-weight: normal;\n}\n.button.normal:hover,\n.button.normal.icon:hover,\n.button.normal:focus,\n.button.normal.icon:focus {\n  border-color: #ffffff;\n}\n.button.secondary,\n.button.secondary.icon {\n  padding-left: 0;\n  padding-right: 0;\n  color: rgba(255, 255, 255, 0.3);\n  background-color: transparent;\n  font-weight: normal;\n}\n.button.secondary:hover,\n.button.secondary.icon:hover,\n.button.secondary:focus,\n.button.secondary.icon:focus {\n  color: rgba(255, 255, 255, 0.7);\n  background-color: transparent;\n}\n.input-text,\n.input-textarea {\n  background-color: rgba(255, 255, 255, 0.15);\n}\n.input-text:hover,\n.input-textarea:hover,\n.input-text:focus,\n.input-textarea:focus {\n  border-color: #ffffff;\n}\n.input-select select {\n  padding-top: 11px;\n  padding-bottom: 11px;\n  border: solid 1px transparent;\n  border-radius: 4px;\n}\n.input-select select:hover,\n.input-select select:focus {\n  border-color: #ffffff;\n}\n.input-check label {\n  padding: 11px 16px;\n  background-color: rgba(255, 255, 255, 0.15);\n  border: solid 1px transparent;\n  border-radius: 4px;\n}\n.input-check label input[type='radio'] + span:before,\n.input-check label input[type='checkbox'] + span:before {\n  background-color: rgba(255, 255, 255, 0.2);\n}\n.input-check label:hover,\n.input-check label:focus {\n  border-color: #ffffff;\n}\n.note {\n  color: rgba(255, 255, 255, 0.3);\n}\n@keyframes shake {\n  100% {\n    transform: none;\n  }\n  0%,\n  99% {\n    transform: translate(0, 0);\n  }\n  20% {\n    transform: translateX(-10px);\n  }\n  60% {\n    transform: translateX(-5px);\n  }\n  40% {\n    transform: translateX(10px);\n  }\n  80% {\n    transform: translateX(5px);\n  }\n}\n.form.submit .invalid {\n  animation: shake 600ms;\n}\n@keyframes sent-backdrop {\n  0%,\n  100% {\n    opacity: 0;\n    background-color: rgba(15, 15, 15, 0);\n  }\n  50%,\n  75% {\n    opacity: 0.6;\n    background-color: #0f0f0f;\n  }\n}\n@keyframes success-icon-scale {\n  0% {\n    opacity: 0;\n    transform: translate(-50%, -50%) scale(0.8);\n  }\n  50% {\n    opacity: 1;\n    transform: translate(-50%, -50%) scale(1);\n  }\n  75% {\n    opacity: 1;\n    transform: translate(-50%, -50%) scale(1);\n  }\n  100% {\n    opacity: 0;\n    transform: translate(-50%, -50%) scale(0.2);\n  }\n}\n@keyframes success-icon-show-path {\n  0% {\n    opacity: 0;\n  }\n  50% {\n    opacity: 0;\n  }\n  100% {\n    opacity: 1;\n  }\n}\n@keyframes success-icon-draw-circle {\n  0% {\n    opacity: 1;\n    stroke-dashoffset: 150.72;\n  }\n  25% {\n    opacity: 1;\n    stroke-dashoffset: 75.36;\n  }\n  50% {\n    opacity: 1;\n    stroke-dashoffset: 0;\n  }\n  100% {\n    opacity: 0;\n    stroke-dashoffset: 0;\n  }\n}\n@keyframes success-icon-draw-check {\n  0% {\n    opacity: 1;\n    stroke-dashoffset: 36;\n  }\n  25% {\n    opacity: 1;\n    stroke-dashoffset: 18;\n  }\n  50% {\n    opacity: 1;\n    stroke-dashoffset: 0;\n  }\n  100% {\n    opacity: 0;\n    stroke-dashoffset: 0;\n  }\n}\n.root.form-sending .content:before {\n  content: '';\n  display: block;\n  position: absolute;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  z-index: 1;\n  animation: sent-backdrop 2s both;\n}\n.root.form-sending .content .success-icon {\n  display: block;\n  width: 100%;\n  height: 100%;\n  animation: success-icon-scale 1.8s linear both;\n}\n.root.form-sending .content .success-icon path {\n  animation: success-icon-show-path 1.2s linear both;\n}\n.root.form-sending .content .success-icon circle {\n  animation: success-icon-draw-circle 1.2s linear both;\n}\n.root.form-sending .content .success-icon polyline {\n  animation: success-icon-draw-check 1.2s linear both;\n}\n\n/*#region Colors */\n/*#endregion*/\n.container {\n  text-align: center;\n}\n.buttons {\n  justify-content: center;\n}\n@media (max-width: 959.8px) {\n  .buttons {\n    flex-direction: column;\n  }\n}\n",
+                "media": {},
+                "colors": {
+                    "text": "#ffffff",
+                    "button": "#ffffff",
+                    "background": "#0f0f0f",
+                    "buttonText": "#000000"
+                }
+            },
+            "data": {},
+            "targeting": {
+                "data": {
+                    "timezones": {}
+                },
+                "group": {
+                    "items": [
+                        {
+                            "id": "TargetingGroupLocation",
+                            "items": [
+                                {
+                                    "items": [
+                                        {
+                                            "type": "location",
+                                            "value": "/fr/blog/",
+                                            "operation": "matchUrl"
+                                        }
+                                    ],
+                                    "operation": "or"
+                                }
+                            ],
+                            "operation": "and"
+                        },
+                        {
+                            "id": "TargetingGroupGeneral",
+                            "items": [
+                                {
+                                    "items": [
+                                        {
+                                            "data": {
+                                                "id": "146930:",
+                                                "name": "France"
+                                            },
+                                            "name": "country",
+                                            "type": "geo",
+                                            "value": "146930:",
+                                            "operation": "^"
+                                        }
+                                    ],
+                                    "operation": "or"
+                                }
+                            ],
+                            "operation": "and"
+                        },
+                        {
+                            "id": "TargetingGroupStart",
+                            "items": [
+                                {
+                                    "type": "atonce",
+                                    "value": true,
+                                    "operation": "="
+                                }
+                            ],
+                            "operation": "or"
+                        }
+                    ],
+                    "operation": "and"
+                }
+            },
+            "settings": {
+                "trackGA": true,
+                "trackGTM": true
+            }
+        },
+        {
+            "id": 264985,
+            "type": "form",
+            "layout": "bar",
+            "sort_order": -4.0,
+            "version": "V1",
+            "name": "fr-FR - Bar \u2013 Redirect to fr website",
+            "meta_title": "<div><strong>FR</strong></div>",
+            "meta_description": "<div>Vous avez l\u2019air d\u2019\u00eatre en France. Cliquez ici pour rejoindre la page fran\u00e7aise.</div>",
+            "pages": [
+                {
+                    "data": {
+                        "note": "",
+                        "title": "<div><strong>FR</strong></div>",
+                        "fields": [],
+                        "buttons": [
+                            {
+                                "id": "066962903",
+                                "type": "primary",
+                                "label": "Continuer",
+                                "actions": [
+                                    {
+                                        "type": "close"
+                                    },
+                                    {
+                                        "url": "https://sundayapp.com/fr/",
+                                        "type": "url",
+                                        "target": "_self"
+                                    }
+                                ],
+                                "visible": true
+                            }
+                        ],
+                        "description": "<div>Vous avez l\u2019air d\u2019\u00eatre en France. Cliquez ici pour rejoindre la page fran\u00e7aise.</div>",
+                        "backgroundActions": []
+                    },
+                    "name": "page-1",
+                    "type": "form",
+                    "style": {
+                        "media": {
+                            "mobile": {
+                                "width": "100%",
+                                "images": [],
+                                "padding": {
+                                    "top": "16px",
+                                    "left": "24px",
+                                    "right": "24px",
+                                    "bottom": "24px"
+                                },
+                                "maxWidth": "none",
+                                "overflow": "hidden",
+                                "background": []
+                            },
+                            "desktop": {
+                                "width": "100%",
+                                "images": [],
+                                "padding": {
+                                    "top": "12px",
+                                    "left": "48px",
+                                    "right": "60px",
+                                    "bottom": "12px"
+                                },
+                                "maxWidth": "none",
+                                "overflow": "hidden",
+                                "background": []
+                            }
+                        }
+                    }
+                }
+            ],
+            "teaser": null,
+            "style": {
+                "css": "/*#region Colors */\n/*#endregion*/\n@import url('https://fonts.googleapis.com/css?family=Lato:400,700,900&display=swap');\n.root {\n  top: auto;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  margin: 0 auto;\n}\n@media (max-width: 959px) {\n  .form {\n    display: flex;\n    flex-flow: column;\n    align-items: normal;\n  }\n}\n@media (max-width: 959px) {\n  .fields {\n    display: flex;\n    flex-flow: column;\n    align-items: normal;\n    margin: 0 0 20px;\n  }\n}\n@media (max-width: 959px) {\n  .field {\n    display: flex;\n    flex-flow: column;\n  }\n}\n@media (max-width: 959px) {\n  .field + .field {\n    margin: 20px 0 0;\n  }\n}\n@media (max-width: 959px) {\n  .buttons {\n    display: flex;\n    flex-flow: column;\n  }\n}\n@keyframes fade-in {\n  0% {\n    opacity: 0;\n  }\n  100% {\n    opacity: 1;\n  }\n}\n.tooltip {\n  display: block;\n  position: absolute;\n  width: max-content;\n  max-width: 250px;\n  white-space: normal;\n  pointer-events: none;\n  animation: fade-in 250ms linear both;\n  padding: 4px 8px;\n  line-height: 1.71428571;\n  font-size: 14px;\n  font-weight: normal;\n  background: #000000;\n  color: #ff17e9;\n}\n.tooltip:after {\n  position: absolute;\n  width: 0;\n  height: 0;\n  border: 4px solid transparent;\n  content: '';\n}\n.tooltip-top {\n  bottom: calc(100% + 10px);\n}\n.tooltip-top,\n.tooltip-top:after {\n  left: 50%;\n  transform: translate3d(-50%, 0, 0);\n}\n.tooltip-top:after {\n  top: 100%;\n  border-top-color: #000000;\n}\n.tooltip-bottom {\n  top: calc(100% + 10px);\n}\n.tooltip-bottom,\n.tooltip-bottom:after {\n  left: 50%;\n  transform: translate3d(-50%, 0, 0);\n}\n.tooltip-bottom:after {\n  bottom: 100%;\n  border-bottom-color: #000000;\n}\n.tooltip-left {\n  right: calc(100% + 10px);\n}\n.tooltip-left,\n.tooltip-left:after {\n  top: 50%;\n  transform: translate3d(0, -50%, 0);\n}\n.tooltip-left:after {\n  left: 100%;\n  border-left-color: #000000;\n}\n.tooltip-right {\n  left: calc(100% + 10px);\n}\n.tooltip-right,\n.tooltip-right:after {\n  top: 50%;\n  transform: translate3d(0, -50%, 0);\n}\n.tooltip-right:after {\n  right: 100%;\n  border-right-color: #000000;\n}\n.notification {\n  position: absolute;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  z-index: 3;\n  font-size: 18px;\n  background-color: rgba(255, 23, 233, 0.7);\n  color: #000000;\n  animation: fade-in 250ms linear both;\n}\n.container {\n  font-family: Lato, \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n  box-shadow: 0 10px 24px 0 rgba(54, 61, 77, 0.15);\n}\n.title {\n  font-weight: 900;\n  margin: 0 0 20px;\n}\n@media (min-width: 960px) {\n  .title {\n    margin: 0 20px 0 0;\n  }\n}\n.description {\n  margin: 0 0 20px;\n}\n@media (min-width: 960px) {\n  .description {\n    margin: 0 20px 0 0;\n  }\n}\n.field {\n  align-items: flex-start;\n}\n.field + .field {\n  margin: 16px 0 0;\n}\n@media (min-width: 960px) {\n  .field + .field {\n    margin: 0 0 0 16px;\n  }\n}\n.field-title {\n  margin: 0 0 4px;\n}\n@media (min-width: 960px) {\n  .field-title {\n    margin: 0 4px 0 0;\n  }\n}\n.buttons {\n  margin: -6px;\n}\n.buttons .button {\n  margin: 6px;\n}\n.button.normal,\n.button.normal.icon {\n  font-weight: normal;\n}\n.button.normal:hover,\n.button.normal.icon:hover,\n.button.normal:focus,\n.button.normal.icon:focus {\n  border-color: #000000;\n}\n.button.secondary,\n.button.secondary.icon {\n  padding-left: 0;\n  padding-right: 0;\n  color: rgba(0, 0, 0, 0.3);\n  background-color: transparent;\n  font-weight: normal;\n}\n.button.secondary:hover,\n.button.secondary.icon:hover,\n.button.secondary:focus,\n.button.secondary.icon:focus {\n  color: rgba(0, 0, 0, 0.7);\n  background-color: transparent;\n}\n.input-text,\n.input-textarea {\n  background-color: rgba(0, 0, 0, 0.15);\n}\n.input-text:hover,\n.input-textarea:hover,\n.input-text:focus,\n.input-textarea:focus {\n  border-color: #000000;\n}\n.input-select select {\n  padding-top: 11px;\n  padding-bottom: 11px;\n  border: solid 1px transparent;\n  border-radius: 4px;\n}\n.input-select select:hover,\n.input-select select:focus {\n  border-color: #000000;\n}\n.input-check label {\n  padding: 11px 16px;\n  background-color: rgba(0, 0, 0, 0.15);\n  border: solid 1px transparent;\n  border-radius: 4px;\n}\n.input-check label input[type='radio'] + span:before,\n.input-check label input[type='checkbox'] + span:before {\n  background-color: rgba(0, 0, 0, 0.2);\n}\n.input-check label:hover,\n.input-check label:focus {\n  border-color: #000000;\n}\n.note {\n  color: rgba(0, 0, 0, 0.3);\n}\n@keyframes slide-in-bottom {\n  0% {\n    transform: translateY(150%);\n  }\n  100% {\n    transform: translateY(0);\n  }\n}\n@keyframes slide-out-bottom {\n  0% {\n    transform: translateY(0);\n  }\n  100% {\n    transform: translateY(150%);\n  }\n}\n.root.enter {\n  animation: slide-in-bottom 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;\n}\n.root.leave {\n  animation: slide-out-bottom 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;\n}\n@keyframes shake {\n  100% {\n    transform: none;\n  }\n  0%,\n  99% {\n    transform: translate(0, 0);\n  }\n  20% {\n    transform: translateX(-10px);\n  }\n  60% {\n    transform: translateX(-5px);\n  }\n  40% {\n    transform: translateX(10px);\n  }\n  80% {\n    transform: translateX(5px);\n  }\n}\n.form.submit .invalid {\n  animation: shake 600ms;\n}\n@keyframes sent-backdrop {\n  0%,\n  100% {\n    opacity: 0;\n    background-color: rgba(255, 23, 233, 0);\n  }\n  50%,\n  75% {\n    opacity: 0.6;\n    background-color: #ff17e9;\n  }\n}\n@keyframes success-icon-scale {\n  0% {\n    opacity: 0;\n    transform: translate(-50%, -50%) scale(0.8);\n  }\n  50% {\n    opacity: 1;\n    transform: translate(-50%, -50%) scale(1);\n  }\n  75% {\n    opacity: 1;\n    transform: translate(-50%, -50%) scale(1);\n  }\n  100% {\n    opacity: 0;\n    transform: translate(-50%, -50%) scale(0.2);\n  }\n}\n@keyframes success-icon-show-path {\n  0% {\n    opacity: 0;\n  }\n  50% {\n    opacity: 0;\n  }\n  100% {\n    opacity: 1;\n  }\n}\n@keyframes success-icon-draw-circle {\n  0% {\n    opacity: 1;\n    stroke-dashoffset: 150.72;\n  }\n  25% {\n    opacity: 1;\n    stroke-dashoffset: 75.36;\n  }\n  50% {\n    opacity: 1;\n    stroke-dashoffset: 0;\n  }\n  100% {\n    opacity: 0;\n    stroke-dashoffset: 0;\n  }\n}\n@keyframes success-icon-draw-check {\n  0% {\n    opacity: 1;\n    stroke-dashoffset: 36;\n  }\n  25% {\n    opacity: 1;\n    stroke-dashoffset: 18;\n  }\n  50% {\n    opacity: 1;\n    stroke-dashoffset: 0;\n  }\n  100% {\n    opacity: 0;\n    stroke-dashoffset: 0;\n  }\n}\n.root.form-sending .content:before {\n  content: '';\n  display: block;\n  position: absolute;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  z-index: 1;\n  animation: sent-backdrop 2s both;\n}\n.root.form-sending .content .success-icon {\n  display: block;\n  width: 100%;\n  height: 100%;\n  animation: success-icon-scale 1.8s linear both;\n}\n.root.form-sending .content .success-icon path {\n  animation: success-icon-show-path 1.2s linear both;\n}\n.root.form-sending .content .success-icon circle {\n  animation: success-icon-draw-circle 1.2s linear both;\n}\n.root.form-sending .content .success-icon polyline {\n  animation: success-icon-draw-check 1.2s linear both;\n}\n\n/*#region Colors */\n/*#endregion*/\n.title {\n  font-size: 18px;\n}\n@media (min-width: 960px) {\n  .title {\n    font-size: 14px;\n  }\n}\n",
+                "media": {},
+                "colors": {
+                    "text": "#000000",
+                    "button": "#000000",
+                    "background": "#ff17e9",
+                    "buttonText": "#ffffff"
+                }
+            },
+            "data": {},
+            "targeting": {
+                "data": {
+                    "timezones": {}
+                },
+                "group": {
+                    "items": [
+                        {
+                            "id": "TargetingGroupLocation",
+                            "items": [
+                                {
+                                    "items": [
+                                        {
+                                            "type": "location",
+                                            "value": "/*",
+                                            "operation": "matchUrl"
+                                        }
+                                    ],
+                                    "operation": "or"
+                                },
+                                {
+                                    "items": [
+                                        {
+                                            "type": "location",
+                                            "value": "/fr/*",
+                                            "operation": "!matchUrl"
+                                        }
+                                    ],
+                                    "operation": "and"
+                                }
+                            ],
+                            "operation": "and"
+                        },
+                        {
+                            "id": "TargetingGroupGeneral",
+                            "items": [
+                                {
+                                    "items": [
+                                        {
+                                            "data": {
+                                                "id": "146930:",
+                                                "name": "France"
+                                            },
+                                            "name": "country",
+                                            "type": "geo",
+                                            "value": "146930:",
+                                            "operation": "^"
+                                        }
+                                    ],
+                                    "operation": "or"
+                                },
+                                {
+                                    "items": [
+                                        {
+                                            "name": "",
+                                            "type": "platform",
+                                            "value": "Desktop",
+                                            "operation": "="
+                                        },
+                                        {
+                                            "name": "",
+                                            "type": "platform",
+                                            "value": "Tablet",
+                                            "operation": "="
+                                        }
+                                    ],
+                                    "operation": "or"
+                                }
+                            ],
+                            "operation": "and"
+                        },
+                        {
+                            "id": "TargetingGroupStart",
+                            "items": [
+                                {
+                                    "type": "atonce",
+                                    "value": true,
+                                    "operation": "="
+                                }
+                            ],
+                            "operation": "or"
+                        },
+                        {
+                            "id": "TargetingGroupStop",
+                            "items": [
+                                {
+                                    "name": "",
+                                    "type": "timeSinceLastClose",
+                                    "value": 86400000,
+                                    "operation": ">|undefined"
+                                }
+                            ],
+                            "operation": "and"
+                        }
+                    ],
+                    "operation": "and"
+                }
+            },
+            "settings": {}
+        },
+        {
+            "id": 264983,
+            "type": "form",
+            "layout": "bar",
+            "sort_order": -3.0,
+            "version": "V1",
+            "name": "en-US - Bar \u2013 Redirect to US website",
+            "meta_title": "<div class=\"first\"><strong>US</strong></div>",
+            "meta_description": "<div>Oh, looks like you\u2019re in the US. Head over to our dedicated site!</div>",
+            "pages": [
+                {
+                    "data": {
+                        "note": "",
+                        "title": "<div class=\"first\"><strong>US</strong></div>",
+                        "fields": [],
+                        "buttons": [
+                            {
+                                "id": "721397585",
+                                "type": "primary",
+                                "label": "Let's go",
+                                "actions": [
+                                    {
+                                        "type": "close"
+                                    },
+                                    {
+                                        "url": "https://sundayapp.com/",
+                                        "type": "url",
+                                        "target": "_self"
+                                    }
+                                ],
+                                "visible": true
+                            }
+                        ],
+                        "description": "<div>Oh, looks like you\u2019re in the US. Head over to our dedicated site!</div>",
+                        "backgroundActions": []
+                    },
+                    "name": "page-1",
+                    "type": "form",
+                    "style": {
+                        "media": {
+                            "mobile": {
+                                "width": "100%",
+                                "images": [],
+                                "padding": {
+                                    "top": "16px",
+                                    "left": "24px",
+                                    "right": "24px",
+                                    "bottom": "24px"
+                                },
+                                "maxWidth": "none",
+                                "overflow": "hidden",
+                                "background": []
+                            },
+                            "desktop": {
+                                "width": "100%",
+                                "images": [],
+                                "padding": {
+                                    "top": "12px",
+                                    "left": "48px",
+                                    "right": "60px",
+                                    "bottom": "12px"
+                                },
+                                "maxWidth": "none",
+                                "overflow": "hidden",
+                                "background": []
+                            }
+                        }
+                    }
+                }
+            ],
+            "teaser": null,
+            "style": {
+                "css": "/*#region Colors */\n/*#endregion*/\n@import url('https://fonts.googleapis.com/css?family=Lato:400,700,900&display=swap');\n.root {\n  top: auto;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  margin: 0 auto;\n}\n@media (max-width: 959px) {\n  .form {\n    display: flex;\n    flex-flow: column;\n    align-items: normal;\n  }\n}\n@media (max-width: 959px) {\n  .fields {\n    display: flex;\n    flex-flow: column;\n    align-items: normal;\n    margin: 0 0 20px;\n  }\n}\n@media (max-width: 959px) {\n  .field {\n    display: flex;\n    flex-flow: column;\n  }\n}\n@media (max-width: 959px) {\n  .field + .field {\n    margin: 20px 0 0;\n  }\n}\n@media (max-width: 959px) {\n  .buttons {\n    display: flex;\n    flex-flow: column;\n  }\n}\n@keyframes fade-in {\n  0% {\n    opacity: 0;\n  }\n  100% {\n    opacity: 1;\n  }\n}\n.tooltip {\n  display: block;\n  position: absolute;\n  width: max-content;\n  max-width: 250px;\n  white-space: normal;\n  pointer-events: none;\n  animation: fade-in 250ms linear both;\n  padding: 4px 8px;\n  line-height: 1.71428571;\n  font-size: 14px;\n  font-weight: normal;\n  background: #000000;\n  color: #ff17e9;\n}\n.tooltip:after {\n  position: absolute;\n  width: 0;\n  height: 0;\n  border: 4px solid transparent;\n  content: '';\n}\n.tooltip-top {\n  bottom: calc(100% + 10px);\n}\n.tooltip-top,\n.tooltip-top:after {\n  left: 50%;\n  transform: translate3d(-50%, 0, 0);\n}\n.tooltip-top:after {\n  top: 100%;\n  border-top-color: #000000;\n}\n.tooltip-bottom {\n  top: calc(100% + 10px);\n}\n.tooltip-bottom,\n.tooltip-bottom:after {\n  left: 50%;\n  transform: translate3d(-50%, 0, 0);\n}\n.tooltip-bottom:after {\n  bottom: 100%;\n  border-bottom-color: #000000;\n}\n.tooltip-left {\n  right: calc(100% + 10px);\n}\n.tooltip-left,\n.tooltip-left:after {\n  top: 50%;\n  transform: translate3d(0, -50%, 0);\n}\n.tooltip-left:after {\n  left: 100%;\n  border-left-color: #000000;\n}\n.tooltip-right {\n  left: calc(100% + 10px);\n}\n.tooltip-right,\n.tooltip-right:after {\n  top: 50%;\n  transform: translate3d(0, -50%, 0);\n}\n.tooltip-right:after {\n  right: 100%;\n  border-right-color: #000000;\n}\n.notification {\n  position: absolute;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  z-index: 3;\n  font-size: 18px;\n  background-color: rgba(255, 23, 233, 0.7);\n  color: #000000;\n  animation: fade-in 250ms linear both;\n}\n.container {\n  font-family: Lato, \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n  box-shadow: 0 10px 24px 0 rgba(54, 61, 77, 0.15);\n}\n.title {\n  font-weight: 900;\n  margin: 0 0 20px;\n}\n@media (min-width: 960px) {\n  .title {\n    margin: 0 20px 0 0;\n  }\n}\n.description {\n  margin: 0 0 20px;\n}\n@media (min-width: 960px) {\n  .description {\n    margin: 0 20px 0 0;\n  }\n}\n.field {\n  align-items: flex-start;\n}\n.field + .field {\n  margin: 16px 0 0;\n}\n@media (min-width: 960px) {\n  .field + .field {\n    margin: 0 0 0 16px;\n  }\n}\n.field-title {\n  margin: 0 0 4px;\n}\n@media (min-width: 960px) {\n  .field-title {\n    margin: 0 4px 0 0;\n  }\n}\n.buttons {\n  margin: -6px;\n}\n.buttons .button {\n  margin: 6px;\n}\n.button.normal,\n.button.normal.icon {\n  font-weight: normal;\n}\n.button.normal:hover,\n.button.normal.icon:hover,\n.button.normal:focus,\n.button.normal.icon:focus {\n  border-color: #000000;\n}\n.button.secondary,\n.button.secondary.icon {\n  padding-left: 0;\n  padding-right: 0;\n  color: rgba(0, 0, 0, 0.3);\n  background-color: transparent;\n  font-weight: normal;\n}\n.button.secondary:hover,\n.button.secondary.icon:hover,\n.button.secondary:focus,\n.button.secondary.icon:focus {\n  color: rgba(0, 0, 0, 0.7);\n  background-color: transparent;\n}\n.input-text,\n.input-textarea {\n  background-color: rgba(0, 0, 0, 0.15);\n}\n.input-text:hover,\n.input-textarea:hover,\n.input-text:focus,\n.input-textarea:focus {\n  border-color: #000000;\n}\n.input-select select {\n  padding-top: 11px;\n  padding-bottom: 11px;\n  border: solid 1px transparent;\n  border-radius: 4px;\n}\n.input-select select:hover,\n.input-select select:focus {\n  border-color: #000000;\n}\n.input-check label {\n  padding: 11px 16px;\n  background-color: rgba(0, 0, 0, 0.15);\n  border: solid 1px transparent;\n  border-radius: 4px;\n}\n.input-check label input[type='radio'] + span:before,\n.input-check label input[type='checkbox'] + span:before {\n  background-color: rgba(0, 0, 0, 0.2);\n}\n.input-check label:hover,\n.input-check label:focus {\n  border-color: #000000;\n}\n.note {\n  color: rgba(0, 0, 0, 0.3);\n}\n@keyframes slide-in-bottom {\n  0% {\n    transform: translateY(150%);\n  }\n  100% {\n    transform: translateY(0);\n  }\n}\n@keyframes slide-out-bottom {\n  0% {\n    transform: translateY(0);\n  }\n  100% {\n    transform: translateY(150%);\n  }\n}\n.root.enter {\n  animation: slide-in-bottom 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;\n}\n.root.leave {\n  animation: slide-out-bottom 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;\n}\n@keyframes shake {\n  100% {\n    transform: none;\n  }\n  0%,\n  99% {\n    transform: translate(0, 0);\n  }\n  20% {\n    transform: translateX(-10px);\n  }\n  60% {\n    transform: translateX(-5px);\n  }\n  40% {\n    transform: translateX(10px);\n  }\n  80% {\n    transform: translateX(5px);\n  }\n}\n.form.submit .invalid {\n  animation: shake 600ms;\n}\n@keyframes sent-backdrop {\n  0%,\n  100% {\n    opacity: 0;\n    background-color: rgba(255, 23, 233, 0);\n  }\n  50%,\n  75% {\n    opacity: 0.6;\n    background-color: #ff17e9;\n  }\n}\n@keyframes success-icon-scale {\n  0% {\n    opacity: 0;\n    transform: translate(-50%, -50%) scale(0.8);\n  }\n  50% {\n    opacity: 1;\n    transform: translate(-50%, -50%) scale(1);\n  }\n  75% {\n    opacity: 1;\n    transform: translate(-50%, -50%) scale(1);\n  }\n  100% {\n    opacity: 0;\n    transform: translate(-50%, -50%) scale(0.2);\n  }\n}\n@keyframes success-icon-show-path {\n  0% {\n    opacity: 0;\n  }\n  50% {\n    opacity: 0;\n  }\n  100% {\n    opacity: 1;\n  }\n}\n@keyframes success-icon-draw-circle {\n  0% {\n    opacity: 1;\n    stroke-dashoffset: 150.72;\n  }\n  25% {\n    opacity: 1;\n    stroke-dashoffset: 75.36;\n  }\n  50% {\n    opacity: 1;\n    stroke-dashoffset: 0;\n  }\n  100% {\n    opacity: 0;\n    stroke-dashoffset: 0;\n  }\n}\n@keyframes success-icon-draw-check {\n  0% {\n    opacity: 1;\n    stroke-dashoffset: 36;\n  }\n  25% {\n    opacity: 1;\n    stroke-dashoffset: 18;\n  }\n  50% {\n    opacity: 1;\n    stroke-dashoffset: 0;\n  }\n  100% {\n    opacity: 0;\n    stroke-dashoffset: 0;\n  }\n}\n.root.form-sending .content:before {\n  content: '';\n  display: block;\n  position: absolute;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  z-index: 1;\n  animation: sent-backdrop 2s both;\n}\n.root.form-sending .content .success-icon {\n  display: block;\n  width: 100%;\n  height: 100%;\n  animation: success-icon-scale 1.8s linear both;\n}\n.root.form-sending .content .success-icon path {\n  animation: success-icon-show-path 1.2s linear both;\n}\n.root.form-sending .content .success-icon circle {\n  animation: success-icon-draw-circle 1.2s linear both;\n}\n.root.form-sending .content .success-icon polyline {\n  animation: success-icon-draw-check 1.2s linear both;\n}\n\n/*#region Colors */\n/*#endregion*/\n.title {\n  font-size: 18px;\n}\n@media (min-width: 960px) {\n  .title {\n    font-size: 14px;\n  }\n}\n",
+                "media": {},
+                "colors": {
+                    "text": "#000000",
+                    "button": "#000000",
+                    "background": "#ff17e9",
+                    "buttonText": "#ffffff"
+                }
+            },
+            "data": {},
+            "targeting": {
+                "data": {
+                    "timezones": {}
+                },
+                "group": {
+                    "items": [
+                        {
+                            "id": "TargetingGroupLocation",
+                            "items": [
+                                {
+                                    "items": [
+                                        {
+                                            "type": "location",
+                                            "value": "/en-gb/*",
+                                            "operation": "matchUrl"
+                                        },
+                                        {
+                                            "type": "location",
+                                            "value": "/fr/*",
+                                            "operation": "matchUrl"
+                                        }
+                                    ],
+                                    "operation": "or"
+                                }
+                            ],
+                            "operation": "and"
+                        },
+                        {
+                            "id": "TargetingGroupGeneral",
+                            "items": [
+                                {
+                                    "items": [
+                                        {
+                                            "data": {
+                                                "id": "147015:",
+                                                "name": "United States"
+                                            },
+                                            "name": "country",
+                                            "type": "geo",
+                                            "value": "147015:",
+                                            "operation": "^"
+                                        }
+                                    ],
+                                    "operation": "and"
+                                },
+                                {
+                                    "items": [
+                                        {
+                                            "name": "",
+                                            "type": "platform",
+                                            "value": "Desktop",
+                                            "operation": "="
+                                        },
+                                        {
+                                            "name": "",
+                                            "type": "platform",
+                                            "value": "Tablet",
+                                            "operation": "="
+                                        }
+                                    ],
+                                    "operation": "or"
+                                }
+                            ],
+                            "operation": "and"
+                        },
+                        {
+                            "id": "TargetingGroupStart",
+                            "items": [
+                                {
+                                    "type": "atonce",
+                                    "value": true,
+                                    "operation": "="
+                                }
+                            ],
+                            "operation": "or"
+                        },
+                        {
+                            "id": "TargetingGroupStop",
+                            "items": [
+                                {
+                                    "name": "",
+                                    "type": "timeSinceLastClose",
+                                    "value": 86400000,
+                                    "operation": ">|undefined"
+                                }
+                            ],
+                            "operation": "and"
+                        }
+                    ],
+                    "operation": "and"
+                }
+            },
+            "settings": {}
+        },
+        {
+            "id": 264271,
+            "type": "form",
+            "layout": "bar",
+            "sort_order": -2.0,
+            "version": "V1",
+            "name": "en-GB - Bar \u2013 Redirect to en-gb website",
+            "meta_title": "<div class=\"first\"><strong>UK</strong></div>",
+            "meta_description": "<div class=\"first\">Oh, looks like you\u2019re in the UK. Head over to our dedicated site!</div>",
+            "pages": [
+                {
+                    "data": {
+                        "note": "",
+                        "title": "<div class=\"first\"><strong>UK</strong></div>",
+                        "fields": [],
+                        "buttons": [
+                            {
+                                "type": "primary",
+                                "label": "Let's go",
+                                "actions": [
+                                    {
+                                        "type": "close"
+                                    },
+                                    {
+                                        "url": "https://sundayapp.com/en-gb/",
+                                        "type": "url",
+                                        "target": "_self"
+                                    }
+                                ],
+                                "visible": true
+                            }
+                        ],
+                        "description": "<div class=\"first\">Oh, looks like you\u2019re in the UK. Head over to our dedicated site!</div>",
+                        "backgroundActions": []
+                    },
+                    "name": "page-1",
+                    "type": "form",
+                    "style": {
+                        "media": {
+                            "mobile": {
+                                "width": "100%",
+                                "images": [],
+                                "padding": {
+                                    "top": "16px",
+                                    "left": "24px",
+                                    "right": "24px",
+                                    "bottom": "24px"
+                                },
+                                "maxWidth": "none",
+                                "overflow": "hidden",
+                                "background": []
+                            },
+                            "desktop": {
+                                "width": "100%",
+                                "images": [],
+                                "padding": {
+                                    "top": "12px",
+                                    "left": "48px",
+                                    "right": "60px",
+                                    "bottom": "12px"
+                                },
+                                "maxWidth": "none",
+                                "overflow": "hidden",
+                                "background": []
+                            }
+                        }
+                    }
+                }
+            ],
+            "teaser": null,
+            "style": {
+                "css": "/*#region Colors */\n/*#endregion*/\n@import url('https://fonts.googleapis.com/css?family=Lato:400,700,900&display=swap');\n.root {\n  top: auto;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  margin: 0 auto;\n}\n@media (max-width: 959px) {\n  .form {\n    display: flex;\n    flex-flow: column;\n    align-items: normal;\n  }\n}\n@media (max-width: 959px) {\n  .fields {\n    display: flex;\n    flex-flow: column;\n    align-items: normal;\n    margin: 0 0 20px;\n  }\n}\n@media (max-width: 959px) {\n  .field {\n    display: flex;\n    flex-flow: column;\n  }\n}\n@media (max-width: 959px) {\n  .field + .field {\n    margin: 20px 0 0;\n  }\n}\n@media (max-width: 959px) {\n  .buttons {\n    display: flex;\n    flex-flow: column;\n  }\n}\n@keyframes fade-in {\n  0% {\n    opacity: 0;\n  }\n  100% {\n    opacity: 1;\n  }\n}\n.tooltip {\n  display: block;\n  position: absolute;\n  width: max-content;\n  max-width: 250px;\n  white-space: normal;\n  pointer-events: none;\n  animation: fade-in 250ms linear both;\n  padding: 4px 8px;\n  line-height: 1.71428571;\n  font-size: 14px;\n  font-weight: normal;\n  background: #000000;\n  color: #ff17e9;\n}\n.tooltip:after {\n  position: absolute;\n  width: 0;\n  height: 0;\n  border: 4px solid transparent;\n  content: '';\n}\n.tooltip-top {\n  bottom: calc(100% + 10px);\n}\n.tooltip-top,\n.tooltip-top:after {\n  left: 50%;\n  transform: translate3d(-50%, 0, 0);\n}\n.tooltip-top:after {\n  top: 100%;\n  border-top-color: #000000;\n}\n.tooltip-bottom {\n  top: calc(100% + 10px);\n}\n.tooltip-bottom,\n.tooltip-bottom:after {\n  left: 50%;\n  transform: translate3d(-50%, 0, 0);\n}\n.tooltip-bottom:after {\n  bottom: 100%;\n  border-bottom-color: #000000;\n}\n.tooltip-left {\n  right: calc(100% + 10px);\n}\n.tooltip-left,\n.tooltip-left:after {\n  top: 50%;\n  transform: translate3d(0, -50%, 0);\n}\n.tooltip-left:after {\n  left: 100%;\n  border-left-color: #000000;\n}\n.tooltip-right {\n  left: calc(100% + 10px);\n}\n.tooltip-right,\n.tooltip-right:after {\n  top: 50%;\n  transform: translate3d(0, -50%, 0);\n}\n.tooltip-right:after {\n  right: 100%;\n  border-right-color: #000000;\n}\n.notification {\n  position: absolute;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  z-index: 3;\n  font-size: 18px;\n  background-color: rgba(255, 23, 233, 0.7);\n  color: #000000;\n  animation: fade-in 250ms linear both;\n}\n.container {\n  font-family: Lato, \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n  box-shadow: 0 10px 24px 0 rgba(54, 61, 77, 0.15);\n}\n.title {\n  font-weight: 900;\n  margin: 0 0 20px;\n}\n@media (min-width: 960px) {\n  .title {\n    margin: 0 20px 0 0;\n  }\n}\n.description {\n  margin: 0 0 20px;\n}\n@media (min-width: 960px) {\n  .description {\n    margin: 0 20px 0 0;\n  }\n}\n.field {\n  align-items: flex-start;\n}\n.field + .field {\n  margin: 16px 0 0;\n}\n@media (min-width: 960px) {\n  .field + .field {\n    margin: 0 0 0 16px;\n  }\n}\n.field-title {\n  margin: 0 0 4px;\n}\n@media (min-width: 960px) {\n  .field-title {\n    margin: 0 4px 0 0;\n  }\n}\n.buttons {\n  margin: -6px;\n}\n.buttons .button {\n  margin: 6px;\n}\n.button.normal,\n.button.normal.icon {\n  font-weight: normal;\n}\n.button.normal:hover,\n.button.normal.icon:hover,\n.button.normal:focus,\n.button.normal.icon:focus {\n  border-color: #000000;\n}\n.button.secondary,\n.button.secondary.icon {\n  padding-left: 0;\n  padding-right: 0;\n  color: rgba(0, 0, 0, 0.3);\n  background-color: transparent;\n  font-weight: normal;\n}\n.button.secondary:hover,\n.button.secondary.icon:hover,\n.button.secondary:focus,\n.button.secondary.icon:focus {\n  color: rgba(0, 0, 0, 0.7);\n  background-color: transparent;\n}\n.input-text,\n.input-textarea {\n  background-color: rgba(0, 0, 0, 0.15);\n}\n.input-text:hover,\n.input-textarea:hover,\n.input-text:focus,\n.input-textarea:focus {\n  border-color: #000000;\n}\n.input-select select {\n  padding-top: 11px;\n  padding-bottom: 11px;\n  border: solid 1px transparent;\n  border-radius: 4px;\n}\n.input-select select:hover,\n.input-select select:focus {\n  border-color: #000000;\n}\n.input-check label {\n  padding: 11px 16px;\n  background-color: rgba(0, 0, 0, 0.15);\n  border: solid 1px transparent;\n  border-radius: 4px;\n}\n.input-check label input[type='radio'] + span:before,\n.input-check label input[type='checkbox'] + span:before {\n  background-color: rgba(0, 0, 0, 0.2);\n}\n.input-check label:hover,\n.input-check label:focus {\n  border-color: #000000;\n}\n.note {\n  color: rgba(0, 0, 0, 0.3);\n}\n@keyframes slide-in-bottom {\n  0% {\n    transform: translateY(150%);\n  }\n  100% {\n    transform: translateY(0);\n  }\n}\n@keyframes slide-out-bottom {\n  0% {\n    transform: translateY(0);\n  }\n  100% {\n    transform: translateY(150%);\n  }\n}\n.root.enter {\n  animation: slide-in-bottom 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;\n}\n.root.leave {\n  animation: slide-out-bottom 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;\n}\n@keyframes shake {\n  100% {\n    transform: none;\n  }\n  0%,\n  99% {\n    transform: translate(0, 0);\n  }\n  20% {\n    transform: translateX(-10px);\n  }\n  60% {\n    transform: translateX(-5px);\n  }\n  40% {\n    transform: translateX(10px);\n  }\n  80% {\n    transform: translateX(5px);\n  }\n}\n.form.submit .invalid {\n  animation: shake 600ms;\n}\n@keyframes sent-backdrop {\n  0%,\n  100% {\n    opacity: 0;\n    background-color: rgba(255, 23, 233, 0);\n  }\n  50%,\n  75% {\n    opacity: 0.6;\n    background-color: #ff17e9;\n  }\n}\n@keyframes success-icon-scale {\n  0% {\n    opacity: 0;\n    transform: translate(-50%, -50%) scale(0.8);\n  }\n  50% {\n    opacity: 1;\n    transform: translate(-50%, -50%) scale(1);\n  }\n  75% {\n    opacity: 1;\n    transform: translate(-50%, -50%) scale(1);\n  }\n  100% {\n    opacity: 0;\n    transform: translate(-50%, -50%) scale(0.2);\n  }\n}\n@keyframes success-icon-show-path {\n  0% {\n    opacity: 0;\n  }\n  50% {\n    opacity: 0;\n  }\n  100% {\n    opacity: 1;\n  }\n}\n@keyframes success-icon-draw-circle {\n  0% {\n    opacity: 1;\n    stroke-dashoffset: 150.72;\n  }\n  25% {\n    opacity: 1;\n    stroke-dashoffset: 75.36;\n  }\n  50% {\n    opacity: 1;\n    stroke-dashoffset: 0;\n  }\n  100% {\n    opacity: 0;\n    stroke-dashoffset: 0;\n  }\n}\n@keyframes success-icon-draw-check {\n  0% {\n    opacity: 1;\n    stroke-dashoffset: 36;\n  }\n  25% {\n    opacity: 1;\n    stroke-dashoffset: 18;\n  }\n  50% {\n    opacity: 1;\n    stroke-dashoffset: 0;\n  }\n  100% {\n    opacity: 0;\n    stroke-dashoffset: 0;\n  }\n}\n.root.form-sending .content:before {\n  content: '';\n  display: block;\n  position: absolute;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  z-index: 1;\n  animation: sent-backdrop 2s both;\n}\n.root.form-sending .content .success-icon {\n  display: block;\n  width: 100%;\n  height: 100%;\n  animation: success-icon-scale 1.8s linear both;\n}\n.root.form-sending .content .success-icon path {\n  animation: success-icon-show-path 1.2s linear both;\n}\n.root.form-sending .content .success-icon circle {\n  animation: success-icon-draw-circle 1.2s linear both;\n}\n.root.form-sending .content .success-icon polyline {\n  animation: success-icon-draw-check 1.2s linear both;\n}\n\n/*#region Colors */\n/*#endregion*/\n.title {\n  font-size: 18px;\n}\n@media (min-width: 960px) {\n  .title {\n    font-size: 14px;\n  }\n}\n",
+                "media": {},
+                "colors": {
+                    "text": "#000000",
+                    "button": "#000000",
+                    "background": "#ff17e9",
+                    "buttonText": "#ffffff"
+                }
+            },
+            "data": {},
+            "targeting": {
+                "data": {
+                    "timezones": {}
+                },
+                "group": {
+                    "items": [
+                        {
+                            "id": "TargetingGroupLocation",
+                            "items": [
+                                {
+                                    "items": [
+                                        {
+                                            "type": "location",
+                                            "value": "/*",
+                                            "operation": "matchUrl"
+                                        }
+                                    ],
+                                    "operation": "or"
+                                },
+                                {
+                                    "items": [
+                                        {
+                                            "type": "location",
+                                            "value": "/en-gb/*",
+                                            "operation": "!matchUrl"
+                                        }
+                                    ],
+                                    "operation": "and"
+                                }
+                            ],
+                            "operation": "and"
+                        },
+                        {
+                            "id": "TargetingGroupGeneral",
+                            "items": [
+                                {
+                                    "items": [
+                                        {
+                                            "data": {
+                                                "id": "146920:",
+                                                "name": "United Kingdom"
+                                            },
+                                            "name": "country",
+                                            "type": "geo",
+                                            "value": "146920:",
+                                            "operation": "^"
+                                        }
+                                    ],
+                                    "operation": "and"
+                                },
+                                {
+                                    "items": [
+                                        {
+                                            "name": "",
+                                            "type": "platform",
+                                            "value": "Desktop",
+                                            "operation": "="
+                                        },
+                                        {
+                                            "name": "",
+                                            "type": "platform",
+                                            "value": "Tablet",
+                                            "operation": "="
+                                        }
+                                    ],
+                                    "operation": "or"
+                                }
+                            ],
+                            "operation": "and"
+                        },
+                        {
+                            "id": "TargetingGroupStart",
+                            "items": [
+                                {
+                                    "type": "atonce",
+                                    "value": true,
+                                    "operation": "="
+                                }
+                            ],
+                            "operation": "or"
+                        },
+                        {
+                            "id": "TargetingGroupStop",
+                            "items": [
+                                {
+                                    "name": "",
+                                    "type": "timeSinceLastClose",
+                                    "value": 86400000,
+                                    "operation": ">|undefined"
+                                }
+                            ],
+                            "operation": "and"
+                        }
+                    ],
+                    "operation": "and"
+                }
+            },
+            "settings": {}
+        }
+    ],
+    "runtime": {
+        "sessionLength": 20,
+        "siteId": "k4yoj0r7",
+        "serverUrl": "https://events.getsitectrl.com/api/v1/events",
+        "events": [
+            "show",
+            "close",
+            "submit",
+            "openUrl",
+            "showWidget",
+            "copyToClipboard",
+            "addToCart",
+            "applyCoupon"
+        ],
+        "recaptcha": {
+            "action": "signup",
+            "siteKey": "6LeDAxArAAAAALCVzaVjmTfz4YxjE8tCa0wdh7vx",
+            "serverKey": "Z0FBQUFBQnA1akF6Mk9RYU5hMEVBMmRCRDJ3bkNZMlJ1YjZmOG44bk5YMWxfOVo5MnpmWnJOclptQWYxTnN6ZFdqb1I2cUlSUWxOYWdQR2tuNnJoaHhHRVFmWU8yNG9Rbi1TWXVWc2NEMnZOR0x1RjBsejlhY2JFOVhwZ2FlelBjM0E3ZnNiYlJMVzdlckk0UEx2b05YY2J4MnZXLVBQVDdZTnhIQUVVcG5rS2tRMHhkcTNpaDRwZldsdUJkaVkwS0xjSWZVamplTTVtUFhiRkpta0lpakZ5ZUd4dlBVdWE4YWJ2Q1FNcHBwV0pSczNISloyeVh2bFZfUnZ4Q01KTnkzb2p0YkpmZjI5WEJaOWFWOGcxcXhjZHVBaF9sSm9KaEE9PQ=="
+        }
+    },
+    "script": {
+        "js": "https://s2.getsitecontrol.com/widgets/es6/runtime.8f6e318.js",
+        "mjs": "https://s2.getsitecontrol.com/widgets/es6/runtime.8f6e318.js"
+    }
+}
