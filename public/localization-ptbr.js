@@ -156,8 +156,8 @@
       if (brandLogo.classList.contains('kardap-brand')) return;
       brandLogo.classList.add('kardap-brand');
       brandLogo.innerHTML = [
-        '<img class="kardap-brand__full" src="/Logo%20KARDAP%20do%20Chef%20Corredor.png" alt="Kardap">',
-        '<img class="kardap-brand__mark" src="/Chef%20Corredor%20em%20Forma%20de%20K.png" alt="Kardap">'
+        '<img class="kardap-brand__full" src="/brand/kardap-logo.png" alt="Kardap">',
+        '<img class="kardap-brand__mark" src="/brand/kardap-icon-192.png" alt="Kardap">'
       ].join('');
     });
     if (!document.getElementById('kardap-brand-styles')) {
@@ -177,7 +177,7 @@
       document.head.appendChild(style);
     }
     document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach(link => {
-      link.href = '/Chef%20Corredor%20em%20Forma%20de%20K.png';
+      link.href = '/brand/kardap-icon-192.png';
     });
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);

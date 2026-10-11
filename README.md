@@ -141,10 +141,16 @@ components/                # Componentes da aplicação
 lib/                       # Firebase, acesso a dados, storage e utilitários
 public/                    # Imagens, ativos e páginas públicas
 docs/                      # Documentação técnica e screenshots
-scripts/                   # Utilitários de manutenção (ex.: liberar administradores)
+scripts/                   # Utilitários de manutenção (liberar administradores, rodapé da landing)
+design/originais/          # Arquivos de arte originais que não vão para o site publicado
 ```
 
 O guia de interface (tokens, hierarquia visual, ações, movimento) está em [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
+
+## Rodapé e imagens do site
+
+- A landing é HTML estático em `public/`. O rodapé dela é gerado por `node scripts/site-footer.mjs`, que troca o bloco `<footer id="footer">` em todas as páginas. O mesmo rodapé, em React, fica em `components/site/site-chrome.tsx` (páginas `/planos` e legais). Os dois usam `public/kardap-footer.css`; ao mudar um, mude o outro e rode o script.
+- As imagens publicadas estão em WebP e no tamanho em que aparecem na tela (o dobro, para telas de alta densidade). Os PNG originais da landing continuam em `LP KARDAP/`; outros originais ficam em `design/originais/`.
 
 ## Administradores do sistema
 

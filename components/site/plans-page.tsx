@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { BillingCycle } from "@/lib/cakto/types";
 import { TRIAL_DAYS } from "@/lib/cakto/access";
+import { PLANS } from "@/lib/cakto/plans";
 import { CycleToggle, PLAN_ORDER, PlanCard, PlanComparison } from "@/components/plans/plan-cards";
 import { SiteFooter, SiteHeader } from "./site-chrome";
 
@@ -70,9 +71,27 @@ export default function PlansPage({ session }: { session: boolean }) {
           </div>
           <div className="kd-plans">
             {PLAN_ORDER.map((id, i) => (
-              <PlanCard key={id} planId={id} cycle={cycle} index={i} />
+              <PlanCard
+                key={id}
+                planId={id}
+                cycle={cycle}
+                index={i}
+                action={
+                  <Link
+                    href={session ? "/dashboard/assinatura" : "/criar-conta"}
+                    className={`kd-btn kd-btn--block ${id === "pro" ? "kd-btn--primary" : "kd-btn--secondary"}`}
+                  >
+                    {session ? `Assinar o ${PLANS[id].name}` : `Começar com ${TRIAL_DAYS} dias grátis`}
+                  </Link>
+                }
+              />
             ))}
           </div>
+          {!session && (
+            <p className="kd-plans-note">
+              O teste libera tudo do Pro por {TRIAL_DAYS} dias. No fim, você escolhe o plano no painel; nada é cobrado antes disso.
+            </p>
+          )}
         </section>
 
         <section className="kd-plans-section" aria-labelledby="planos-comparativo">
@@ -98,14 +117,8 @@ export default function PlansPage({ session }: { session: boolean }) {
           </div>
         </section>
 
-        {!session && (
-          <section className="kd-plans-final" aria-label="Começar">
-            <p className="kd-h2">Monte o cardápio hoje e veja os chamados chegando.</p>
-            {cta}
-          </section>
-        )}
       </main>
-      <SiteFooter />
+      <SiteFooter cta={!session} />
     </div>
   );
 }

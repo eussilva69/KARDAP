@@ -1,0 +1,164 @@
+/* ==========================================================================
+   Rodapé do site Kardap
+   Um só arquivo para os dois lados do site:
+   - landing estática (public/*.html): o HTML é gerado por scripts/site-footer.mjs
+     e esta folha é carregada por <link>;
+   - páginas do app (/planos, termos, privacidade): components/site/site-chrome.tsx,
+     com esta folha importada em app/layout.tsx.
+   Ao mudar a estrutura, atualize os dois e rode o script.
+   ========================================================================== */
+
+.kf,
+#footer.kf {
+  --kf-ink: #14201a;
+  --kf-text-2: #3f4a42;
+  --kf-muted: #5e665b;
+  --kf-line: rgb(20 32 26 / 0.12);
+  --kf-lousa: #0e1912;
+  --kf-giz: #fcf5e4;
+  --kf-giz-muted: #c9cfc5;
+  --kf-cloche: #fdd737;
+  margin-top: auto;
+  padding: 0;
+  color: var(--kf-ink);
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.kf *,
+.kf *::before,
+.kf *::after { box-sizing: border-box; }
+.kf a { color: inherit; }
+.kf a:focus-visible { outline: 2px solid var(--kf-ink); outline-offset: 3px; border-radius: 6px; }
+
+/* Mesma largura útil do conteúdo da landing (margem de 56 px em telas largas). */
+.kf-wrap { width: 100%; max-width: 1440px; margin: 0 auto; padding: 0 clamp(16px, 3.9vw, 56px); }
+
+/* Chamada final: a única ação forte do rodapé. */
+.kf-cta {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  align-items: center;
+  gap: 32px 48px;
+  margin: 0 0 clamp(48px, 6vw, 72px);
+  padding: clamp(32px, 5vw, 64px);
+  border-radius: 28px;
+  background: var(--kf-lousa);
+  color: var(--kf-giz);
+}
+.kf-cta a:focus-visible { outline-color: var(--kf-giz); }
+.kf-cta-copy { display: grid; justify-items: start; gap: 16px; min-width: 0; }
+.kf-cta-kicker { margin: 0; color: var(--kf-cloche); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.kf-cta-title { max-width: 16ch; margin: 0; color: var(--kf-giz); font-size: clamp(30px, 1.6rem + 1.6vw, 46px); font-weight: 700; line-height: 1.06; letter-spacing: -0.02em; }
+.kf-cta-text { max-width: 46ch; margin: 0; color: var(--kf-giz-muted); font-size: 17px; line-height: 1.55; }
+.kf-cta-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.kf-cta-note { margin: 0; color: var(--kf-giz-muted); font-size: 13px; }
+.kf-cta-media { display: block; justify-self: center; width: 100%; max-width: 380px; height: auto; }
+
+.kf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 24px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.kf .kf-btn--primary { background: var(--kf-giz); color: var(--kf-lousa); }
+.kf .kf-btn--primary:hover { background: #fff; }
+.kf .kf-btn--ghost { border-color: rgb(252 245 228 / 0.38); color: var(--kf-giz); }
+.kf .kf-btn--ghost:hover { border-color: var(--kf-giz); background: rgb(252 245 228 / 0.08); }
+
+/* Mapa do site: marca à esquerda, quatro colunas curtas, sem links repetidos. */
+.kf-main { display: grid; grid-template-columns: minmax(220px, 1.3fr) repeat(4, minmax(0, 1fr)); gap: 40px 32px; padding-bottom: 48px; }
+.kf-brand { display: grid; justify-items: start; align-content: start; gap: 16px; }
+.kf-logo { display: inline-block; border-radius: 6px; }
+.kf-logo img { display: block; width: 140px; height: auto; }
+.kf-brand p { max-width: 30ch; margin: 0; color: var(--kf-muted); font-size: 14px; }
+.kf-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--kf-line);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.kf-contact:hover { border-color: var(--kf-ink); }
+.kf-contact svg { flex: none; }
+
+.kf-col-title { margin: 0 0 8px; color: var(--kf-muted); font-size: 12px; font-weight: 700; line-height: 1.4; letter-spacing: 0.08em; text-transform: uppercase; }
+.kf-col ul,
+.kf-legal { margin: 0; padding: 0; list-style: none; }
+.kf-col li { margin: 0; }
+.kf-col a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  color: var(--kf-text-2);
+  font-size: 15px;
+  text-decoration: none;
+}
+.kf-col a:hover,
+.kf-legal a:hover { color: var(--kf-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.kf-col a[href^="tel:"] { white-space: nowrap; }
+.kf-col a[aria-current="page"] { color: var(--kf-ink); font-weight: 600; }
+
+.kf-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 24px 0 calc(24px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--kf-line);
+  color: var(--kf-muted);
+  font-size: 14px;
+}
+.kf-bottom p { margin: 0; }
+.kf-legal { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+.kf-legal a { display: inline-flex; align-items: center; min-height: 32px; text-decoration: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .kf-btn,
+  .kf-contact,
+  .kf-col a,
+  .kf-legal a { transition: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out; }
+}
+
+@media (max-width: 1023px) {
+  .kf-main { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .kf-brand { grid-column: 1 / -1; }
+}
+
+@media (max-width: 860px) {
+  .kf-cta { grid-template-columns: 1fr; }
+  .kf-cta-media { max-width: 280px; justify-self: start; }
+}
+
+@media (max-width: 767px) {
+  .kf-main { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; }
+  .kf-col a { min-height: 40px; }
+}
+
+@media (max-width: 479px) {
+  .kf-cta { border-radius: 20px; }
+  .kf-cta-actions { display: grid; width: 100%; }
+  .kf-btn { width: 100%; }
+  .kf-cta-media { max-width: 240px; justify-self: center; }
+  .kf-bottom { flex-direction: column; align-items: flex-start; }
+}
+
+@media print {
+  .kf-cta { display: none; }
+}

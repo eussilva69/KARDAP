@@ -29,6 +29,7 @@ Não use o amarelo como decoração.
 | `app/menu.css` | Cardápio público, folha de chamado, prato em tela cheia, tema escuro |
 | `app/site.css` | Páginas públicas do produto: cabeçalho e rodapé do site, `/planos`, páginas legais, onboarding |
 | `app/admin.css` | Administração do sistema (`/admin`) |
+| `public/kardap-footer.css` | Rodapé do site, compartilhado entre a landing estática e as páginas do app (classes `kf-*`) |
 | `components/ui/` | `Button`, `ButtonLink`, `IconButton`, `Badge`, `Card`, `CardHead`, `PageHeader`, `EmptyState`, `Callout`, `Skeleton`, `SpeedLoader`, `TextField`, `TextArea`, `SelectField`, `Switch`, `Segmented`, `RadioCard`, `Modal`, `ConfirmDialog`, `Toaster` |
 | `lib/hooks.ts` | `useNow`, `useInView`, `usePrefersReducedMotion`, `useSaveData`, `useDialog` (foco, Esc, Tab, trava de scroll) |
 | `lib/format.ts` | `brl`, `productCents`, `elapsed`, `plural`, `greeting`, `stagger` |

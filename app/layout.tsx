@@ -6,6 +6,8 @@ import "./dashboard.css";
 import "./menu.css";
 import "./site.css";
 import "./admin.css";
+// Rodapé compartilhado com a landing estática (public/*.html).
+import "../public/kardap-footer.css";
 
 /* Archivo variável (peso e largura): a largura condensada ecoa o display de mesa do Kardap. */
 const archivo = Archivo({

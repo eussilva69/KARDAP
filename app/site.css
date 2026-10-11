@@ -23,23 +23,14 @@
 .kd-site-nav { display: flex; align-items: center; gap: var(--k-s4); }
 .kd-site-nav > a:not(.kd-btn) { color: var(--k-text-2); font-size: var(--k-fs-md); font-weight: 600; text-decoration: none; }
 .kd-site-nav > a:not(.kd-btn):hover { color: var(--k-ink); text-decoration: underline; text-underline-offset: 4px; }
-
-.kd-site-footer { border-top: 1px solid var(--k-line); background: var(--k-surface); }
-.kd-site-footer-inner {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--k-s5) var(--k-s8);
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: var(--k-s8) clamp(16px, 4vw, 40px);
-  padding-bottom: max(var(--k-s8), calc(env(safe-area-inset-bottom) + var(--k-s5)));
+.kd-site-nav > a[aria-current="page"]:not(.kd-btn) { color: var(--k-ink); }
+@media (max-width: 479px) {
+  .kd-site-nav { gap: var(--k-s2); }
+  .kd-site-nav > a:not(.kd-btn) { display: none; }
 }
-.kd-site-footer-brand { display: grid; gap: var(--k-s2); }
-.kd-site-footer-brand p { margin: 0; max-width: 40ch; font-size: var(--k-fs-sm); color: var(--k-muted); }
-.kd-site-footer ul { display: grid; grid-template-columns: repeat(2, auto); gap: var(--k-s2) var(--k-s7); margin: 0; padding: 0; list-style: none; }
-.kd-site-footer a { color: var(--k-text-2); font-size: var(--k-fs-sm); text-decoration: none; }
-.kd-site-footer a:hover { color: var(--k-ink); text-decoration: underline; text-underline-offset: 3px; }
-.kd-site-footer-copy { grid-column: 1 / -1; margin: 0; padding-top: var(--k-s4); border-top: 1px solid var(--k-line); font-size: var(--k-fs-xs); color: var(--k-muted); }
+
+/* Rodapé: public/kardap-footer.css (o mesmo da landing). Aqui só alinha à largura das páginas do app. */
+.kd-site .kf-wrap { max-width: 1080px; }
 
 /* ─────────────── /planos ─────────────── */
 
@@ -48,6 +39,7 @@
 .kd-plans-hero .kd-lead { font-size: var(--k-fs-lg); }
 .kd-plans-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--k-s3) var(--k-s4); margin-top: var(--k-s3); }
 .kd-plans-hero-actions p { margin: 0; font-size: var(--k-fs-sm); }
+.kd-plans-note { max-width: 70ch; margin: 0; font-size: var(--k-fs-sm); color: var(--k-muted); }
 .kd-plans-section { display: grid; gap: var(--k-s4); margin-top: var(--k-s9); }
 .kd-plans-section:first-of-type { margin-top: 0; }
 
@@ -69,19 +61,6 @@
 .kd-faq details[open] summary::after { content: "–"; }
 .kd-faq details p { margin: 0; padding: 0 var(--k-s5) var(--k-s5); max-width: 68ch; color: var(--k-text-2); line-height: 1.55; }
 
-.kd-plans-final {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--k-s4);
-  margin-top: var(--k-s9);
-  padding: var(--k-s7) var(--k-s7);
-  border: 1px solid var(--k-line);
-  border-radius: var(--k-r-lg);
-  background: var(--k-surface);
-}
-.kd-plans-final .kd-h2 { max-width: 30ch; }
 
 /* ─────────────── Páginas legais ─────────────── */
 
@@ -160,7 +139,7 @@
 
 @media print {
   .kd-site-header,
-  .kd-site-footer,
+  .kf,
   .kd-legal-tabs,
   .kd-no-print,
   .kd-backtop { display: none !important; }
@@ -280,9 +259,6 @@
 .kd-onb-actions-main { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--k-s4); }
 
 @media (max-width: 559px) {
-  .kd-site-footer-inner { grid-template-columns: 1fr; }
-  .kd-plans-final { padding: var(--k-s5); }
-  .kd-plans-final .kd-btn { width: 100%; }
   .kd-plans-hero-actions .kd-btn { width: 100%; }
   .kd-onb-brand { grid-template-columns: 1fr; }
   .kd-onb-upload { min-height: 150px; }
