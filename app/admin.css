@@ -1,0 +1,152 @@
+/* ==========================================================================
+   Kardap · administração do sistema (/admin)
+   Barra superior em lousa (e não a barra lateral do painel do restaurante),
+   para a pessoa sempre saber que está na área administrativa.
+   ========================================================================== */
+
+.kd-admin { min-height: 100vh; min-height: 100dvh; background: var(--k-canvas); }
+
+.kd-admin-bar { --k-focus: var(--k-giz); position: sticky; top: 0; z-index: var(--k-z-nav); background: var(--k-lousa); color: var(--k-giz); }
+.kd-admin-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--k-s6);
+  max-width: 1240px;
+  min-height: 60px;
+  margin: 0 auto;
+  padding: var(--k-s2) clamp(16px, 3.4vw, 40px);
+  padding-top: max(var(--k-s2), env(safe-area-inset-top));
+}
+.kd-admin-brand { display: inline-flex; align-items: center; gap: var(--k-s3); border-radius: var(--k-r-sm); color: inherit; text-decoration: none; }
+.kd-admin-brand img { display: block; }
+.kd-admin-tag {
+  padding: 3px 8px;
+  border: 1px solid var(--k-lousa-3);
+  border-radius: var(--k-r-xs);
+  font-size: 11px;
+  font-weight: 700;
+  font-stretch: var(--k-stretch-condensed);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--k-giz-muted);
+}
+.kd-admin-nav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.kd-admin-nav::-webkit-scrollbar { display: none; }
+.kd-admin-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--k-s3);
+  border-radius: var(--k-r-sm);
+  color: #d6dcd3;
+  font-size: var(--k-fs-md);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.kd-admin-nav a:hover { background: var(--k-lousa-2); color: var(--k-giz); }
+.kd-admin-nav a.is-active { background: var(--k-lousa-3); color: var(--k-giz); }
+.kd-admin-account { display: flex; align-items: center; gap: var(--k-s2); min-width: 0; }
+.kd-admin-email { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--k-fs-sm); color: var(--k-giz-muted); }
+.kd-admin-account .kd-icon-btn { color: var(--k-giz-muted); }
+.kd-admin-account .kd-icon-btn:hover:not(:disabled) { background: var(--k-lousa-3); color: var(--k-giz); }
+
+.kd-admin-main { width: 100%; max-width: 1240px; margin: 0 auto; padding: var(--k-s8) clamp(16px, 3.4vw, 40px) var(--k-s10); }
+.kd-admin-main:focus { outline: none; }
+
+/* Indicadores: o primeiro (receita) é o mais importante e ocupa mais espaço. */
+.kd-kpis { display: grid; grid-template-columns: 1.6fr repeat(3, minmax(0, 1fr)); gap: var(--k-s3); }
+.kd-kpi { display: grid; align-content: start; gap: 6px; padding: var(--k-s5); border: 1px solid var(--k-line); border-radius: var(--k-r-md); background: var(--k-surface); }
+.kd-kpi-label { font-size: var(--k-fs-sm); font-weight: 600; color: var(--k-muted); }
+.kd-kpi-value { font-size: 2rem; font-weight: 750; font-stretch: var(--k-stretch-semi); line-height: 1.05; letter-spacing: -0.02em; }
+.kd-kpi-note { font-size: var(--k-fs-sm); color: var(--k-muted); }
+.kd-kpi.is-lead { background: var(--k-lousa); border-color: var(--k-lousa); color: var(--k-giz); }
+.kd-kpi.is-lead .kd-kpi-label,
+.kd-kpi.is-lead .kd-kpi-note { color: var(--k-giz-muted); }
+.kd-kpi.is-lead .kd-kpi-value { font-size: 2.5rem; }
+
+.kd-admin-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.kd-admin-list li + li { border-top: 1px solid var(--k-line); }
+.kd-admin-list a,
+.kd-admin-list.is-static li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--k-s3);
+  min-height: 56px;
+  padding: var(--k-s2) 0;
+  color: inherit;
+  text-decoration: none;
+}
+.kd-admin-list a { margin: 0 calc(var(--k-s2) * -1); padding: var(--k-s2); border-radius: var(--k-r-sm); }
+.kd-admin-list a:hover { background: var(--k-sunken); }
+.kd-admin-list-main { display: grid; gap: 2px; min-width: 0; }
+.kd-admin-list-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.kd-admin-list-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--k-fs-sm); color: var(--k-muted); }
+.kd-admin-empty-line { margin: 0; font-size: var(--k-fs-md); }
+.kd-admin-meta { font-size: var(--k-fs-sm); }
+
+.kd-admin-log { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.kd-admin-log li { display: grid; gap: 2px; padding: var(--k-s3) 0; border-top: 1px solid var(--k-line); }
+.kd-admin-log li:first-child { border-top: 0; padding-top: 0; }
+.kd-admin-log-what { font-size: var(--k-fs-md); }
+.kd-admin-log-who { font-size: var(--k-fs-xs); color: var(--k-muted); }
+
+.kd-toolbar--admin { grid-template-columns: minmax(0, 1fr) 260px; }
+
+/* O nome do restaurante é a informação principal da linha: tamanho de corpo e cor de texto,
+   não o estilo pequeno e apagado dos cabeçalhos de coluna. As demais colunas ficam um tom abaixo. */
+.kd-admin-table th[scope="row"] { font-size: var(--k-fs-md); font-weight: inherit; color: var(--k-ink); white-space: normal; }
+.kd-admin-table td { color: var(--k-text-2); }
+.kd-admin-table tr:last-child th { border-bottom: 0; }
+.kd-admin-table tbody tr { transition: background-color var(--k-dur-2) var(--k-ease-out); }
+.kd-admin-table tbody tr:hover { background: rgb(234 231 222 / 0.45); }
+.kd-admin-row-link { display: grid; gap: 2px; color: inherit; text-decoration: none; }
+.kd-admin-row-link b { font-weight: 650; }
+.kd-admin-row-link small { font-size: var(--k-fs-xs); color: var(--k-muted); }
+.kd-admin-row-link:hover b { text-decoration: underline; text-underline-offset: 3px; }
+
+.kd-admin-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--k-s2); }
+
+.kd-admin-denied .kd-state-text { max-width: 48ch; }
+.kd-admin-uid { width: min(100%, 460px); }
+
+.kd-plan-admin .kd-plan-head { margin-bottom: var(--k-s4); }
+.kd-plan-admin .kd-plan-head > span { font-size: var(--k-fs-sm); }
+
+@media (max-width: 1023px) {
+  .kd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kd-kpi.is-lead { grid-column: 1 / -1; }
+  .kd-admin-email { display: none; }
+}
+
+@media (max-width: 767px) {
+  .kd-admin-bar-inner { flex-wrap: wrap; gap: var(--k-s2) var(--k-s3); }
+  .kd-admin-nav { order: 3; flex-basis: 100%; }
+  .kd-admin-account { margin-left: auto; }
+  .kd-admin-main { padding-top: var(--k-s6); }
+  .kd-toolbar--admin { grid-template-columns: 1fr; }
+  .kd-admin-action { grid-template-columns: 1fr; }
+
+  /* Lista de restaurantes vira cartões: nome primeiro, situação e dados abaixo. */
+  .kd-admin-table thead { display: none; }
+  .kd-admin-table tr { display: grid; grid-template-columns: 1fr auto; gap: 6px var(--k-s3); padding: var(--k-s3) var(--k-s4); border-bottom: 1px solid var(--k-line); }
+  .kd-admin-table th,
+  .kd-admin-table td { padding: 0; border: 0; white-space: normal; }
+  .kd-admin-table td[data-label="Situação"] { grid-column: 2; grid-row: 1; align-self: start; }
+  .kd-admin-table td[data-label="Plano"],
+  .kd-admin-table td[data-label="Cardápio"],
+  .kd-admin-table td[data-label="Criado em"] { grid-column: 1 / -1; justify-self: start; font-size: var(--k-fs-xs); color: var(--k-muted); }
+  .kd-admin-table td[data-label]::before { content: attr(data-label) ": "; }
+  .kd-admin-table td[data-label="Situação"]::before { content: none; }
+}
+
+@media (max-width: 479px) {
+  .kd-kpis { grid-template-columns: 1fr; gap: var(--k-s2); }
+  .kd-kpi.is-lead .kd-kpi-value { font-size: 2.125rem; }
+  /* Indicadores secundários em linha (rótulo à esquerda, número à direita) para não empurrar as listas para baixo. */
+  .kd-kpi:not(.is-lead) { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--k-s3); row-gap: 2px; padding: var(--k-s3) var(--k-s4); }
+  .kd-kpi:not(.is-lead) .kd-kpi-label { grid-column: 1; grid-row: 1; }
+  .kd-kpi:not(.is-lead) .kd-kpi-note { grid-column: 1; grid-row: 2; font-size: var(--k-fs-xs); }
+  .kd-kpi:not(.is-lead) .kd-kpi-value { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 1.625rem; }
+}

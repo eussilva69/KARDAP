@@ -1,35 +1,52 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import './dashboard.css';
-import { Suspense } from 'react';
+import type { Metadata, Viewport } from "next";
+import { Archivo } from "next/font/google";
+import "./globals.css";
+import "./auth.css";
+import "./dashboard.css";
+import "./menu.css";
+import "./site.css";
+import "./admin.css";
+
+/* Archivo variável (peso e largura): a largura condensada ecoa o display de mesa do Kardap. */
+const archivo = Archivo({
+  subsets: ["latin"],
+  axes: ["wdth"],
+  display: "swap",
+  variable: "--font-archivo",
+});
 
 export const metadata: Metadata = {
-  title: 'Kardap | Cardapios que se movem',
-  description: 'Cardapio digital por QR Code',
-  icons: { icon: '/kardap-k.png', apple: '/kardap-k.png' },
+  title: { default: "Kardap · Cardápio digital por QR Code", template: "%s · Kardap" },
+  description: "Cardápio digital com fotos e vídeos dos pratos, QR Code por mesa e chamados de garçom em tempo real para restaurantes, bares e cafés.",
+  applicationName: "Kardap",
+  icons: {
+    icon: [
+      { url: "/brand/kardap-icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/brand/kardap-icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: { url: "/brand/kardap-icon-180.png", sizes: "180x180" },
+  },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "Kardap",
+    title: "Kardap · Cardápio digital por QR Code",
+    description: "Cardápio com fotos e vídeos, QR Code por mesa e chamados de garçom em tempo real.",
+  },
 };
 
-const FONTS_URL = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono&display=swap';
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0e1912",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        {/* media="print" evita que a fonte externa bloqueie a primeira pintura em rede lenta. */}
-        <link id="kd-fonts" rel="stylesheet" href={FONTS_URL} media="print" suppressHydrationWarning />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: "(function(l){if(!l)return;if(l.sheet){l.media='all'}else{l.addEventListener('load',function(){l.media='all'})}})(document.getElementById('kd-fonts'))",
-          }}
-        />
-        <noscript>
-          <link rel="stylesheet" href={FONTS_URL} />
-        </noscript>
-      </head>
+    <html lang="pt-BR" className={archivo.variable}>
       <body>
-        <Suspense>{children}</Suspense>
+        {children}
       </body>
     </html>
   );

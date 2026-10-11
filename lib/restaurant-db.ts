@@ -102,6 +102,12 @@ export function watchPublicRestaurantProducts(restaurantId: string, onData: (pro
     onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as RestaurantProduct)).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), { fromCache: snapshot.metadata.fromCache }), onError);
 }
 
+/** Categorias do cardápio público: define a ordem das seções e quais ficam ocultas para o cliente. */
+export function watchPublicRestaurantCategories(restaurantId: string, onData: (categories: RestaurantCategory[]) => void, onError: (error: Error) => void) {
+  return onSnapshot(query(collection(getDb(), "restaurantes", restaurantId, "categorias"), orderBy("order", "asc")), (snapshot) =>
+    onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as RestaurantCategory))), onError);
+}
+
 export async function createRestaurantProduct(input: Omit<RestaurantProduct, "id" | "createdAt" | "updatedAt">) {
   const category = await withTimeout(getDoc(doc(restaurantRef(), "categorias", input.categoryId)));
   if (!category.exists() || !category.data().active) throw new Error("Selecione uma categoria ativa deste estabelecimento.");
@@ -191,15 +197,50 @@ export async function deleteRestaurantTable(name: string) {
   await withWriteTimeout(deleteDoc(table.ref));
 }
 
+export async function findRestaurantByOwner(ownerId: string): Promise<{ id: string; slug: string; name: string; onboardingCompleted: boolean } | null> {
+  if (!ownerId) return null;
+  try {
+    const db = getDb();
+    const q = query(collection(db, "restaurantes"), where("ownerId", "==", ownerId), limit(1));
+    const snap = await withTimeout(getDocs(q), 10000);
+    if (!snap.empty) {
+      const d = snap.docs[0];
+      const data = d.data();
+      const id = d.id;
+      const slug = (data.slug as string) || "";
+      const name = (data.name as string) || "";
+      const onboardingCompleted = Boolean((data.onboarding as { completed?: boolean } | undefined)?.completed);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("kardap-restaurant-id", id);
+        localStorage.setItem("kardap-restaurant-owner", ownerId);
+        if (slug) localStorage.setItem("kardap-restaurant-slug", slug);
+      }
+      return { id, slug, name, onboardingCompleted };
+    }
+    return null;
+  } catch (error) {
+    console.error("Erro ao recuperar restaurante do proprietário:", error);
+    return null;
+  }
+}
+
 export async function ensureRestaurant(ownerId: string, ownerName?: string | null) {
   const existingId = typeof window === "undefined" ? null : localStorage.getItem("kardap-restaurant-id");
-  if (existingId) return existingId;
+  if (existingId && existingId !== "unassigned") return existingId;
+
+  // Verifica se o usuário já possui restaurante cadastrado no Firestore antes de criar um novo
+  const found = await findRestaurantByOwner(ownerId);
+  if (found) {
+    return found.id;
+  }
 
   const db = getDb();
   const restaurant = doc(collection(db, "restaurantes"));
   // Gravar o id antes da operação torna uma nova tentativa idempotente no mesmo navegador.
-  localStorage.setItem("kardap-restaurant-id", restaurant.id);
-  localStorage.setItem("kardap-restaurant-owner", ownerId);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("kardap-restaurant-id", restaurant.id);
+    localStorage.setItem("kardap-restaurant-owner", ownerId);
+  }
   const batch = writeBatch(db);
   const now = new Date().toISOString();
   batch.set(restaurant, {
@@ -229,7 +270,9 @@ export async function ensureRestaurant(ownerId: string, ownerName?: string | nul
     await withWriteTimeout(batch.commit(), 20000);
     return restaurant.id;
   } catch (error) {
-    localStorage.removeItem("kardap-restaurant-id");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("kardap-restaurant-id");
+    }
     throw error;
   }
 }

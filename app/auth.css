@@ -1,0 +1,245 @@
+/* ==========================================================================
+   Kardap · entrar e criar conta
+   Telas largas: coluna da marca (lousa + foto de salão) ao lado do formulário.
+   Celular: só o formulário, sem moldura, com a logo no topo.
+   ========================================================================== */
+
+.kd-auth {
+  display: grid;
+  grid-template-columns: minmax(400px, 0.92fr) minmax(0, 1.08fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--k-canvas);
+}
+
+/* ─────────────── Coluna da marca ─────────────── */
+
+.kd-auth-brand {
+  --k-focus: var(--k-giz);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--k-s8);
+  padding: clamp(32px, 4vw, 56px);
+  overflow: hidden;
+  /* A foto fica embaixo; o degradê garante contraste do texto no topo. */
+  background:
+    linear-gradient(180deg, var(--k-lousa) 0%, rgb(14 25 18 / 0.94) 46%, rgb(14 25 18 / 0.5) 100%),
+    url("/brand/salao-noite.jpg") 70% 100% / cover no-repeat,
+    var(--k-lousa);
+  color: var(--k-giz);
+}
+.kd-auth-brand-logo { display: block; width: 168px; height: auto; }
+.kd-auth-brand-copy { display: grid; gap: var(--k-s5); max-width: 30rem; }
+.kd-auth-brand .kd-overline { color: var(--k-giz-muted); }
+.kd-auth-headline {
+  margin: 0;
+  /* Menor que antes: o formulário é a tarefa principal da tela. */
+  font-size: clamp(1.75rem, 1rem + 1.4vw, 2.5rem);
+  font-weight: 800;
+  font-stretch: var(--k-stretch-semi);
+  line-height: 1.04;
+  letter-spacing: -0.008em;
+  word-spacing: 0.04em;
+  text-wrap: balance;
+}
+.kd-auth-headline span { color: var(--k-cloche); }
+.kd-auth-steps { display: grid; gap: var(--k-s4); margin: var(--k-s2) 0 0; padding: 0; list-style: none; counter-reset: step; }
+.kd-auth-steps li {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: var(--k-s3);
+  counter-increment: step;
+}
+.kd-auth-steps li::before {
+  content: counter(step, decimal-leading-zero);
+  grid-row: span 2;
+  font-size: var(--k-fs-xl);
+  font-weight: 800;
+  font-stretch: var(--k-stretch-condensed);
+  line-height: 1.1;
+  color: var(--k-cloche);
+}
+.kd-auth-steps b { font-size: var(--k-fs-base); font-weight: 700; }
+.kd-auth-steps span { font-size: var(--k-fs-md); line-height: 1.45; color: #c9d0c6; }
+.kd-auth-brand-foot { margin: 0; font-size: var(--k-fs-sm); color: var(--k-giz-muted); }
+
+/* ─────────────── Formulário ─────────────── */
+
+.kd-auth-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--k-s5) clamp(16px, 4vw, 56px) var(--k-s6);
+  padding-top: max(var(--k-s5), env(safe-area-inset-top));
+}
+.kd-auth-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: 460px;
+  min-height: 48px;
+}
+.kd-auth-top-logo { display: none; border-radius: var(--k-r-sm); }
+.kd-auth-top-logo img { display: block; }
+.kd-auth-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 var(--k-s3);
+  border-radius: var(--k-r-sm);
+  color: var(--k-text-2);
+  font-size: var(--k-fs-sm);
+  font-weight: 650;
+  text-decoration: none;
+  transition: background-color var(--k-dur-2) var(--k-ease-out), color var(--k-dur-2) var(--k-ease-out);
+}
+.kd-auth-back:hover { background: var(--k-sunken); color: var(--k-ink); }
+
+.kd-auth-card {
+  display: grid;
+  gap: var(--k-s4);
+  width: 100%;
+  max-width: 460px;
+  margin: auto 0;
+  padding: clamp(24px, 3vw, 36px);
+  border: 1px solid var(--k-line);
+  border-radius: var(--k-r-lg);
+  background: var(--k-surface);
+}
+.kd-auth-sub { margin: -6px 0 var(--k-s1); color: var(--k-text-2); font-size: var(--k-fs-base); line-height: 1.5; }
+
+.kd-auth-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin-bottom: var(--k-s2);
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--k-sunken);
+}
+.kd-auth-switch a {
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  border-radius: 8px;
+  color: var(--k-text-2);
+  font-size: var(--k-fs-md);
+  font-weight: 650;
+  text-decoration: none;
+  transition: background-color var(--k-dur-2) var(--k-ease-out), color var(--k-dur-2) var(--k-ease-out), box-shadow var(--k-dur-2) var(--k-ease-out);
+}
+.kd-auth-switch a:hover { color: var(--k-ink); }
+.kd-auth-switch a.is-active { background: var(--k-surface); color: var(--k-ink); box-shadow: 0 1px 2px rgb(20 32 26 / 0.14); }
+
+.kd-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--k-s3);
+  margin: 0;
+  font-size: var(--k-fs-xs);
+  font-weight: 600;
+  color: var(--k-muted);
+}
+.kd-auth-divider::before,
+.kd-auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--k-line); }
+
+.kd-auth-form { display: grid; gap: var(--k-s4); }
+.kd-auth-fieldset { display: contents; margin: 0; padding: 0; border: 0; min-width: 0; }
+.kd-auth-forgot {
+  padding: 2px 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--k-ink);
+  font-size: var(--k-fs-sm);
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-color: var(--k-line-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.kd-auth-forgot:hover { text-decoration-color: currentColor; }
+.kd-auth-check-hint { display: block; font-size: var(--k-fs-xs); color: var(--k-muted); }
+
+.kd-auth-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--k-s3);
+  padding: var(--k-s3) var(--k-s2) var(--k-s3) var(--k-s4);
+  border: 1px solid var(--k-danger-line);
+  border-radius: var(--k-r-md);
+  background: var(--k-danger-soft);
+  color: var(--k-danger-ink);
+  font-size: var(--k-fs-md);
+  line-height: 1.45;
+  animation: k-pop var(--k-dur-3) var(--k-ease-out) both;
+}
+.kd-auth-alert:focus { outline: none; box-shadow: 0 0 0 3px rgb(180 55 42 / 0.25); }
+.kd-auth-alert > svg { flex: none; margin-top: 1px; }
+.kd-auth-alert p { flex: 1; margin: 0; font-weight: 600; }
+.kd-auth-alert button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -6px 0;
+  border: 0;
+  border-radius: var(--k-r-xs);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.kd-auth-alert button:hover { background: rgb(180 55 42 / 0.1); }
+
+.kd-auth-sent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--k-s3);
+  padding: var(--k-s4);
+  border: 1px solid #b9dcc6;
+  border-radius: var(--k-r-md);
+  background: var(--k-success-soft);
+  color: var(--k-success-ink);
+  font-size: var(--k-fs-md);
+  line-height: 1.5;
+}
+.kd-auth-sent svg { flex: none; }
+.kd-auth-sent p { margin: 0; }
+.kd-auth-backlink { justify-self: start; }
+
+.kd-auth-legal {
+  display: flex;
+  gap: var(--k-s2);
+  margin: var(--k-s6) 0 0;
+  font-size: var(--k-fs-xs);
+  color: var(--k-muted);
+}
+.kd-auth-legal a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.kd-auth-legal a:hover { color: var(--k-ink); }
+
+/* ─────────────── Responsivo ─────────────── */
+
+@media (max-width: 1023px) {
+  .kd-auth { grid-template-columns: 1fr; }
+  .kd-auth-brand { display: none; }
+  .kd-auth-top { justify-content: space-between; }
+  .kd-auth-top-logo { display: inline-flex; }
+  .kd-auth-card { margin: var(--k-s7) 0 auto; }
+}
+
+@media (max-width: 559px) {
+  .kd-auth-main { padding-left: var(--k-s4); padding-right: var(--k-s4); }
+  .kd-auth-card {
+    margin-top: var(--k-s5);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .kd-auth-legal { margin-top: var(--k-s8); }
+}

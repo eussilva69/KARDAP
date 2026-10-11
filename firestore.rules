@@ -1,9 +1,139 @@
 rules_version = '2';
 
+// Regras do Kardap.
+// Princípios:
+//  - O cardápio público precisa ler restaurante, configurações, categorias, produtos e mesas sem login.
+//  - Só a equipe do restaurante (documento em membros/{uid}) altera os dados do restaurante.
+//  - Dono, plano, situação e assinatura só mudam pelo servidor (Admin SDK) ou por um administrador do sistema.
+//  - Administradores do sistema são definidos por documentos admins/{uid}, criados pelo console ou por
+//    scripts/grant-admin.mjs. Nenhum cliente consegue se promover a administrador.
+//  - Tudo o que não está listado aqui é negado.
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function restaurantPath(restaurantId) {
+      return /databases/$(database)/documents/restaurantes/$(restaurantId);
+    }
+
+    function isMember(restaurantId) {
+      return signedIn() && exists(/databases/$(database)/documents/restaurantes/$(restaurantId)/membros/$(request.auth.uid));
+    }
+
+    // Dono do restaurante considerando o estado depois da escrita: cobre o lote que cria
+    // restaurante, membro e configurações de uma vez.
+    function ownsAfter(restaurantId) {
+      return signedIn() && getAfter(restaurantPath(restaurantId)).data.ownerId == request.auth.uid;
+    }
+
+    // Campos que o painel do restaurante não pode alterar.
+    function touchesProtectedFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['ownerId', 'subscription', 'status', 'suspendedAt', 'suspendedReason']);
+    }
+
+    // ───── Administração do sistema ─────
+
+    match /admins/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if false;
+    }
+
+    match /adminLog/{entryId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.adminUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Perfil criado pelo servidor no cadastro.
+    match /usuarios/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Reserva de endereço do cardápio (/r/:slug), feita em transação na configuração inicial.
+    match /menuSlugs/{slug} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['restaurantId', 'createdAt'])
+        && get(restaurantPath(request.resource.data.restaurantId)).data.ownerId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ───── Restaurantes ─────
+
+    match /restaurantes/{restaurantId} {
+      // Público: o cardápio encontra o restaurante pelo slug.
+      allow read: if true;
+      // Quem cria é o próprio dono, sem assinatura e com situação ativa.
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && !request.resource.data.keys().hasAny(['subscription', 'suspendedAt', 'suspendedReason'])
+        && request.resource.data.get('status', 'active') == 'active';
+      allow update: if isAdmin()
+        || ((isMember(restaurantId) || resource.data.ownerId == request.auth.uid) && !touchesProtectedFields());
+      allow delete: if isAdmin();
+
+      match /membros/{memberId} {
+        allow read: if isMember(restaurantId) || isAdmin() || (signedIn() && request.auth.uid == memberId);
+        // O dono cria o próprio registro no mesmo lote do restaurante; depois, só o dono gerencia a equipe.
+        allow create: if isAdmin() || ownsAfter(restaurantId);
+        allow update, delete: if isAdmin() || ownsAfter(restaurantId);
+      }
+
+      match /configuracoes/{configId} {
+        allow read: if true;
+        allow write: if isAdmin() || isMember(restaurantId) || ownsAfter(restaurantId);
+      }
+
+      match /produtos/{productId} {
+        allow read: if true;
+        allow write: if isMember(restaurantId) || isAdmin();
+      }
+
+      match /categorias/{categoryId} {
+        allow read: if true;
+        allow write: if isMember(restaurantId) || isAdmin();
+      }
+
+      match /mesas/{tableId} {
+        allow read: if true;
+        allow write: if isMember(restaurantId) || isAdmin();
+      }
+
+      match /chamados/{chamadoId} {
+        // O cliente na mesa cria o chamado sem login, só com os campos esperados.
+        allow create: if request.resource.data.keys().hasOnly(['table', 'type', 'status', 'createdAt'])
+          && request.resource.data.status == 'ativo'
+          && request.resource.data.table is string && request.resource.data.table.size() <= 60
+          && request.resource.data.type is string && request.resource.data.type.size() <= 120
+          && request.resource.data.createdAt is string && request.resource.data.createdAt.size() <= 40;
+        allow read, update, delete: if isMember(restaurantId) || isAdmin();
+      }
+
+      // Histórico de cobranças e dados do cartão: escritos só pelo servidor.
+      match /pagamentos/{paymentId} {
+        allow read: if isMember(restaurantId) || isAdmin();
+        allow write: if false;
+      }
+
+      match /privado/{docId} {
+        allow read: if isMember(restaurantId) || isAdmin();
+        allow write: if false;
+      }
+
+      match /assinaturas/{subId} {
+        allow read: if isMember(restaurantId) || isAdmin();
+        allow write: if false;
+      }
     }
   }
 }

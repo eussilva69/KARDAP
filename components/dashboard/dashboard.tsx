@@ -6,38 +6,44 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { signOut } from "firebase/auth";
 import {
+  AlertTriangle,
   Armchair,
+  ArrowDown,
+  ArrowUp,
   BarChart3,
-  Bell,
-  BellRing,
   BookOpen,
   Check,
   ChevronRight,
-  Copy,
   CloudOff,
-  RotateCw,
+  ConciergeBell,
+  Copy,
+  CreditCard,
   Download,
   ExternalLink,
-  Eye,
-  EyeOff,
+  HandPlatter,
+  ImageOff,
   ImagePlus,
   LayoutDashboard,
   Link2,
+  LoaderCircle,
   LogOut,
   Menu,
-  Package,
   Palette,
   Pencil,
   Plus,
   Printer,
   QrCode,
+  RotateCw,
   Search,
   Settings2,
   Star,
   Tags,
   Trash2,
+  EyeOff,
+  UtensilsCrossed,
   Video,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import {
   createRestaurantCategory,
@@ -54,62 +60,38 @@ import {
 import { uploadProductImage, uploadProductVideo, uploadRestaurantImage } from "@/lib/storage";
 import { getFirebaseAuth } from "@/lib/auth";
 import { friendlyError, isQueued } from "@/lib/async";
+import { brl, elapsed, greeting, initial, plural, productCents, stagger } from "@/lib/format";
+import { useDialog, useNow } from "@/lib/hooks";
+import { accountState, canAccessFeature, effectiveSubscription, planLabel, tableLimit, toDate, trialDaysLeft, type SubscriptionSummary } from "@/lib/cakto/access";
 import {
   Badge,
   Button,
   ButtonLink,
+  Callout,
   Card,
+  CardHead,
   ConfirmDialog,
   EmptyState,
   IconButton,
   Modal,
-  PageIntro,
+  PageHeader,
+  Segmented,
   SelectField,
   Skeleton,
   Switch,
   TextArea,
   TextField,
-} from "./ui";
+  type BadgeTone,
+} from "@/components/ui";
+import { KardapLogo } from "@/components/brand/logo";
+import { MenuHero } from "@/components/menu/menu-hero";
+import { DishRow } from "@/components/menu/dish-row";
+import { SubscriptionPage } from "./subscription-page";
+import type { AccountInfo, Call, CallStatus, DashboardProps, Notify, RestaurantSettings } from "./types";
 
-export type Brand = { logo: string; cover: string };
-export type RestaurantSettings = {
-  waiter: boolean;
-  bill: boolean;
-  google: boolean;
-  sound: boolean;
-  googleReviewUrl?: string;
-};
-export type Call = { _key: string; _source: "sub" | "legacy"; _id: string; table: string; type: string; status: string; time: string; createdAt?: string };
-export type CallStatus = "ativo" | "andamento" | "concluido";
-export type Notify = (message: string, tone?: "success" | "error") => void;
-export type DataLoaded = { products: boolean; categories: boolean; tables: boolean };
-export type LoadErrors = Partial<Record<keyof DataLoaded, string>>;
+export type { Brand, DashboardProps, DataLoaded, LoadErrors, Notify, RestaurantSettings } from "./types";
 
-type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
-
-export type DashboardProps = {
-  path: string;
-  calls: Call[];
-  advanceCall: (key: string, next: CallStatus) => void;
-  chamadosHasMore: boolean;
-  chamadosLoading: boolean;
-  chamadosError: string;
-  loadMoreChamados: () => void;
-  notify: Notify;
-  brand: Brand;
-  setBrand: Setter<Brand>;
-  restaurantName: string;
-  settings: RestaurantSettings;
-  setSettings: Setter<RestaurantSettings>;
-  foods: any[];
-  categories: any[];
-  tables: string[];
-  tableTokens: Record<string, string>;
-  pendingTables: string[];
-  loaded: DataLoaded;
-  loadErrors: LoadErrors;
-  onRetry: () => void;
-};
+/* ───────────────────────── Utilidades ───────────────────────── */
 
 const QUEUED_MESSAGE =
   "Sem resposta do servidor. A alteração ficou guardada neste aparelho (marcada como “Sincronizando”) e será enviada quando a conexão voltar.";
@@ -118,74 +100,10 @@ function reportError(error: unknown, notify: Notify, fallback: string) {
   notify(isQueued(error) ? QUEUED_MESSAGE : friendlyError(error, fallback), "error");
 }
 
-function SyncBadge() {
-  return (
-    <span className="kd-sync" title="Salvo neste aparelho, aguardando confirmação do servidor">
-      <RotateCw size={12} aria-hidden className="kd-sync-icon" /> Sincronizando
-    </span>
-  );
-}
+const menuUrl = () => `${typeof window === "undefined" ? "" : window.location.origin}${publicMenuPath()}`;
 
-function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <EmptyState
-      icon={<CloudOff size={22} />}
-      title="Não foi possível carregar"
-      description={message}
-      action={
-        <Button size="sm" variant="secondary" icon={<RotateCw size={15} />} onClick={onRetry}>
-          Tentar novamente
-        </Button>
-      }
-    />
-  );
-}
-
-type NavItem = { label: string; href: string; icon: typeof LayoutDashboard };
-
-const NAV: { group: string; items: NavItem[] }[] = [
-  {
-    group: "Operação",
-    items: [
-      { label: "Visão geral", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Chamados", href: "/dashboard/chamados", icon: BellRing },
-      { label: "Mesas", href: "/dashboard/mesas", icon: Armchair },
-      { label: "QR Codes", href: "/dashboard/qrcodes", icon: QrCode },
-    ],
-  },
-  {
-    group: "Cardápio",
-    items: [
-      { label: "Cardápio", href: "/dashboard/cardapio", icon: BookOpen },
-      { label: "Categorias", href: "/dashboard/categorias", icon: Tags },
-      { label: "Produtos", href: "/dashboard/produtos", icon: Package },
-    ],
-  },
-  {
-    group: "Estabelecimento",
-    items: [
-      { label: "Avaliações", href: "/dashboard/avaliacoes", icon: Star },
-      { label: "Relatórios", href: "/dashboard/relatorios", icon: BarChart3 },
-      { label: "Personalização", href: "/dashboard/personalizacao", icon: Palette },
-      { label: "Configurações", href: "/dashboard/configuracoes", icon: Settings2 },
-    ],
-  },
-];
-
-const PAGE_TITLES: Record<string, string> = {
-  "/dashboard/assinatura": "Assinatura",
-};
-
-const brl = (cents: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-
-const productCents = (product: any) =>
-  typeof product.priceCents === "number"
-    ? product.priceCents
-    : Math.round(Number(String(product.price || "0").replace(/\./g, "").replace(",", ".")) * 100) || 0;
-
-const menuUrl = () =>
-  `${typeof window === "undefined" ? "" : window.location.origin}${publicMenuPath()}`;
+const tableLink = (table: string, tokens: Record<string, string>) =>
+  `${menuUrl()}?mesa=${encodeURIComponent(tokens[table] || table)}`;
 
 async function copyText(text: string, notify: Notify, success: string) {
   try {
@@ -217,15 +135,13 @@ function downloadQr(svgId: string, fileName: string) {
     link.href = canvas.toDataURL("image/png");
     link.click();
   };
-  img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(data)));
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(data);
   return true;
 }
 
 function playCallTone() {
   try {
-    const Ctx =
-      window.AudioContext ||
-      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     const context = new Ctx();
     [0, 0.18].forEach((delay) => {
       const osc = context.createOscillator();
@@ -242,52 +158,184 @@ function playCallTone() {
   } catch {}
 }
 
-function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 5) return "Boa noite";
-  if (hour < 12) return "Bom dia";
-  if (hour < 18) return "Boa tarde";
-  return "Boa noite";
+function SyncBadge() {
+  return (
+    <span className="kd-sync" title="Salvo neste aparelho, aguardando confirmação do servidor">
+      <RotateCw size={12} aria-hidden className="kd-sync-icon" /> Sincronizando
+    </span>
+  );
 }
 
-function rise(index: number) {
-  return { "--i": Math.min(index, 12) } as React.CSSProperties;
+/* ───────────────────────── Plano ───────────────────────── */
+
+const SUPPORT_EMAIL = "suporte@kardap.com.br";
+
+function usePlan(account: AccountInfo) {
+  return useMemo(() => effectiveSubscription(account.subscription, account.createdAt), [account.subscription, account.createdAt]);
 }
 
-/* ───────────────────────── Shell ───────────────────────── */
+const shortDate = (value: unknown) => toDate(value)?.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) || "";
+
+/** Resumo da situação do plano em linguagem do dono do restaurante. */
+function planStatus(plan: SubscriptionSummary | null) {
+  const state = accountState(plan);
+  const days = trialDaysLeft(plan);
+  switch (state) {
+    case "trial":
+      return { state, title: "Teste grátis do Pro", detail: days === 0 ? "Termina hoje" : `Faltam ${plural(days || 0, "dia", "dias")}`, urgent: (days ?? 99) <= 3 };
+    case "trial_ended":
+      return { state, title: "Teste encerrado", detail: "Escolha um plano para continuar com o Pro", urgent: true };
+    case "active":
+      return { state, title: `Plano ${planLabel(plan?.planId)}`, detail: "Assinatura ativa", urgent: false };
+    case "late":
+      return { state, title: "Pagamento pendente", detail: "Regularize para não perder recursos", urgent: true };
+    case "canceled":
+      return { state, title: "Assinatura cancelada", detail: plan?.currentPeriodEnd ? `Acesso até ${shortDate(plan.currentPeriodEnd)}` : "Escolha um plano", urgent: true };
+    default:
+      return { state, title: "Sem plano ativo", detail: "Escolha um plano", urgent: true };
+  }
+}
+
+/** Explica por que o recurso está travado de acordo com a situação real da conta. */
+function lockReason(plan: SubscriptionSummary | null) {
+  switch (accountState(plan)) {
+    case "active":
+      return `Seu plano atual é o ${planLabel(plan?.planId)}. Mude para o Pro para liberar.`;
+    case "late":
+      return "O pagamento da assinatura está pendente. Regularize para voltar a usar.";
+    case "canceled":
+    case "expired":
+      return "A assinatura foi encerrada. Assine o Pro para voltar a usar.";
+    default:
+      return "O teste grátis do Pro terminou. Assine o Pro para voltar a usar.";
+  }
+}
+
+function ProLock({ feature, plan }: { feature: string; plan: SubscriptionSummary | null }) {
+  return (
+    <Callout
+      tone="info"
+      icon={<Star size={18} aria-hidden />}
+      title={`${feature} faz parte do plano Pro`}
+      action={
+        <ButtonLink href="/dashboard/assinatura" size="sm" variant="secondary">
+          Ver planos
+        </ButtonLink>
+      }
+    >
+      {lockReason(plan)}
+    </Callout>
+  );
+}
+
+function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <EmptyState
+      icon={<CloudOff size={22} />}
+      title="Não foi possível carregar"
+      description={message}
+      action={
+        <Button size="sm" variant="secondary" icon={<RotateCw size={15} />} onClick={onRetry}>
+          Tentar novamente
+        </Button>
+      }
+    />
+  );
+}
+
+function ProductThumb({ product, size = 48 }: { product: any; size?: number }) {
+  return product.image ? (
+    <img className="kd-thumb" src={product.image} alt="" loading="lazy" decoding="async" width={size} height={size} />
+  ) : (
+    <span className="kd-thumb kd-thumb--empty" aria-hidden>
+      {initial(String(product.name || "?"), "?")}
+    </span>
+  );
+}
+
+/** Nome atual da categoria (o texto salvo no produto pode estar desatualizado após renomear) e se ela está oculta. */
+function useCategoryInfo(categories: any[]) {
+  return useMemo(() => {
+    const byId = new Map(categories.map((c) => [c.id, c]));
+    return (product: any) => {
+      const category = byId.get(product.categoryId);
+      return { name: category?.name || product.category || "Sem categoria", hidden: category ? category.active === false : false };
+    };
+  }, [categories]);
+}
+
+/* ───────────────────────── Navegação ───────────────────────── */
+
+type NavItem = { label: string; href: string; icon: LucideIcon };
+
+const NAV: { group: string; items: NavItem[] }[] = [
+  {
+    group: "Salão",
+    items: [
+      { label: "Visão geral", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Chamados", href: "/dashboard/chamados", icon: ConciergeBell },
+      { label: "Mesas", href: "/dashboard/mesas", icon: Armchair },
+      { label: "QR Codes", href: "/dashboard/qrcodes", icon: QrCode },
+    ],
+  },
+  {
+    group: "Cardápio",
+    items: [
+      { label: "Cardápio", href: "/dashboard/cardapio", icon: BookOpen },
+      { label: "Categorias", href: "/dashboard/categorias", icon: Tags },
+      { label: "Produtos", href: "/dashboard/produtos", icon: UtensilsCrossed },
+    ],
+  },
+  {
+    group: "Estabelecimento",
+    items: [
+      { label: "Avaliações", href: "/dashboard/avaliacoes", icon: Star },
+      { label: "Relatórios", href: "/dashboard/relatorios", icon: BarChart3 },
+      { label: "Personalização", href: "/dashboard/personalizacao", icon: Palette },
+      { label: "Assinatura", href: "/dashboard/assinatura", icon: CreditCard },
+      { label: "Configurações", href: "/dashboard/configuracoes", icon: Settings2 },
+    ],
+  },
+];
+const ALL_ITEMS = NAV.flatMap((group) => group.items);
+
+/** Atalhos da barra inferior no celular: o que se usa durante o serviço. */
+const TABS: NavItem[] = [
+  { label: "Início", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Chamados", href: "/dashboard/chamados", icon: ConciergeBell },
+  { label: "Produtos", href: "/dashboard/produtos", icon: UtensilsCrossed },
+  { label: "Mesas", href: "/dashboard/mesas", icon: Armchair },
+];
+
+/* ───────────────────────── Estrutura ───────────────────────── */
 
 export default function Dashboard(props: DashboardProps) {
-  const { path, brand, restaurantName, notify, calls, settings } = props;
+  const { path, brand, restaurantName, notify, calls, settings, loaded, onRetry, account } = props;
+  const plan = usePlan(account);
+  const status = planStatus(plan);
   const [drawer, setDrawer] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const allItems = NAV.flatMap((g) => g.items);
-  const current = allItems.find((item) => item.href === path);
-  const title = current?.label || PAGE_TITLES[path] || "Painel";
-  const openCalls = calls.filter((c) => c.status !== "concluido").length;
+  const sideRef = useRef<HTMLElement>(null);
+  const title = ALL_ITEMS.find((item) => item.href === path)?.label || "Painel";
+  const waiting = calls.filter((c) => c.status === "ativo").length;
 
   useEffect(() => {
-    document.title = `${title} · Kardap`;
-  }, [title]);
+    document.title = `${waiting ? `(${waiting}) ` : ""}${title} · Kardap`;
+  }, [title, waiting]);
+  useEffect(() => setDrawer(false), [path]);
+  useDialog(sideRef, () => setDrawer(false), drawer);
 
-  useEffect(() => {
-    if (!drawer) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawer(false);
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [drawer]);
-
-  const { loaded } = props;
   const allLoaded = loaded.products && loaded.categories && loaded.tables;
   const [slowData, setSlowData] = useState(false);
   useEffect(() => {
-    if (allLoaded) return setSlowData(false);
+    if (allLoaded) {
+      setSlowData(false);
+      return;
+    }
     const timer = setTimeout(() => setSlowData(true), 9000);
     return () => clearTimeout(timer);
   }, [allLoaded]);
+
   const [offline, setOffline] = useState(false);
   useEffect(() => {
     const update = () => setOffline(!navigator.onLine);
@@ -300,20 +348,17 @@ export default function Dashboard(props: DashboardProps) {
     };
   }, []);
 
-  const activeCount = calls.filter((c) => c.status === "ativo").length;
-  const previousActive = useRef(activeCount);
+  const previousWaiting = useRef(waiting);
   useEffect(() => {
-    if (settings.sound && activeCount > previousActive.current) playCallTone();
-    previousActive.current = activeCount;
-  }, [activeCount, settings.sound]);
+    if (settings.sound && waiting > previousWaiting.current) playCallTone();
+    previousWaiting.current = waiting;
+  }, [waiting, settings.sound]);
 
   const logout = async () => {
     setSigningOut(true);
     try {
       await signOut(getFirebaseAuth());
-      ["kardap-session", "kardap-restaurant-id", "kardap-restaurant-owner", "kardap-restaurant-slug"].forEach((key) =>
-        localStorage.removeItem(key),
-      );
+      ["kardap-session", "kardap-restaurant-id", "kardap-restaurant-owner", "kardap-restaurant-slug"].forEach((key) => localStorage.removeItem(key));
       window.location.href = "/";
     } catch {
       setSigningOut(false);
@@ -326,90 +371,129 @@ export default function Dashboard(props: DashboardProps) {
       <a href="#kd-main" className="kd-skip">
         Pular para o conteúdo
       </a>
-      <div className={`kd-scrim ${drawer ? "is-open" : ""}`} onClick={() => setDrawer(false)} aria-hidden />
-      <aside className={`kd-side ${drawer ? "is-open" : ""}`} aria-label="Navegação do painel">
+      <aside
+        ref={sideRef}
+        id="kd-side"
+        className={`kd-side ${drawer ? "is-open" : ""}`}
+        aria-label="Navegação do painel"
+        role={drawer ? "dialog" : undefined}
+        aria-modal={drawer || undefined}
+        tabIndex={-1}
+      >
         <div className="kd-side-top">
           <Link href="/dashboard" className="kd-side-logo" aria-label="Kardap, visão geral">
-            <img src="/Logo%20KARDAP%20do%20Chef%20Corredor.png" alt="Kardap" width={124} height={40} />
+            <KardapLogo width={128} alt="" />
           </Link>
-          <IconButton label="Fechar menu" className="kd-only-mobile" onClick={() => setDrawer(false)}>
+          <IconButton label="Fechar menu" className="kd-side-close" onClick={() => setDrawer(false)}>
             <X size={18} />
           </IconButton>
         </div>
-        <nav className="kd-nav">
+        <nav className="kd-nav" aria-label="Seções do painel">
           {NAV.map((group) => (
             <div key={group.group} className="kd-nav-group">
               <p className="kd-nav-label">{group.group}</p>
-              {group.items.map(({ label, href, icon: Icon }) => {
-                const active = href === path;
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setDrawer(false)}
-                    className={`kd-nav-link ${active ? "is-active" : ""}`}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    <Icon size={17} strokeWidth={1.8} aria-hidden />
-                    <span>{label}</span>
-                    {href === "/dashboard/chamados" && openCalls > 0 && (
-                      <span className="kd-nav-count" aria-label={`${openCalls} chamados abertos`}>
-                        {openCalls}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+              <ul>
+                {group.items.map(({ label, href, icon: Icon }) => {
+                  const active = href === path;
+                  return (
+                    <li key={href}>
+                      <Link href={href} className={`kd-nav-link ${active ? "is-active" : ""}`} aria-current={active ? "page" : undefined}>
+                        <Icon size={18} strokeWidth={1.9} aria-hidden />
+                        <span>{label}</span>
+                        {href === "/dashboard/chamados" && waiting > 0 && (
+                          <span className="kd-nav-count">
+                            {waiting}
+                            <span className="kd-sr"> {waiting === 1 ? "mesa aguardando" : "mesas aguardando"}</span>
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           ))}
         </nav>
-        <div className="kd-account">
-          <span className="kd-avatar" aria-hidden>
-            {brand.logo ? <img src={brand.logo} alt="" /> : (restaurantName.trim()[0] || "K").toUpperCase()}
-          </span>
-          <span className="kd-account-name">
-            <b>{restaurantName || "Seu estabelecimento"}</b>
-            <small>Conta do proprietário</small>
-          </span>
-          <IconButton label="Sair da conta" onClick={logout} disabled={signingOut}>
-            <LogOut size={17} />
-          </IconButton>
+        <div className="kd-side-foot">
+          <Link href="/dashboard/assinatura" className={`kd-side-plan ${status.urgent ? "is-urgent" : ""}`}>
+            <b>{status.title}</b>
+            <small>{status.detail}</small>
+          </Link>
+          <a className="kd-side-public" href={publicMenuPath()} target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={16} aria-hidden />
+            <span>Abrir cardápio público</span>
+            <span className="kd-sr"> (abre em nova aba)</span>
+          </a>
+          <div className="kd-account">
+            <span className="kd-avatar" aria-hidden>
+              {brand.logo ? <img src={brand.logo} alt="" /> : initial(restaurantName)}
+            </span>
+            <span className="kd-account-name">
+              <b>{restaurantName || "Seu estabelecimento"}</b>
+              <small>Conta do proprietário</small>
+            </span>
+            <IconButton label={signingOut ? "Saindo da conta" : "Sair da conta"} onClick={logout} disabled={signingOut}>
+              {signingOut ? <LoaderCircle size={17} className="k-spin" /> : <LogOut size={17} />}
+            </IconButton>
+          </div>
         </div>
       </aside>
+      <div className={`kd-scrim ${drawer ? "is-open" : ""}`} onClick={() => setDrawer(false)} aria-hidden />
 
       <div className="kd-main-wrap">
         <header className="kd-topbar">
-          <IconButton label="Abrir menu" className="kd-only-mobile" onClick={() => setDrawer(true)}>
-            <Menu size={20} />
-          </IconButton>
-          <div className="kd-topbar-title">
-            <p className="kd-crumb">
-              <Link href="/dashboard">Painel</Link>
-              {path !== "/dashboard" && (
-                <>
-                  <ChevronRight size={12} aria-hidden /> <span>{title}</span>
-                </>
-              )}
-            </p>
-            <h1>{title}</h1>
+          <Link href="/dashboard" className="kd-topbar-logo" aria-label="Kardap, visão geral">
+            <KardapLogo width={104} alt="" />
+          </Link>
+          <div className="kd-topbar-actions">
+            {waiting > 0 && path !== "/dashboard/chamados" && (
+              <Link href="/dashboard/chamados" className="kd-call-pill">
+                <ConciergeBell size={15} aria-hidden />
+                {waiting === 1 ? "1 mesa chamando" : `${waiting} mesas chamando`}
+              </Link>
+            )}
+            <ButtonLink href={publicMenuPath()} external size="sm" icon={<ExternalLink size={15} />}>
+              Cardápio
+            </ButtonLink>
           </div>
-          <ButtonLink href={publicMenuPath()} external variant="secondary" icon={<ExternalLink size={15} />}>
-            <span className="kd-hide-xs">Ver cardápio</span>
-          </ButtonLink>
         </header>
-        <main id="kd-main" className="kd-main">
+        <main id="kd-main" className="kd-main" tabIndex={-1}>
+          {account.suspended && (
+            <div className="kd-banner">
+              <Callout
+                tone="danger"
+                role="alert"
+                icon={<AlertTriangle size={18} aria-hidden />}
+                title="Seu cardápio público está suspenso"
+                action={
+                  <ButtonLink href={`mailto:${SUPPORT_EMAIL}`} size="sm" variant="secondary">
+                    Falar com o suporte
+                  </ButtonLink>
+                }
+              >
+                {account.suspendedReason ? `Motivo informado: ${account.suspendedReason}. ` : ""}Os clientes veem uma mensagem de cardápio indisponível. O painel continua funcionando.
+              </Callout>
+            </div>
+          )}
           {(offline || slowData) && (
-            <div className="kd-callout kd-callout--warn kd-banner" role="status">
-              <span>
+            <div className="kd-banner">
+              <Callout
+                tone="warn"
+                role="status"
+                icon={offline ? <CloudOff size={18} aria-hidden /> : <AlertTriangle size={18} aria-hidden />}
+                title={offline ? "Você está sem internet" : "A conexão está lenta"}
+                action={
+                  !offline && (
+                    <Button size="sm" variant="secondary" icon={<RotateCw size={14} />} onClick={onRetry}>
+                      Tentar novamente
+                    </Button>
+                  )
+                }
+              >
                 {offline
-                  ? "Você está sem internet. O que você alterar fica guardado neste aparelho e é enviado quando a conexão voltar."
-                  : "A conexão está lenta: alguns dados ainda estão carregando."}
-              </span>
-              {!offline && (
-                <Button size="sm" variant="secondary" icon={<RotateCw size={14} />} onClick={props.onRetry}>
-                  Tentar novamente
-                </Button>
-              )}
+                  ? "O que você alterar fica guardado neste aparelho e é enviado quando a conexão voltar."
+                  : "Alguns dados ainda estão carregando."}
+              </Callout>
             </div>
           )}
           <div key={path} className="kd-page">
@@ -417,75 +501,38 @@ export default function Dashboard(props: DashboardProps) {
           </div>
         </main>
       </div>
-    </div>
-  );
-}
 
-export function DashboardSkeleton({ error, slow, onRetry }: { error?: string; slow?: boolean; onRetry?: () => void } = {}) {
-  if (error || slow)
-    return (
-      <div className="kd kd-center">
-        <Card className="kd-load-card">
-          {error ? (
-            <LoadError message={error} onRetry={onRetry || (() => location.reload())} />
-          ) : (
-            <EmptyState
-              icon={<RotateCw size={22} className="kd-spin" />}
-              title="Está demorando mais que o normal"
-              description="Ainda estamos buscando os dados do seu restaurante. Se a internet estiver instável, tente de novo."
-              action={
-                <Button size="sm" variant="secondary" onClick={onRetry || (() => location.reload())}>
-                  Tentar novamente
-                </Button>
-              }
-            />
-          )}
-        </Card>
-      </div>
-    );
-  return (
-    <div className="kd" aria-busy="true" aria-label="Carregando painel">
-      <aside className="kd-side kd-side--ghost" aria-hidden>
-        <div className="kd-side-top">
-          <span className="kd-side-logo">
-            <img src="/Logo%20KARDAP%20do%20Chef%20Corredor.png" alt="" width={124} height={40} />
+      <nav className="kd-tabbar" aria-label="Atalhos do painel">
+        {TABS.map(({ label, href, icon: Icon }) => {
+          const active = href === path;
+          return (
+            <Link key={href} href={href} className={`kd-tab ${active ? "is-active" : ""}`} aria-current={active ? "page" : undefined}>
+              <span className="kd-tab-icon">
+                <Icon size={20} strokeWidth={1.9} aria-hidden />
+                {href === "/dashboard/chamados" && waiting > 0 && (
+                  <span className="kd-tab-count">
+                    {waiting}
+                    <span className="kd-sr"> aguardando</span>
+                  </span>
+                )}
+              </span>
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+        <button type="button" className="kd-tab" onClick={() => setDrawer(true)} aria-expanded={drawer} aria-controls="kd-side">
+          <span className="kd-tab-icon">
+            <Menu size={20} strokeWidth={1.9} aria-hidden />
           </span>
-        </div>
-        <div className="kd-nav">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <span key={i} className="kd-skeleton kd-skeleton--nav" />
-          ))}
-        </div>
-      </aside>
-      <div className="kd-main-wrap">
-        <header className="kd-topbar">
-          <div className="kd-topbar-title">
-            <span className="kd-skeleton" style={{ display: "block", width: 70, height: 12, marginBottom: 8 }} />
-            <span className="kd-skeleton" style={{ display: "block", width: 160, height: 22 }} />
-          </div>
-        </header>
-        <main className="kd-main">
-          <div className="kd-stack">
-            <span className="kd-skeleton" style={{ display: "block", width: "min(360px, 70%)", height: 40 }} />
-            <div className="kd-metrics">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <span key={i} className="kd-skeleton" style={{ height: 116 }} />
-              ))}
-            </div>
-            <div className="kd-split">
-              <span className="kd-skeleton" style={{ height: 260 }} />
-              <span className="kd-skeleton" style={{ height: 260 }} />
-            </div>
-          </div>
-        </main>
-      </div>
+          <span>Mais</span>
+        </button>
+      </nav>
     </div>
   );
 }
 
 function DashboardRoutes(props: DashboardProps) {
-  const { path } = props;
-  switch (path) {
+  switch (props.path) {
     case "/dashboard":
       return <Overview {...props} />;
     case "/dashboard/chamados":
@@ -509,70 +556,172 @@ function DashboardRoutes(props: DashboardProps) {
     case "/dashboard/configuracoes":
       return <SettingsPage {...props} />;
     case "/dashboard/assinatura":
-      return (
-        <EmptyState
-          title="Assinatura"
-          description="Os detalhes de plano e cobrança ainda não estão disponíveis no painel. Fale com o suporte Kardap para alterar seu plano."
-        />
-      );
+      return <SubscriptionPage notify={props.notify} account={props.account} />;
     default:
       return (
         <EmptyState
           title="Página não encontrada"
-          description="Este endereço não existe no painel."
-          action={<ButtonLink href="/dashboard">Voltar para a visão geral</ButtonLink>}
+          description="Este endereço não existe no painel. Use o menu para escolher uma seção."
+          action={<ButtonLink href="/dashboard">Ir para a visão geral</ButtonLink>}
         />
       );
   }
 }
 
+/* ───────────────────────── Chamados (componentes) ───────────────────────── */
+
+const CALL_STATUS: Record<CallStatus, { label: string; tone: BadgeTone; icon: LucideIcon }> = {
+  ativo: { label: "Aguardando", tone: "signal", icon: ConciergeBell },
+  andamento: { label: "Em atendimento", tone: "outline", icon: HandPlatter },
+  concluido: { label: "Concluído", tone: "neutral", icon: Check },
+};
+
+const callTime = (call: Call) => (call.createdAt ? new Date(call.createdAt).getTime() : NaN);
+/** Fila do salão: quem espera há mais tempo aparece primeiro. */
+const oldestFirst = (a: Call, b: Call) => (callTime(a) || Infinity) - (callTime(b) || Infinity);
+const newestFirst = (a: Call, b: Call) => (callTime(b) || -Infinity) - (callTime(a) || -Infinity);
+
+function useAdvanceCall(advanceCall: DashboardProps["advanceCall"], notify: Notify) {
+  return useCallback(
+    (call: Call) => {
+      const previous = call.status as CallStatus;
+      const next: CallStatus = previous === "ativo" ? "andamento" : "concluido";
+      advanceCall(call._key, next);
+      notify(next === "andamento" ? `${call.table}: atendimento iniciado` : `${call.table}: chamado concluído`, "success", {
+        label: "Desfazer",
+        onAction: () => advanceCall(call._key, previous),
+      });
+    },
+    [advanceCall, notify],
+  );
+}
+
+function CallRow({ call, now, index, onAdvance }: { call: Call; now: number; index: number; onAdvance: (call: Call) => void }) {
+  const status = CALL_STATUS[call.status as CallStatus] || CALL_STATUS.ativo;
+  const Icon = status.icon;
+  const since = call.createdAt ? elapsed(call.createdAt, now) : call.time === "agora" ? "agora" : call.time ? `há ${call.time}` : "";
+  return (
+    <li className={`kd-call is-${call.status}`} style={stagger(index)}>
+      <span className="kd-call-icon" aria-hidden>
+        <Icon size={18} strokeWidth={1.9} />
+      </span>
+      <div className="kd-call-main">
+        <p className="kd-call-table">{call.table}</p>
+        <p className="kd-call-reason">{call.type}</p>
+        <p className="kd-call-when">
+          {status.label}
+          {since && (
+            <>
+              {" "}
+              <time dateTime={call.createdAt || undefined}>{since}</time>
+            </>
+          )}
+        </p>
+      </div>
+      {call.status !== "concluido" && (
+        <Button
+          size="sm"
+          className="kd-call-action"
+          variant={call.status === "ativo" ? "primary" : "secondary"}
+          onClick={() => onAdvance(call)}
+          aria-label={`${call.status === "ativo" ? "Atender" : "Concluir"} o chamado da ${call.table}`}
+        >
+          {call.status === "ativo" ? "Atender" : "Concluir"}
+        </Button>
+      )}
+    </li>
+  );
+}
+
+function CallList({ calls, onAdvance, label }: { calls: Call[]; onAdvance: (call: Call) => void; label: string }) {
+  const now = useNow();
+  return (
+    <ul className="kd-call-list" aria-label={label}>
+      {calls.map((call, i) => (
+        <CallRow key={call._key} call={call} now={now} index={i} onAdvance={onAdvance} />
+      ))}
+    </ul>
+  );
+}
+
+const NO_CALLS_HINT = "Quando um cliente tocar em Chamar garçom no cardápio, o chamado aparece aqui na hora, com o nome da mesa.";
+
 /* ───────────────────────── Visão geral ───────────────────────── */
 
-function Overview({ calls, advanceCall, notify, restaurantName, foods, categories, tables, brand, loaded, loadErrors, onRetry }: DashboardProps) {
-  const open = calls.filter((c) => c.status !== "concluido");
-  const steps = [
-    { done: categories.length > 0, label: "Crie a primeira categoria", href: "/dashboard/categorias" },
-    { done: foods.length > 0, label: "Cadastre o primeiro produto", href: "/dashboard/produtos" },
-    { done: tables.length > 0, label: "Cadastre suas mesas", href: "/dashboard/mesas" },
-    { done: Boolean(brand.logo || brand.cover), label: "Adicione logo ou capa", href: "/dashboard/personalizacao" },
-  ];
+function Overview(props: DashboardProps) {
+  const { calls, advanceCall, notify, restaurantName, foods, categories, tables, brand, loaded, loadErrors, onRetry, account } = props;
+  const advance = useAdvanceCall(advanceCall, notify);
+  const status = planStatus(usePlan(account));
   const ready = loaded.products && loaded.categories && loaded.tables;
+  const steps = [
+    { done: categories.length > 0, label: "Crie a primeira categoria", hint: "Entradas, pratos, bebidas…", href: "/dashboard/categorias" },
+    { done: foods.length > 0, label: "Cadastre o primeiro produto", hint: "Com preço, foto e vídeo curto", href: "/dashboard/produtos" },
+    { done: tables.length > 0, label: "Cadastre as mesas", hint: "Cada mesa ganha um QR Code", href: "/dashboard/mesas" },
+    { done: Boolean(brand.logo || brand.cover), label: "Adicione logo ou capa", hint: "Aparecem no topo do cardápio", href: "/dashboard/personalizacao" },
+  ];
   const done = steps.filter((s) => s.done).length;
 
-  const metrics = [
-    { value: open.length, label: "Chamados abertos", href: "/dashboard/chamados", hot: open.length > 0 },
-    { value: foods.length, label: "Produtos no cardápio", href: "/dashboard/produtos" },
-    { value: categories.length, label: "Categorias", href: "/dashboard/categorias" },
-    { value: tables.length, label: "Mesas com QR Code", href: "/dashboard/mesas" },
-  ];
+  const waiting = calls.filter((c) => c.status === "ativo").sort(oldestFirst);
+  const serving = calls.filter((c) => c.status === "andamento").sort(oldestFirst);
+  const queue = [...waiting, ...serving].slice(0, 6);
+  const hidden = foods.filter((f) => f.available === false).length;
+  const noPhoto = foods.filter((f) => !f.image).length;
+  const visibleCategories = categories.filter((c) => c.active).length;
 
   return (
     <div className="kd-stack">
-      <div className="kd-hello kd-rise" style={rise(0)}>
-        <div>
-          <p className="kd-kicker">{greeting()}</p>
-          <h2 className="kd-display">{restaurantName || "Seu estabelecimento"}</h2>
-        </div>
-        <Button
-          variant="secondary"
-          icon={<Copy size={15} />}
-          onClick={() => copyText(menuUrl(), notify, "Link do cardápio copiado")}
+      <PageHeader
+        kicker={greeting()}
+        title={restaurantName || "Seu estabelecimento"}
+        display
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              icon={<Copy size={15} />}
+              aria-label="Copiar link do cardápio"
+              onClick={() => copyText(menuUrl(), notify, "Link do cardápio copiado")}
+            >
+              Copiar link
+            </Button>
+            <ButtonLink href={publicMenuPath()} external variant="secondary" icon={<ExternalLink size={15} />}>
+              Abrir cardápio
+            </ButtonLink>
+          </>
+        }
+      />
+
+      {status.urgent && (
+        <Callout
+          tone={status.state === "late" ? "danger" : "warn"}
+          icon={<CreditCard size={18} aria-hidden />}
+          title={status.title}
+          action={
+            <ButtonLink href="/dashboard/assinatura" size="sm" variant="secondary">
+              {status.state === "late" ? "Ver assinatura" : "Ver planos"}
+            </ButtonLink>
+          }
         >
-          Copiar link do cardápio
-        </Button>
-      </div>
+          {status.detail}.
+        </Callout>
+      )}
 
       {ready && done < steps.length && (
-        <Card className="kd-setup kd-rise" style={rise(1)}>
+        <Card className="kd-setup k-enter" aria-labelledby="kd-setup-title">
           <div className="kd-setup-head">
             <div>
-              <h3>Falta pouco para receber clientes</h3>
-              <p>
-                {done} de {steps.length} etapas concluídas
-              </p>
+              <p className="kd-overline">Primeiros passos</p>
+              <h2 className="kd-h3" id="kd-setup-title">
+                Falta pouco para receber clientes
+              </h2>
             </div>
-            <div className="kd-meter" role="progressbar" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={done}>
-              <i style={{ width: `${(done / steps.length) * 100}%` }} />
+            <div className="kd-setup-progress">
+              <span className="kd-num">
+                {done} de {steps.length}
+              </span>
+              <span className="kd-meter" role="progressbar" aria-label="Etapas concluídas" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={done}>
+                <i style={{ width: `${(done / steps.length) * 100}%` }} />
+              </span>
             </div>
           </div>
           <ol className="kd-setup-list">
@@ -580,10 +729,13 @@ function Overview({ calls, advanceCall, notify, restaurantName, foods, categorie
               <li key={step.href}>
                 <Link href={step.href} className={step.done ? "is-done" : ""}>
                   <span className="kd-step-mark" aria-hidden>
-                    {step.done ? <Check size={13} strokeWidth={3} /> : i + 1}
+                    {step.done ? <Check size={14} strokeWidth={3} /> : i + 1}
                   </span>
-                  <span>{step.label}</span>
-                  {!step.done && <ChevronRight size={15} aria-hidden />}
+                  <span className="kd-step-text">
+                    <b>{step.label}</b>
+                    <small>{step.done ? "Concluído" : step.hint}</small>
+                  </span>
+                  {!step.done && <ChevronRight size={16} aria-hidden />}
                   <span className="kd-sr">{step.done ? "(concluída)" : "(pendente)"}</span>
                 </Link>
               </li>
@@ -592,51 +744,99 @@ function Overview({ calls, advanceCall, notify, restaurantName, foods, categorie
         </Card>
       )}
 
-      <div className="kd-metrics">
-        {metrics.map((m, i) => (
-          <Link key={m.label} href={m.href} className={`kd-metric kd-rise ${m.hot ? "is-hot" : ""}`} style={rise(i + 1)}>
-            <b>{ready || m.label === "Chamados abertos" ? m.value : "–"}</b>
-            <span>{m.label}</span>
-          </Link>
-        ))}
-      </div>
-
-      <div className="kd-split">
-        <CallsList calls={calls} advanceCall={advanceCall} notify={notify} compact />
-        <Card className="kd-rise" style={rise(3)}>
-          <div className="kd-card-head">
-            <div>
-              <p className="kd-kicker">Cardápio</p>
-              <h3>Últimos produtos</h3>
+      <div className="kd-overview">
+        <Card className="kd-service k-enter" style={stagger(1)} aria-labelledby="kd-service-title">
+          <CardHead
+            id="kd-service-title"
+            kicker={
+              <>
+                <span className="kd-live" aria-hidden /> Ao vivo
+              </>
+            }
+            title="Chamados das mesas"
+            action={
+              <ButtonLink href="/dashboard/chamados" variant="link" size="sm">
+                Ver histórico
+              </ButtonLink>
+            }
+          />
+          <dl className="kd-service-stats">
+            <div className={waiting.length ? "is-signal" : ""}>
+              <dt>Aguardando</dt>
+              <dd className="kd-num">{waiting.length}</dd>
             </div>
-            <ButtonLink href="/dashboard/produtos" variant="link" size="sm">
-              Ver todos
-            </ButtonLink>
-          </div>
+            <div>
+              <dt>Em atendimento</dt>
+              <dd className="kd-num">{serving.length}</dd>
+            </div>
+          </dl>
+          {queue.length ? (
+            <CallList calls={queue} onAdvance={advance} label="Chamados abertos" />
+          ) : (
+            <EmptyState compact icon={<ConciergeBell size={22} />} title="Nenhuma mesa chamando agora" description={NO_CALLS_HINT} />
+          )}
+        </Card>
+
+        <Card className="kd-menu-card k-enter" style={stagger(2)} aria-labelledby="kd-menu-card-title">
+          <CardHead
+            id="kd-menu-card-title"
+            kicker="Cardápio"
+            title="O que o cliente vê"
+            action={
+              <ButtonLink href="/dashboard/cardapio" variant="link" size="sm">
+                Detalhes
+              </ButtonLink>
+            }
+          />
           {loadErrors.products ? (
             <LoadError message={loadErrors.products} onRetry={onRetry} />
-          ) : !loaded.products ? (
-            <Skeleton rows={3} height={52} />
-          ) : foods.length ? (
-            <ul className="kd-mini-list">
-              {foods.slice(0, 4).map((f) => (
-                <li key={f.id || f.name}>
-                  <ProductThumb product={f} />
-                  <span>
-                    <b>{f.name}</b>
-                    <small>{f.category || "Sem categoria"}</small>
-                  </span>
-                  <span className="kd-num">{brl(productCents(f))}</span>
-                </li>
-              ))}
-            </ul>
+          ) : !ready ? (
+            <Skeleton rows={4} height={44} label="Carregando o cardápio" />
           ) : (
-            <EmptyState
-              icon={<Package size={22} />}
-              title="Nenhum produto ainda"
-              description="Os produtos cadastrados aparecem aqui e no cardápio público."
-              action={<ButtonLink href="/dashboard/produtos" variant="primary" size="sm" icon={<Plus size={15} />}>Cadastrar produto</ButtonLink>}
-            />
+            <>
+              <ul className="kd-facts">
+                <li>
+                  <Link href="/dashboard/produtos">
+                    <span>Produtos no cardápio</span>
+                    <b className="kd-num">{foods.length - hidden}</b>
+                    <ChevronRight size={16} aria-hidden />
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/dashboard/categorias">
+                    <span>Categorias visíveis</span>
+                    <b className="kd-num">{visibleCategories}</b>
+                    <ChevronRight size={16} aria-hidden />
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/dashboard/mesas">
+                    <span>Mesas com QR Code</span>
+                    <b className="kd-num">{tables.length}</b>
+                    <ChevronRight size={16} aria-hidden />
+                  </Link>
+                </li>
+              </ul>
+              {(hidden > 0 || noPhoto > 0) && (
+                <div className="kd-attention">
+                  <p className="kd-overline">Pede atenção</p>
+                  {noPhoto > 0 && (
+                    <Link href="/dashboard/produtos?media=sem-foto" className="kd-attention-item">
+                      <ImageOff size={16} aria-hidden />
+                      <span>{plural(noPhoto, "produto sem foto", "produtos sem foto")}</span>
+                      <ChevronRight size={16} aria-hidden />
+                    </Link>
+                  )}
+                  {hidden > 0 && (
+                    <Link href="/dashboard/produtos?media=ocultos" className="kd-attention-item">
+                      <EyeOff size={16} aria-hidden />
+                      <span>{plural(hidden, "produto oculto", "produtos ocultos")}</span>
+                      <ChevronRight size={16} aria-hidden />
+                    </Link>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </Card>
       </div>
@@ -644,159 +844,83 @@ function Overview({ calls, advanceCall, notify, restaurantName, foods, categorie
   );
 }
 
-const uploadPercent = (...parts: (number | null)[]) => {
-  const active = parts.filter((p): p is number => p !== null);
-  return active.length ? Math.round(active.reduce((sum, p) => sum + p, 0) / active.length) : 0;
-};
-
-function UploadBar({ value }: { value: number }) {
-  return (
-    <span className="kd-upload-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-label="Progresso do envio">
-      <i style={{ width: `${value}%` }} />
-    </span>
-  );
-}
-
-function ProductThumb({ product }: { product: any }) {
-  return product.image ? (
-    <img className="kd-thumb" src={product.image} alt="" loading="lazy" width={44} height={44} />
-  ) : (
-    <span className="kd-thumb kd-thumb--empty" aria-hidden>
-      {String(product.name || "?").trim()[0]?.toUpperCase()}
-    </span>
-  );
-}
-
 /* ───────────────────────── Chamados ───────────────────────── */
-
-const CALL_STATUS: Record<string, { label: string; tone: "warning" | "accent" | "muted" }> = {
-  ativo: { label: "Aguardando", tone: "warning" },
-  andamento: { label: "Em atendimento", tone: "accent" },
-  concluido: { label: "Concluído", tone: "muted" },
-};
-
-function CallsList({
-  calls,
-  advanceCall,
-  notify,
-  compact = false,
-  filter = "abertos",
-}: {
-  calls: Call[];
-  advanceCall: (key: string, next: CallStatus) => void;
-  notify: Notify;
-  compact?: boolean;
-  filter?: "abertos" | "concluidos" | "todos";
-}) {
-  const visible = calls.filter((call) =>
-    filter === "todos" ? true : filter === "concluidos" ? call.status === "concluido" : call.status !== "concluido",
-  );
-  const advance = (call: Call) => {
-    const next: CallStatus = call.status === "ativo" ? "andamento" : "concluido";
-    advanceCall(call._key, next);
-    notify(next === "andamento" ? `${call.table}: atendimento iniciado` : `${call.table}: chamado concluído`);
-  };
-
-  return (
-    <Card className="kd-calls kd-rise" style={rise(2)}>
-      {compact && (
-        <div className="kd-card-head">
-          <div>
-            <p className="kd-kicker">
-              <span className="kd-live" aria-hidden /> Tempo real
-            </p>
-            <h3>Chamados das mesas</h3>
-          </div>
-          <ButtonLink href="/dashboard/chamados" variant="link" size="sm">
-            Histórico
-          </ButtonLink>
-        </div>
-      )}
-      {visible.length ? (
-        <ul className="kd-call-list" role="list" aria-label="Chamados das mesas">
-          {(compact ? visible.slice(0, 5) : visible).map((call, i) => {
-            const status = CALL_STATUS[call.status] || CALL_STATUS.ativo;
-            return (
-              <li key={call._key} className={`kd-call is-${call.status} kd-rise`} style={rise(i)}>
-                <span className="kd-call-icon" aria-hidden>
-                  <Bell size={16} />
-                </span>
-                <span className="kd-call-body">
-                  <b>{call.table}</b>
-                  <span>{call.type}</span>
-                </span>
-                <span className="kd-call-meta">
-                  <Badge tone={status.tone}>{status.label}</Badge>
-                  <small>{call.time === "agora" ? "Agora" : `Há ${call.time}`}</small>
-                </span>
-                {call.status !== "concluido" && (
-                  <Button
-                    size="sm"
-                    variant={call.status === "ativo" ? "primary" : "secondary"}
-                    onClick={() => advance(call)}
-                    aria-label={`${call.status === "ativo" ? "Atender" : "Concluir"} chamado da ${call.table}`}
-                  >
-                    {call.status === "ativo" ? "Atender" : "Concluir"}
-                  </Button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <EmptyState
-          icon={<BellRing size={22} />}
-          title={filter === "concluidos" ? "Nenhum chamado concluído" : "Nenhuma mesa chamando agora"}
-          description={
-            filter === "concluidos"
-              ? "Chamados finalizados ficam registrados aqui."
-              : "Quando um cliente tocar em “Chamar garçom” no cardápio, o pedido aparece aqui na hora."
-          }
-        />
-      )}
-    </Card>
-  );
-}
 
 function CallsPage({ calls, advanceCall, notify, chamadosHasMore, chamadosLoading, chamadosError, loadMoreChamados }: DashboardProps) {
   const [filter, setFilter] = useState<"abertos" | "concluidos" | "todos">("abertos");
-  const counts = {
-    abertos: calls.filter((c) => c.status !== "concluido").length,
-    concluidos: calls.filter((c) => c.status === "concluido").length,
-    todos: calls.length,
-  };
+  const advance = useAdvanceCall(advanceCall, notify);
+  const waiting = calls.filter((c) => c.status === "ativo").sort(oldestFirst);
+  const serving = calls.filter((c) => c.status === "andamento").sort(oldestFirst);
+  const finished = calls.filter((c) => c.status === "concluido").sort(newestFirst);
+  const all = [...calls].sort(newestFirst);
+
   return (
     <div className="kd-stack">
-      <PageIntro
-        description="Pedidos de atendimento enviados pelas mesas. Toque em Atender para avisar a equipe que alguém está a caminho."
+      <PageHeader
+        title="Chamados"
+        description="Pedidos de atendimento enviados pelas mesas. Toque em Atender quando alguém da equipe estiver indo até a mesa, e em Concluir quando terminar."
       />
-      <div className="kd-tabs" role="tablist" aria-label="Filtrar chamados">
-        {(
-          [
-            ["abertos", "Abertos"],
-            ["concluidos", "Concluídos"],
-            ["todos", "Todos"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={filter === key}
-            className={filter === key ? "is-active" : ""}
-            onClick={() => setFilter(key)}
-          >
-            {label}
-            <span className="kd-num">{counts[key]}</span>
-          </button>
-        ))}
+      <div className="kd-group">
+      <Segmented
+        label="Filtrar chamados"
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { value: "abertos", label: "Abertos", count: waiting.length + serving.length },
+          { value: "concluidos", label: "Concluídos", count: finished.length },
+          { value: "todos", label: "Todos", count: calls.length },
+        ]}
+      />
+
+      {filter === "abertos" ? (
+        waiting.length + serving.length === 0 ? (
+          <Card>
+            <EmptyState icon={<ConciergeBell size={22} />} title="Nenhuma mesa chamando agora" description={NO_CALLS_HINT} />
+          </Card>
+        ) : (
+          <div className="kd-call-groups">
+            {waiting.length > 0 && (
+              <Card className="kd-call-group is-waiting" aria-labelledby="kd-waiting-title">
+                <h2 className="kd-overline kd-call-group-title" id="kd-waiting-title">
+                  Aguardando · <span className="kd-num">{waiting.length}</span>
+                </h2>
+                <CallList calls={waiting} onAdvance={advance} label="Chamados aguardando atendimento" />
+              </Card>
+            )}
+            {serving.length > 0 && (
+              <Card className="kd-call-group" aria-labelledby="kd-serving-title">
+                <h2 className="kd-overline kd-call-group-title" id="kd-serving-title">
+                  Em atendimento · <span className="kd-num">{serving.length}</span>
+                </h2>
+                <CallList calls={serving} onAdvance={advance} label="Chamados em atendimento" />
+              </Card>
+            )}
+          </div>
+        )
+      ) : (
+        <Card>
+          {(filter === "concluidos" ? finished : all).length ? (
+            <CallList calls={filter === "concluidos" ? finished : all} onAdvance={advance} label={filter === "concluidos" ? "Chamados concluídos" : "Todos os chamados"} />
+          ) : (
+            <EmptyState
+              icon={<Check size={22} />}
+              title={filter === "concluidos" ? "Nenhum chamado concluído ainda" : "Nenhum chamado registrado"}
+              description={filter === "concluidos" ? "Chamados finalizados ficam registrados aqui." : NO_CALLS_HINT}
+            />
+          )}
+        </Card>
+      )}
+
       </div>
-      <CallsList calls={calls} advanceCall={advanceCall} notify={notify} filter={filter} />
+
       {chamadosError ? (
-        <LoadError message={chamadosError} onRetry={loadMoreChamados} />
+        <Card>
+          <LoadError message={chamadosError} onRetry={loadMoreChamados} />
+        </Card>
       ) : chamadosHasMore ? (
-        <div className="kd-row" style={{ justifyContent: "center" }}>
-          <Button variant="secondary" onClick={loadMoreChamados} disabled={chamadosLoading} aria-busy={chamadosLoading || undefined}>
-            {chamadosLoading ? "Carregando..." : "Carregar mais chamados"}
+        <div className="kd-center-row">
+          <Button variant="secondary" onClick={loadMoreChamados} loading={chamadosLoading}>
+            {chamadosLoading ? "Carregando chamados…" : "Carregar chamados anteriores"}
           </Button>
         </div>
       ) : null}
@@ -811,31 +935,36 @@ function MenuPage({ notify, categories, foods, loaded, loadErrors, onRetry }: Da
   const countByCategory = useMemo(() => {
     const map: Record<string, number> = {};
     foods.forEach((f) => {
-      if (f.categoryId) map[f.categoryId] = (map[f.categoryId] || 0) + 1;
+      if (f.categoryId && f.available !== false) map[f.categoryId] = (map[f.categoryId] || 0) + 1;
     });
     return map;
   }, [foods]);
 
   return (
     <div className="kd-stack">
-      <Card className="kd-share kd-rise" style={rise(0)}>
+      <PageHeader title="Cardápio" description="O endereço público do seu cardápio e a ordem em que o cliente vê as seções." />
+      <Card className="kd-share k-enter">
         <div className="kd-share-qr" aria-hidden>
-          <QRCodeSVG value={url || "https://kardap.app"} size={112} level="M" bgColor="transparent" fgColor="#000000" />
+          <QRCodeSVG value={url || "https://kardap.app"} size={132} level="M" bgColor="#ffffff" fgColor="#14201a" />
         </div>
         <div className="kd-share-body">
-          <p className="kd-kicker">
+          <p className="kd-overline">
             <span className="kd-live" aria-hidden /> Publicado
           </p>
-          <h3>Seu cardápio está no ar</h3>
-          <p className="kd-share-url">
-            <Link2 size={14} aria-hidden /> <span>{url}</span>
+          <h2 className="kd-h2">Seu cardápio está no ar</h2>
+          <div className="kd-copyfield">
+            <Link2 size={16} aria-hidden />
+            <input readOnly value={url} aria-label="Endereço do cardápio" onFocus={(e) => e.currentTarget.select()} />
+            <Button size="sm" icon={<Copy size={14} />} onClick={() => copyText(url, notify, "Link do cardápio copiado")}>
+              Copiar
+            </Button>
+          </div>
+          <p className="kd-hint">
+            Este link abre o cardápio sem mesa identificada. Para os chamados chegarem com o nome da mesa, use o QR Code de cada mesa.
           </p>
           <div className="kd-row">
-            <Button icon={<Copy size={15} />} onClick={() => copyText(url, notify, "Link do cardápio copiado")}>
-              Copiar link
-            </Button>
             <ButtonLink href={publicMenuPath()} external variant="secondary" icon={<ExternalLink size={15} />}>
-              Abrir
+              Abrir cardápio
             </ButtonLink>
             <ButtonLink href="/dashboard/qrcodes" variant="ghost" icon={<QrCode size={15} />}>
               QR Codes das mesas
@@ -844,16 +973,17 @@ function MenuPage({ notify, categories, foods, loaded, loadErrors, onRetry }: Da
         </div>
       </Card>
 
-      <Card className="kd-rise" style={rise(1)}>
-        <div className="kd-card-head">
-          <div>
-            <p className="kd-kicker">Estrutura</p>
-            <h3>Como o cliente vê seu cardápio</h3>
-          </div>
-          <ButtonLink href="/dashboard/categorias" variant="link" size="sm">
-            Editar categorias
-          </ButtonLink>
-        </div>
+      <Card className="k-enter" style={stagger(1)} aria-labelledby="kd-structure-title">
+        <CardHead
+          id="kd-structure-title"
+          kicker="Ordem das seções"
+          title="Como o cliente navega"
+          action={
+            <ButtonLink href="/dashboard/categorias" variant="link" size="sm">
+              Organizar categorias
+            </ButtonLink>
+          }
+        />
         {loadErrors.categories ? (
           <LoadError message={loadErrors.categories} onRetry={onRetry} />
         ) : !loaded.categories ? (
@@ -861,13 +991,15 @@ function MenuPage({ notify, categories, foods, loaded, loadErrors, onRetry }: Da
         ) : categories.length ? (
           <ol className="kd-outline">
             {categories.map((c, i) => (
-              <li key={c.id} className="kd-rise" style={rise(i)}>
-                <span className="kd-outline-index kd-num">{String(i + 1).padStart(2, "0")}</span>
+              <li key={c.id} className={c.active ? "" : "is-off"}>
+                <span className="kd-outline-index kd-num" aria-hidden>
+                  {String(i + 1).padStart(2, "0")}
+                </span>
                 <b>{c.name}</b>
                 <span className="kd-muted">
-                  {countByCategory[c.id] || 0} {(countByCategory[c.id] || 0) === 1 ? "produto" : "produtos"}
+                  {c.active ? plural(countByCategory[c.id] || 0, "produto visível", "produtos visíveis") : "Não aparece no cardápio"}
                 </span>
-                {!c.active && <Badge tone="muted">Oculta</Badge>}
+                {!c.active && <Badge tone="outline">Oculta</Badge>}
               </li>
             ))}
           </ol>
@@ -876,7 +1008,11 @@ function MenuPage({ notify, categories, foods, loaded, loadErrors, onRetry }: Da
             icon={<Tags size={22} />}
             title="O cardápio ainda está vazio"
             description="Comece criando categorias como Entradas, Pratos e Bebidas. Depois adicione os produtos em cada uma."
-            action={<ButtonLink href="/dashboard/categorias" variant="primary" size="sm" icon={<Plus size={15} />}>Criar categoria</ButtonLink>}
+            action={
+              <ButtonLink href="/dashboard/categorias" variant="primary" size="sm" icon={<Plus size={15} />}>
+                Criar categoria
+              </ButtonLink>
+            }
           />
         )}
       </Card>
@@ -889,19 +1025,53 @@ function MenuPage({ notify, categories, foods, loaded, loadErrors, onRetry }: Da
 function CategoriesPage({ notify, categories, foods, loaded, loadErrors, onRetry }: DashboardProps) {
   const [editing, setEditing] = useState<any | "new" | null>(null);
   const [removing, setRemoving] = useState<any | null>(null);
+  const [moving, setMoving] = useState<string | null>(null);
   const count = (id: string) => foods.filter((f) => f.categoryId === id).length;
+
+  const move = async (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= categories.length || moving) return;
+    const list = [...categories];
+    [list[index], list[target]] = [list[target], list[index]];
+    const changes = list.map((c, order) => ({ c, order })).filter(({ c, order }) => c.order !== order);
+    setMoving(categories[index].id);
+    try {
+      await Promise.all(changes.map(({ c, order }) => updateRestaurantCategory(c.id, { order })));
+    } catch (error) {
+      reportError(error, notify, "Não foi possível mudar a ordem. Tente de novo.");
+    } finally {
+      setMoving(null);
+    }
+  };
+
+  const hide = async (category: any) => {
+    try {
+      await updateRestaurantCategory(category.id, { active: false });
+      notify(`“${category.name}” foi ocultada do cardápio`, "success", {
+        label: "Desfazer",
+        onAction: () => {
+          updateRestaurantCategory(category.id, { active: true }).catch((error) => reportError(error, notify, "Não foi possível desfazer."));
+        },
+      });
+      return true;
+    } catch (error) {
+      reportError(error, notify, "Não foi possível ocultar a categoria. Tente de novo.");
+      return false;
+    }
+  };
 
   return (
     <div className="kd-stack">
-      <PageIntro
-        description="Seções do seu cardápio, na ordem em que o cliente vê. Categorias ocultas não aparecem no link público."
+      <PageHeader
+        title="Categorias"
+        description="As seções do seu cardápio, na ordem em que o cliente vê. Use as setas para reorganizar. Categorias ocultas não aparecem no link público."
         actions={
           <Button icon={<Plus size={16} />} onClick={() => setEditing("new")}>
             Nova categoria
           </Button>
         }
       />
-      <Card className="kd-flush">
+      <Card flush>
         {loadErrors.categories ? (
           <LoadError message={loadErrors.categories} onRetry={onRetry} />
         ) : !loaded.categories ? (
@@ -909,17 +1079,24 @@ function CategoriesPage({ notify, categories, foods, loaded, loadErrors, onRetry
             <Skeleton rows={4} />
           </div>
         ) : categories.length ? (
-          <ul className="kd-rows">
+          <ol className="kd-rows" aria-label="Categorias na ordem do cardápio">
             {categories.map((c, i) => {
               const n = count(c.id);
               return (
-                <li key={c.id} className="kd-row-item kd-rise" style={rise(i)}>
-                  <span className="kd-outline-index kd-num">{String(c.order ?? i).padStart(2, "0")}</span>
+                <li key={c.id} className={`kd-row-item k-enter ${c.active ? "" : "is-off"}`} style={stagger(i)}>
+                  <span className="kd-order">
+                    <IconButton label={`Mover ${c.name} para cima`} disabled={i === 0 || Boolean(moving)} onClick={() => move(i, -1)}>
+                      <ArrowUp size={16} />
+                    </IconButton>
+                    <IconButton label={`Mover ${c.name} para baixo`} disabled={i === categories.length - 1 || Boolean(moving)} onClick={() => move(i, 1)}>
+                      <ArrowDown size={16} />
+                    </IconButton>
+                  </span>
                   <span className="kd-row-main">
                     <b>{c.name}</b>
-                    <small>{c.description || `${n} ${n === 1 ? "produto" : "produtos"}`}</small>
+                    <small>{c.description || plural(n, "produto", "produtos")}</small>
                   </span>
-                  {c.pending ? <SyncBadge /> : <Badge tone={c.active ? "success" : "muted"}>{c.active ? "Visível" : "Oculta"}</Badge>}
+                  {c.pending ? <SyncBadge /> : <Badge tone={c.active ? "success" : "outline"}>{c.active ? "Visível" : "Oculta"}</Badge>}
                   <span className="kd-row-actions">
                     <IconButton label={`Editar ${c.name}`} onClick={() => setEditing(c)}>
                       <Pencil size={16} />
@@ -931,71 +1108,95 @@ function CategoriesPage({ notify, categories, foods, loaded, loadErrors, onRetry
                 </li>
               );
             })}
-          </ul>
+          </ol>
         ) : (
           <EmptyState
             icon={<Tags size={22} />}
             title="Nenhuma categoria criada"
-            description="Categorias organizam o cardápio. Exemplos: Entradas, Pizzas, Bebidas, Sobremesas."
-            action={<Button size="sm" icon={<Plus size={15} />} onClick={() => setEditing("new")}>Criar primeira categoria</Button>}
+            description="Categorias organizam o cardápio em seções. Exemplos: Entradas, Pizzas, Bebidas, Sobremesas."
+            action={
+              <Button size="sm" icon={<Plus size={15} />} onClick={() => setEditing("new")}>
+                Criar primeira categoria
+              </Button>
+            }
           />
         )}
       </Card>
 
       {editing && (
-        <CategoryForm
-          category={editing === "new" ? null : editing}
-          nextOrder={categories.length}
-          notify={notify}
-          onClose={() => setEditing(null)}
-        />
+        <CategoryForm category={editing === "new" ? null : editing} nextOrder={categories.length} notify={notify} onClose={() => setEditing(null)} />
       )}
-      {removing && (
-        <ConfirmDialog
-          title={`Excluir “${removing.name}”?`}
-          description={
-            removing.count > 0
-              ? `Esta categoria tem ${removing.count} ${removing.count === 1 ? "produto vinculado" : "produtos vinculados"}. Mova ou exclua esses produtos antes, ou apenas oculte a categoria.`
-              : "A categoria sai do cardápio público. Essa ação não pode ser desfeita."
-          }
-          confirmLabel="Excluir categoria"
-          onClose={() => setRemoving(null)}
-          onConfirm={async () => {
-            try {
-              await deleteRestaurantCategory(removing.id);
-              notify("Categoria excluída");
-            } catch (error) {
-              reportError(error, notify, "Não foi possível excluir a categoria. Tente de novo.");
-              return isQueued(error) ? undefined : false;
+      {removing &&
+        (removing.count > 0 ? (
+          <Modal
+            title="Esta categoria ainda tem produtos"
+            size="sm"
+            onClose={() => setRemoving(null)}
+            footer={
+              <>
+                <Button variant="ghost" onClick={() => setRemoving(null)}>
+                  Voltar
+                </Button>
+                <ButtonLink href={`/dashboard/produtos?cat=${encodeURIComponent(removing.id)}`} variant="secondary" onClick={() => setRemoving(null)}>
+                  Ver produtos
+                </ButtonLink>
+                {removing.active && (
+                  <Button
+                    onClick={async () => {
+                      if (await hide(removing)) setRemoving(null);
+                    }}
+                  >
+                    Ocultar categoria
+                  </Button>
+                )}
+              </>
             }
-          }}
-        />
-      )}
+          >
+            <p className="kd-confirm-text">
+              “{removing.name}” tem {plural(removing.count, "produto vinculado", "produtos vinculados")}. Para excluir, mova esses produtos para outra
+              categoria ou exclua-os antes. {removing.active ? "Se quiser só tirar a seção do cardápio, oculte a categoria: os produtos continuam salvos." : ""}
+            </p>
+          </Modal>
+        ) : (
+          <ConfirmDialog
+            title={`Excluir “${removing.name}”?`}
+            description="A categoria sai do painel e do cardápio público. Essa ação não pode ser desfeita."
+            confirmLabel="Excluir categoria"
+            onClose={() => setRemoving(null)}
+            onConfirm={async () => {
+              try {
+                await deleteRestaurantCategory(removing.id);
+                notify("Categoria excluída");
+              } catch (error) {
+                reportError(error, notify, "Não foi possível excluir a categoria. Tente de novo.");
+                return isQueued(error) ? undefined : false;
+              }
+            }}
+          />
+        ))}
     </div>
   );
 }
 
-function CategoryForm({
-  category,
-  nextOrder,
-  notify,
-  onClose,
-}: {
-  category: any | null;
-  nextOrder: number;
-  notify: Notify;
-  onClose: () => void;
-}) {
-  const [name, setName] = useState(category?.name || "");
-  const [description, setDescription] = useState(category?.description || "");
-  const [order, setOrder] = useState(String(category?.order ?? nextOrder));
-  const [active, setActive] = useState<boolean>(category?.active ?? true);
+function CategoryForm({ category, nextOrder, notify, onClose }: { category: any | null; nextOrder: number; notify: Notify; onClose: () => void }) {
+  const initialValues = useRef({
+    name: category?.name || "",
+    description: category?.description || "",
+    order: String(category?.order ?? nextOrder),
+    active: category?.active ?? true,
+  });
+  const [name, setName] = useState(initialValues.current.name);
+  const [description, setDescription] = useState(initialValues.current.description);
+  const [order, setOrder] = useState(initialValues.current.order);
+  const [active, setActive] = useState<boolean>(initialValues.current.active);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const start = initialValues.current;
+  const dirty = name !== start.name || description !== start.description || order !== start.order || active !== start.active;
 
   const save = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!name.trim()) return setError("Dê um nome para a categoria.");
+    if (!name.trim()) return setError("Dê um nome para a categoria. Exemplo: Pizzas.");
     setSaving(true);
     try {
       const data = { name, description, order: Number(order) || 0, active };
@@ -1014,52 +1215,54 @@ function CategoryForm({
   return (
     <Modal
       title={category ? "Editar categoria" : "Nova categoria"}
-      onClose={saving ? () => undefined : onClose}
+      onClose={onClose}
+      dirty={dirty}
+      busy={saving}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancelar
           </Button>
           <Button type="submit" form="kd-category-form" loading={saving}>
-            {category ? "Salvar alterações" : "Criar categoria"}
+            {saving ? "Salvando…" : category ? "Salvar alterações" : "Criar categoria"}
           </Button>
         </>
       }
     >
       <form id="kd-category-form" className="kd-form" onSubmit={save} noValidate>
-        <TextField
-          label="Nome"
-          placeholder="Ex.: Pizzas"
-          value={name}
-          maxLength={60}
-          error={error}
-          onChange={(e) => {
-            setName(e.target.value);
-            setError("");
-          }}
-        />
-        <TextField
-          label="Descrição"
-          hint="Opcional. Aparece abaixo do nome da categoria."
-          value={description}
-          maxLength={140}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <TextField
-          label="Posição no cardápio"
-          hint="Números menores aparecem primeiro."
-          type="number"
-          inputMode="numeric"
-          min={0}
-          value={order}
-          onChange={(e) => setOrder(e.target.value)}
-        />
-        <Switch
-          label="Visível no cardápio"
-          description="Desative para esconder a categoria sem excluí-la."
-          checked={active}
-          onChange={setActive}
-        />
+        <fieldset className="kd-fieldset" disabled={saving}>
+          <TextField
+            label="Nome"
+            placeholder="Ex.: Pizzas"
+            value={name}
+            maxLength={60}
+            error={error}
+            autoComplete="off"
+            data-autofocus
+            onChange={(e) => {
+              setName(e.target.value);
+              setError("");
+            }}
+          />
+          <TextField
+            label="Descrição"
+            optional
+            hint="Aparece abaixo do nome da seção no cardápio."
+            value={description}
+            maxLength={140}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <TextField
+            label="Posição no cardápio"
+            hint="Números menores aparecem primeiro. Você também pode usar as setas na lista."
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={order}
+            onChange={(e) => setOrder(e.target.value)}
+          />
+          <Switch label="Visível no cardápio" description="Desative para esconder a seção sem excluí-la." checked={active} onChange={setActive} />
+        </fieldset>
       </form>
     </Modal>
   );
@@ -1067,28 +1270,48 @@ function CategoryForm({
 
 /* ───────────────────────── Produtos ───────────────────────── */
 
+function MiniSwitch({ checked, label, onChange, busy }: { checked: boolean; label: string; onChange: () => void; busy?: boolean }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} className="kd-mini-switch" onClick={onChange} disabled={busy} aria-busy={busy || undefined}>
+      <span className="kd-mini-switch-track" aria-hidden>
+        <span />
+      </span>
+      <span className="kd-mini-switch-text" aria-hidden>
+        {checked ? "No cardápio" : "Oculto"}
+      </span>
+    </button>
+  );
+}
+
 function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }: DashboardProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [toggling, setToggling] = useState<string | null>(null);
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get("cat") ?? "");
   const [mediaFilter, setMediaFilter] = useState(() => searchParams.get("media") ?? "");
-  const pushParams = useCallback((q: string, cat: string, media: string) => {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (cat) params.set("cat", cat);
-    if (media) params.set("media", media);
-    const qs = params.toString();
-    router.replace(qs ? `/dashboard/produtos?${qs}` : "/dashboard/produtos", { scroll: false });
-  }, [router]);
+  const [toggling, setToggling] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | "new" | null>(null);
   const [removing, setRemoving] = useState<any | null>(null);
   const activeCategories = categories.filter((c) => c.active);
+  const categoryInfo = useCategoryInfo(categories);
 
+  // Os filtros ficam na URL (dá para voltar e compartilhar), sem navegar a cada tecla.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (query) params.set("q", query);
+      if (categoryFilter) params.set("cat", categoryFilter);
+      if (mediaFilter) params.set("media", mediaFilter);
+      const base = window.location.pathname;
+      const next = params.toString() ? `${base}?${params}` : base;
+      if (next !== `${base}${window.location.search}`) router.replace(next, { scroll: false });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [query, categoryFilter, mediaFilter, router]);
+
+  const term = query.trim().toLowerCase();
   const filtered = foods.filter((f) => {
-    const q = query.trim().toLowerCase();
-    if (q && !String(f.name).toLowerCase().includes(q) && !String(f.description || "").toLowerCase().includes(q)) return false;
+    if (term && !String(f.name).toLowerCase().includes(term) && !String(f.description || "").toLowerCase().includes(term)) return false;
     if (categoryFilter && f.categoryId !== categoryFilter) return false;
     if (mediaFilter === "video" && !f.videoUrl) return false;
     if (mediaFilter === "sem-foto" && f.image) return false;
@@ -1096,12 +1319,23 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
     return true;
   });
   const hasFilters = Boolean(query || categoryFilter || mediaFilter);
+  const clearFilters = () => {
+    setQuery("");
+    setCategoryFilter("");
+    setMediaFilter("");
+  };
 
   const toggleAvailable = async (f: any) => {
+    const nextAvailable = f.available === false;
     setToggling(f.id);
     try {
-      await updateRestaurantProduct(f.id, { available: f.available === false });
-      notify(f.available === false ? `${f.name} voltou ao cardápio` : `${f.name} foi ocultado do cardápio`);
+      await updateRestaurantProduct(f.id, { available: nextAvailable });
+      notify(nextAvailable ? `${f.name} voltou ao cardápio` : `${f.name} foi ocultado do cardápio`, "success", {
+        label: "Desfazer",
+        onAction: () => {
+          updateRestaurantProduct(f.id, { available: !nextAvailable }).catch((error) => reportError(error, notify, "Não foi possível desfazer."));
+        },
+      });
     } catch (error) {
       reportError(error, notify, "Não foi possível alterar a disponibilidade. Tente de novo.");
     } finally {
@@ -1111,16 +1345,13 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
 
   return (
     <div className="kd-stack">
-      <PageIntro
-        description="Tudo o que aparece no cardápio. Produtos ocultos ficam salvos aqui, mas o cliente não vê."
+      <PageHeader
+        title="Produtos"
+        description="Tudo o que aparece no cardápio. Acabou um prato? Desligue “No cardápio”: ele some para o cliente e continua salvo aqui."
         actions={
           <Button
             icon={<Plus size={16} />}
-            onClick={() =>
-              activeCategories.length
-                ? setEditing("new")
-                : notify("Crie uma categoria visível antes de cadastrar produtos.", "error")
-            }
+            onClick={() => (activeCategories.length ? setEditing("new") : notify("Crie uma categoria visível antes de cadastrar produtos.", "error"))}
           >
             Novo produto
           </Button>
@@ -1128,76 +1359,102 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
       />
 
       {loaded.categories && !activeCategories.length && (
-        <div className="kd-callout">
-          <span>Para cadastrar produtos, primeiro crie uma categoria visível.</span>
-          <ButtonLink href="/dashboard/categorias" size="sm" variant="secondary">
-            Ir para categorias
-          </ButtonLink>
-        </div>
+        <Callout
+          tone="warn"
+          icon={<Tags size={18} aria-hidden />}
+          title="Primeiro, crie uma categoria"
+          action={
+            <ButtonLink href="/dashboard/categorias" size="sm" variant="secondary">
+              Ir para categorias
+            </ButtonLink>
+          }
+        >
+          Todo produto pertence a uma seção visível do cardápio, como Pizzas ou Bebidas.
+        </Callout>
       )}
 
+      <div className="kd-group">
       <div className="kd-toolbar" role="search">
         <label className="kd-search">
-          <Search size={16} aria-hidden />
-          <input
-            type="search"
-            placeholder="Buscar por nome ou descrição"
-            aria-label="Buscar produto"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); pushParams(e.target.value, categoryFilter, mediaFilter); }}
-          />
+          <Search size={17} aria-hidden />
+          <span className="kd-sr">Buscar produto</span>
+          <input type="search" placeholder="Buscar por nome ou descrição" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {query && (
+            <IconButton label="Limpar busca" onClick={() => setQuery("")}>
+              <X size={15} />
+            </IconButton>
+          )}
         </label>
-        <select aria-label="Filtrar por categoria" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); pushParams(query, e.target.value, mediaFilter); }}>
-          <option value="">Todas as categorias</option>
+        <select className="kd-input" aria-label="Filtrar por categoria" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <option value="">Categoria: todas</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
           ))}
         </select>
-        <select aria-label="Filtrar por situação" value={mediaFilter} onChange={(e) => { setMediaFilter(e.target.value); pushParams(query, categoryFilter, e.target.value); }}>
-          <option value="">Todas as situações</option>
+        <select className="kd-input" aria-label="Filtrar por situação" value={mediaFilter} onChange={(e) => setMediaFilter(e.target.value)}>
+          <option value="">Situação: todas</option>
           <option value="video">Com vídeo</option>
           <option value="sem-foto">Sem foto</option>
           <option value="ocultos">Ocultos</option>
         </select>
       </div>
 
-      <Card className="kd-flush">
+      {loaded.products && !loadErrors.products && (
+        <div className="kd-results" aria-live="polite">
+          <span>
+            {hasFilters
+              ? `${filtered.length} de ${plural(foods.length, "produto", "produtos")}`
+              : plural(foods.length, "produto cadastrado", "produtos cadastrados")}
+          </span>
+          {hasFilters && (
+            <Button variant="link" size="sm" onClick={clearFilters}>
+              Limpar filtros
+            </Button>
+          )}
+        </div>
+      )}
+
+      <Card flush>
         {loadErrors.products ? (
           <LoadError message={loadErrors.products} onRetry={onRetry} />
         ) : !loaded.products ? (
           <div className="kd-pad">
-            <Skeleton rows={5} height={60} />
+            <Skeleton rows={5} height={64} label="Carregando produtos" />
           </div>
         ) : filtered.length ? (
-          <ul className="kd-rows" role="list" aria-label={`${filtered.length} produto${filtered.length !== 1 ? "s" : ""}`}>
-            {filtered.map((f, i) => (
-              <li key={f.id || f.name + i} className={`kd-row-item kd-product kd-rise ${f.available === false ? "is-off" : ""}`} style={{ ...rise(i), contentVisibility: "auto", containIntrinsicSize: "0 68px" }}>
+          <ul className="kd-rows" aria-label="Produtos">
+            {filtered.map((f, i) => {
+              const category = categoryInfo(f);
+              return (
+              <li key={f.id || f.name + i} className={`kd-product k-enter ${f.available === false ? "is-off" : ""}`} style={stagger(i)}>
                 <ProductThumb product={f} />
-                <span className="kd-row-main">
+                <span className="kd-product-main">
                   <b>{f.name}</b>
-                  <small>{f.category || "Sem categoria"}</small>
+                  <small>
+                    {category.name}
+                    {category.hidden && (
+                      <span className="kd-product-hidden-cat">
+                        <EyeOff size={12} aria-hidden /> categoria oculta
+                      </span>
+                    )}
+                    {f.videoUrl && (
+                      <span className="kd-product-video">
+                        <Video size={12} aria-hidden /> vídeo
+                      </span>
+                    )}
+                    {f.pending && <SyncBadge />}
+                  </small>
                 </span>
-                <span className="kd-product-tags">
-                  {f.videoUrl && (
-                    <Badge tone="accent">
-                      <Video size={12} aria-hidden /> Vídeo
-                    </Badge>
-                  )}
-                  {f.available === false && <Badge tone="muted">Oculto</Badge>}
-                  {f.pending && <SyncBadge />}
-                </span>
-                <span className="kd-num kd-price">{brl(productCents(f))}</span>
+                <span className="kd-product-price kd-num">{brl(productCents(f))}</span>
+                <MiniSwitch
+                  checked={f.available !== false}
+                  label={`${f.name} no cardápio`}
+                  busy={toggling === f.id}
+                  onChange={() => toggleAvailable(f)}
+                />
                 <span className="kd-row-actions">
-                  <IconButton
-                    label={f.available === false ? `Mostrar ${f.name} no cardápio` : `Ocultar ${f.name} do cardápio`}
-                    onClick={() => toggleAvailable(f)}
-                    disabled={toggling === f.id}
-                    aria-busy={toggling === f.id || undefined}
-                  >
-                    {toggling === f.id ? <RotateCw size={16} className="kd-spin" /> : f.available === false ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </IconButton>
                   <IconButton label={`Editar ${f.name}`} onClick={() => setEditing(f)}>
                     <Pencil size={16} />
                   </IconButton>
@@ -1206,7 +1463,8 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
                   </IconButton>
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : hasFilters ? (
           <EmptyState
@@ -1214,39 +1472,34 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
             title="Nenhum produto encontrado"
             description="Ajuste a busca ou limpe os filtros para ver todos os produtos."
             action={
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setQuery(""); setCategoryFilter(""); setMediaFilter("");
-                  pushParams("", "", "");
-                }}
-              >
+              <Button variant="secondary" size="sm" onClick={clearFilters}>
                 Limpar filtros
               </Button>
             }
           />
         ) : (
           <EmptyState
-            icon={<Package size={22} />}
+            icon={<UtensilsCrossed size={22} />}
             title="Nenhum produto cadastrado"
-            description="Cadastre pratos e bebidas com preço, descrição, foto e vídeo curto."
+            description="Cadastre pratos e bebidas com preço, descrição, foto e um vídeo curto do preparo."
+            action={
+              activeCategories.length > 0 && (
+                <Button size="sm" icon={<Plus size={15} />} onClick={() => setEditing("new")}>
+                  Cadastrar primeiro produto
+                </Button>
+              )
+            }
           />
         )}
       </Card>
 
-      {editing && (
-        <ProductForm
-          product={editing === "new" ? null : editing}
-          categories={categories}
-          notify={notify}
-          onClose={() => setEditing(null)}
-        />
-      )}
+      </div>
+
+      {editing && <ProductForm product={editing === "new" ? null : editing} categories={categories} notify={notify} onClose={() => setEditing(null)} />}
       {removing && (
         <ConfirmDialog
           title={`Excluir “${removing.name}”?`}
-          description="O produto sai do cardápio e do painel. Se quiser apenas tirar de circulação por um tempo, use Ocultar."
+          description="O produto sai do cardápio e do painel, e não dá para desfazer. Se ele só acabou por hoje, desligue “No cardápio” em vez de excluir."
           confirmLabel="Excluir produto"
           onClose={() => setRemoving(null)}
           onConfirm={async () => {
@@ -1264,41 +1517,140 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
   );
 }
 
-function ProductForm({
-  product,
-  categories,
-  notify,
-  onClose,
+const uploadPercent = (...parts: (number | null)[]) => {
+  const active = parts.filter((p): p is number => p !== null);
+  return active.length ? Math.round(active.reduce((sum, p) => sum + p, 0) / active.length) : 0;
+};
+
+function UploadBar({ value }: { value: number }) {
+  return (
+    <span className="kd-upload-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-label="Progresso do envio">
+      <i style={{ width: `${value}%` }} />
+    </span>
+  );
+}
+
+const IMAGE_TYPES = /^image\/(png|jpe?g|webp)$/;
+const VIDEO_TYPES = /^video\/(mp4|webm|quicktime)$/;
+
+/** Área de arquivo que aceita clique ou arrastar e soltar. */
+function DropZone({
+  kind,
+  accept,
+  file,
+  existing,
+  removed,
+  error,
+  progress,
+  preview,
+  onFile,
+  onRemove,
+  onUndoRemove,
 }: {
-  product: any | null;
-  categories: any[];
-  notify: Notify;
-  onClose: () => void;
+  kind: "image" | "video";
+  accept: string;
+  file: File | null;
+  existing?: string;
+  removed: boolean;
+  error?: string;
+  progress?: number;
+  preview?: string;
+  onFile: (file: File | null) => void;
+  onRemove: () => void;
+  onUndoRemove: () => void;
 }) {
-  const [name, setName] = useState(product?.name || "");
-  const [cents, setCents] = useState<number>(product ? productCents(product) : 0);
-  const [categoryId, setCategoryId] = useState(product?.categoryId || "");
-  const [description, setDescription] = useState(product?.description || "");
+  const [dragging, setDragging] = useState(false);
+  const hasMedia = Boolean(file || (existing && !removed));
+  const noun = kind === "image" ? "foto" : "vídeo";
+  return (
+    <div className="kd-drop-wrap">
+      <label
+        className={`kd-drop ${dragging ? "is-dragging" : ""} ${error ? "is-invalid" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          onFile(e.dataTransfer.files?.[0] || null);
+        }}
+      >
+        <input type="file" accept={accept} className="kd-sr" onChange={(e) => onFile(e.target.files?.[0] || null)} />
+        {kind === "image" && preview && !removed ? (
+          <img src={preview} alt="Prévia da foto do produto" />
+        ) : kind === "image" ? (
+          <ImagePlus size={22} aria-hidden />
+        ) : (
+          <Video size={22} aria-hidden />
+        )}
+        <b>{hasMedia ? `Trocar ${noun}` : `Adicionar ${noun}`}</b>
+        <small>
+          {error ||
+            file?.name ||
+            (existing && !removed ? `${kind === "image" ? "Foto" : "Vídeo"} atual mantido${kind === "image" ? "a" : ""}` : kind === "image" ? "PNG, JPG ou WebP · até 10 MB" : "MP4, WebM ou MOV · até 100 MB")}
+        </small>
+        <small className="kd-drop-hint">Clique ou arraste o arquivo para cá</small>
+        {file && progress !== undefined && <UploadBar value={progress} />}
+      </label>
+      {existing && !file && (
+        <Button size="sm" variant="link" onClick={removed ? onUndoRemove : onRemove}>
+          {removed ? `Manter ${noun} atual` : `Remover ${noun}`}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ProductForm({ product, categories, notify, onClose }: { product: any | null; categories: any[]; notify: Notify; onClose: () => void }) {
+  const start = useRef({
+    name: product?.name || "",
+    cents: product ? productCents(product) : 0,
+    categoryId: product?.categoryId || "",
+    description: product?.description || "",
+  });
+  const [name, setName] = useState(start.current.name);
+  const [cents, setCents] = useState<number>(start.current.cents);
+  const [categoryId, setCategoryId] = useState(start.current.categoryId);
+  const [description, setDescription] = useState(start.current.description);
   const [image, setImage] = useState<File | null>(null);
   const [video, setVideo] = useState<File | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [removeVideo, setRemoveVideo] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<"" | "uploading" | "saving">("");
   const [progress, setProgress] = useState<{ image?: number; video?: number }>({});
   const uploaded = useRef<{ image?: { file: File; url: string }; video?: { file: File; url: string } }>({});
   const imagePreview = useMemo(() => (image ? URL.createObjectURL(image) : product?.image || ""), [image, product]);
-  useEffect(() => () => {
-    if (image) URL.revokeObjectURL(imagePreview);
-  }, [image, imagePreview]);
+  useEffect(
+    () => () => {
+      if (image) URL.revokeObjectURL(imagePreview);
+    },
+    [image, imagePreview],
+  );
+  const s = start.current;
+  const dirty =
+    name !== s.name || cents !== s.cents || categoryId !== s.categoryId || description !== s.description || Boolean(image || video) || removeImage || removeVideo;
+
+  const pickImage = (file: File | null) => {
+    setImage(file);
+    setRemoveImage(false);
+    setErrors((current) => ({ ...current, image: file && !IMAGE_TYPES.test(file.type) ? "Use uma imagem PNG, JPG ou WebP." : "" }));
+  };
+  const pickVideo = (file: File | null) => {
+    setVideo(file);
+    setRemoveVideo(false);
+    setErrors((current) => ({ ...current, video: file && !VIDEO_TYPES.test(file.type) ? "Use um vídeo MP4, WebM ou MOV." : "" }));
+  };
 
   const validate = () => {
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = "Informe o nome do produto.";
-    if (!categoryId) next.category = "Escolha uma categoria.";
+    if (!categoryId) next.category = "Escolha em qual seção do cardápio ele aparece.";
     if (cents <= 0) next.price = "Informe um preço maior que zero.";
-    if (image && (!/^image\/(png|jpe?g|webp)$/.test(image.type) || image.size > 10 * 1024 * 1024))
-      next.image = "Use PNG, JPG ou WebP de até 10 MB.";
-    if (video && (!/^video\/(mp4|webm|quicktime)$/.test(video.type) || video.size > 100 * 1024 * 1024))
-      next.video = "Use MP4, WebM ou MOV de até 100 MB.";
+    if (image && (!IMAGE_TYPES.test(image.type) || image.size > 10 * 1024 * 1024)) next.image = "Use PNG, JPG ou WebP de até 10 MB.";
+    if (video && (!VIDEO_TYPES.test(video.type) || video.size > 100 * 1024 * 1024)) next.video = "Use MP4, WebM ou MOV de até 100 MB.";
     setErrors(next);
     return !Object.keys(next).length;
   };
@@ -1308,19 +1660,11 @@ function ProductForm({
     if (!validate()) return;
     const category = categories.find((c) => c.id === categoryId);
     try {
-      setStatus(image || video ? "uploading" : "saving");
-      // Reaproveita arquivos já enviados numa tentativa anterior que falhou só ao salvar.
-      const send = async (kind: "image" | "video", file: File | null) => {
-        if (!file) return undefined;
-        const cached = uploaded.current[kind];
-        if (cached && cached.file === file) return cached.url;
-        const url = await (kind === "image" ? uploadProductImage : uploadProductVideo)(file, (pct) =>
-          setProgress((current) => ({ ...current, [kind]: pct })),
-        );
-        uploaded.current[kind] = { file, url };
-        return url;
-      };
-      const [imageUrl, videoUrl] = await Promise.all([send("image", image), send("video", video)]);
+      setStatus(image ? "uploading" : "saving");
+      let imageUrl: string | undefined;
+      if (image) {
+        imageUrl = await uploadProductImage(image, (pct) => setProgress((current) => ({ ...current, image: pct })));
+      }
       setStatus("saving");
       const data = {
         name,
@@ -1329,13 +1673,33 @@ function ProductForm({
         description,
         price: (cents / 100).toFixed(2).replace(".", ","),
         priceCents: cents,
-        ...(imageUrl ? { image: imageUrl } : {}),
-        ...(videoUrl ? { videoUrl } : {}),
+        ...(imageUrl ? { image: imageUrl } : removeImage ? { image: "" } : {}),
+        ...(removeVideo ? { videoUrl: "" } : {}),
       };
-      if (product) await updateRestaurantProduct(product.id, data);
-      else await createRestaurantProduct({ ...data, available: true });
+      let savedId = product?.id;
+      if (product) {
+        await updateRestaurantProduct(product.id, data);
+      } else {
+        const created = await createRestaurantProduct({ ...data, available: true });
+        savedId = created?.id;
+      }
       notify(product ? "Produto atualizado" : "Produto adicionado ao cardápio");
       onClose();
+
+      // Upload de vídeo em segundo plano: não bloqueia o administrador nem a navegação
+      if (video && savedId) {
+        const targetId = savedId;
+        const targetName = name;
+        notify(`Enviando vídeo de "${targetName}" em segundo plano…`, "success");
+        uploadProductVideo(video)
+          .then(async (videoUrl) => {
+            await updateRestaurantProduct(targetId, { videoUrl });
+            notify(`Vídeo de "${targetName}" enviado e vinculado ao produto!`, "success");
+          })
+          .catch((err) => {
+            reportError(err, notify, `Falha no envio do vídeo de "${targetName}". Edite o produto para tentar novamente.`);
+          });
+      }
     } catch (err) {
       reportError(err, notify, "Não foi possível salvar o produto. Seus dados continuam no formulário; tente de novo.");
       if (isQueued(err)) return onClose();
@@ -1348,8 +1712,10 @@ function ProductForm({
   return (
     <Modal
       title={product ? "Editar produto" : "Novo produto"}
-      description={product ? undefined : "Os campos marcados são obrigatórios."}
-      onClose={busy ? () => undefined : onClose}
+      description={product ? undefined : "Nome, preço e categoria são obrigatórios. Foto e vídeo podem ficar para depois."}
+      onClose={onClose}
+      dirty={dirty}
+      busy={busy}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
@@ -1362,68 +1728,79 @@ function ProductForm({
                 ? "Salvando…"
                 : product
                   ? "Salvar alterações"
-                  : "Adicionar produto"}
+                  : "Adicionar ao cardápio"}
           </Button>
         </>
       }
     >
       <form id="kd-product-form" className="kd-form" onSubmit={save} noValidate>
         <fieldset className="kd-fieldset" disabled={busy}>
-        <TextField
-          label="Nome *"
-          placeholder="Ex.: Pizza Margherita"
-          value={name}
-          maxLength={80}
-          error={errors.name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <div className="kd-form-grid">
           <TextField
-            label="Preço *"
-            inputMode="numeric"
-            value={brl(cents)}
-            error={errors.price}
-            onChange={(e) => setCents(Math.min(Number(e.target.value.replace(/\D/g, "")) || 0, 99999999))}
+            label="Nome"
+            placeholder="Ex.: Pizza Margherita"
+            value={name}
+            maxLength={80}
+            error={errors.name}
+            autoComplete="off"
+            data-autofocus
+            onChange={(e) => setName(e.target.value)}
           />
-          <SelectField label="Categoria *" value={categoryId} error={errors.category} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">Selecione</option>
-            {categories
-              .filter((c) => c.active || c.id === categoryId)
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-          </SelectField>
-        </div>
-        <TextArea
-          label="Descrição"
-          hint="Ingredientes, tamanho, acompanhamentos."
-          rows={3}
-          maxLength={400}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <div className="kd-form-grid">
-          <label className={`kd-drop ${errors.image ? "is-invalid" : ""}`}>
-            <input type="file" accept="image/png,image/jpeg,image/webp" className="kd-sr" onChange={(e) => setImage(e.target.files?.[0] || null)} />
-            {imagePreview ? (
-              <img src={imagePreview} alt="Prévia da foto do produto" />
-            ) : (
-              <ImagePlus size={22} aria-hidden />
-            )}
-            <b>{imagePreview ? "Trocar foto" : "Adicionar foto"}</b>
-            <small>{errors.image || image?.name || "PNG, JPG ou WebP · até 10 MB"}</small>
-            {image && progress.image !== undefined && <UploadBar value={progress.image} />}
-          </label>
-          <label className={`kd-drop ${errors.video ? "is-invalid" : ""}`}>
-            <input type="file" accept="video/mp4,video/webm,video/quicktime" className="kd-sr" onChange={(e) => setVideo(e.target.files?.[0] || null)} />
-            <Video size={22} aria-hidden />
-            <b>{video || product?.videoUrl ? "Trocar vídeo" : "Adicionar vídeo"}</b>
-            <small>{errors.video || video?.name || (product?.videoUrl ? "Vídeo atual mantido" : "MP4, WebM ou MOV · até 100 MB")}</small>
-            {video && progress.video !== undefined && <UploadBar value={progress.video} />}
-          </label>
-        </div>
+          <div className="kd-form-grid">
+            <TextField
+              label="Preço"
+              inputMode="numeric"
+              value={brl(cents)}
+              error={errors.price}
+              hint="Digite só os números: 4990 vira R$ 49,90."
+              onChange={(e) => setCents(Math.min(Number(e.target.value.replace(/\D/g, "")) || 0, 99999999))}
+            />
+            <SelectField label="Categoria" value={categoryId} error={errors.category} onChange={(e) => setCategoryId(e.target.value)}>
+              <option value="">Selecione</option>
+              {categories
+                .filter((c) => c.active || c.id === categoryId)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </SelectField>
+          </div>
+          <TextArea
+            label="Descrição"
+            optional
+            hint="Ingredientes, tamanho, acompanhamentos. Aparece abaixo do nome."
+            rows={3}
+            maxLength={400}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <div className="kd-form-grid">
+            <DropZone
+              kind="image"
+              accept="image/png,image/jpeg,image/webp"
+              file={image}
+              existing={product?.image}
+              removed={removeImage}
+              error={errors.image}
+              progress={progress.image}
+              preview={imagePreview}
+              onFile={pickImage}
+              onRemove={() => setRemoveImage(true)}
+              onUndoRemove={() => setRemoveImage(false)}
+            />
+            <DropZone
+              kind="video"
+              accept="video/mp4,video/webm,video/quicktime"
+              file={video}
+              existing={product?.videoUrl}
+              removed={removeVideo}
+              error={errors.video}
+              progress={progress.video}
+              onFile={pickVideo}
+              onRemove={() => setRemoveVideo(true)}
+              onUndoRemove={() => setRemoveVideo(false)}
+            />
+          </div>
         </fieldset>
       </form>
     </Modal>
@@ -1432,17 +1809,22 @@ function ProductForm({
 
 /* ───────────────────────── Mesas ───────────────────────── */
 
-function tableLink(table: string, tokens: Record<string, string>) {
-  return `${menuUrl()}?mesa=${encodeURIComponent(tokens[table] || table)}`;
-}
-
-function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, pendingTables }: DashboardProps) {
+function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, pendingTables, restaurantName, account }: DashboardProps) {
   const [creating, setCreating] = useState(false);
+  const limit = tableLimit(usePlan(account));
+  const atLimit = limit !== null && tables.length >= limit;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
 
   const create = async () => {
+    if (atLimit) {
+      notify(`Seu plano permite até ${limit} mesas. No Pro, as mesas são ilimitadas.`, "error", {
+        label: "Ver planos",
+        onAction: () => (window.location.href = "/dashboard/assinatura"),
+      });
+      return;
+    }
     setCreating(true);
     try {
       const table = await createRestaurantTable();
@@ -1456,53 +1838,85 @@ function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, 
 
   return (
     <div className="kd-stack">
-      <PageIntro
-        description={`Cada mesa tem um QR Code único: os chamados chegam identificados com o nome da mesa.${loaded.tables ? ` ${tables.length} ${tables.length === 1 ? "mesa cadastrada" : "mesas cadastradas"}.` : ""}`}
+      <PageHeader
+        kicker={loaded.tables ? (limit === null ? plural(tables.length, "mesa cadastrada", "mesas cadastradas") : `${tables.length} de ${limit} mesas do plano`) : undefined}
+        title="Mesas"
+        description="Cada mesa tem um QR Code único: os chamados chegam com o nome da mesa."
         actions={
-          <Button icon={<Plus size={16} />} loading={creating} onClick={create}>
-            Nova mesa
-          </Button>
+          <>
+            {tables.length > 0 && (
+              <ButtonLink href="/dashboard/qrcodes" variant="secondary" icon={<Printer size={16} />}>
+                Imprimir QR Codes
+              </ButtonLink>
+            )}
+            <Button variant={atLimit ? "secondary" : "primary"} icon={<Plus size={16} />} loading={creating} onClick={create}>
+              {creating ? "Criando mesa…" : "Nova mesa"}
+            </Button>
+          </>
         }
       />
+      {loaded.tables && atLimit && (
+        <Callout
+          tone="info"
+          title={`Você chegou ao limite de ${limit} mesas do seu plano`}
+          action={
+            <ButtonLink href="/dashboard/assinatura" size="sm" variant="secondary">
+              Ver planos
+            </ButtonLink>
+          }
+        >
+          No Pro, as mesas são ilimitadas. Você ainda pode renomear ou excluir as mesas atuais.
+        </Callout>
+      )}
       {loadErrors.tables ? (
         <Card>
           <LoadError message={loadErrors.tables} onRetry={onRetry} />
         </Card>
       ) : !loaded.tables ? (
-        <div className="kd-tables">
+        <div className="kd-tables" role="status" aria-label="Carregando mesas">
           {Array.from({ length: 6 }).map((_, i) => (
-            <span key={i} className="kd-skeleton" style={{ height: 82 }} />
+            <span key={i} className="kd-skel" style={{ height: 196 }} />
           ))}
         </div>
       ) : tables.length ? (
-        <div className="kd-tables" role="list" aria-label="Mesas cadastradas">
-          {tables.map((t, i) => (
-            <Card as="article" role="listitem" key={t} className="kd-table kd-rise" style={rise(i)}>
-              <button className="kd-table-qr" onClick={() => setViewing(t)} aria-label={`Ver QR Code da ${t}`}>
-                <QRCodeSVG value={tableLink(t, tableTokens)} size={56} level="L" bgColor="transparent" fgColor="#000000" />
-              </button>
-              <span className="kd-table-name">
-                <b>{t}</b>
-                {pendingTables.includes(t) ? <SyncBadge /> : <small>QR Code ativo</small>}
-              </span>
-              <span className="kd-row-actions">
-                <IconButton label={`Renomear ${t}`} onClick={() => setRenaming(t)}>
-                  <Pencil size={16} />
-                </IconButton>
-                <IconButton label={`Excluir ${t}`} tone="danger" onClick={() => setRemoving(t)}>
-                  <Trash2 size={16} />
-                </IconButton>
-              </span>
-            </Card>
-          ))}
-        </div>
+        <ul className="kd-tables" aria-label="Mesas cadastradas">
+          {tables.map((t, i) => {
+            const pending = pendingTables.includes(t);
+            return (
+              <li key={t} className="kd-table k-enter" style={stagger(i)}>
+                <div className="kd-table-band">
+                  <span className="kd-table-place">{restaurantName || "Seu restaurante"}</span>
+                  <b className="kd-table-name">{t}</b>
+                </div>
+                <button type="button" className="kd-table-qr" onClick={() => setViewing(t)} aria-label={`Ampliar o QR Code da ${t}`}>
+                  <QRCodeSVG value={tableLink(t, tableTokens)} size={96} level="M" bgColor="#ffffff" fgColor="#14201a" />
+                </button>
+                <div className="kd-table-foot">
+                  {pending ? <SyncBadge /> : <span className="kd-table-status">QR Code ativo</span>}
+                  <span className="kd-row-actions">
+                    <IconButton label={`Renomear ${t}`} onClick={() => setRenaming(t)}>
+                      <Pencil size={16} />
+                    </IconButton>
+                    <IconButton label={`Excluir ${t}`} tone="danger" onClick={() => setRemoving(t)}>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       ) : (
         <Card>
           <EmptyState
             icon={<Armchair size={22} />}
             title="Nenhuma mesa cadastrada"
             description="Crie as mesas do salão para gerar um QR Code por mesa. Assim você sabe exatamente de onde vem cada chamado."
-            action={<Button size="sm" icon={<Plus size={15} />} loading={creating} onClick={create}>Criar primeira mesa</Button>}
+            action={
+              <Button size="sm" icon={<Plus size={15} />} loading={creating} onClick={create}>
+                Criar primeira mesa
+              </Button>
+            }
           />
         </Card>
       )}
@@ -1510,8 +1924,8 @@ function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, 
       {renaming && <RenameTable current={renaming} notify={notify} onClose={() => setRenaming(null)} />}
       {removing && (
         <ConfirmDialog
-          title={`Excluir ${removing}?`}
-          description="O QR Code impresso desta mesa deixa de funcionar. Se for reutilizar a mesa, prefira renomeá-la."
+          title={`Excluir a ${removing}?`}
+          description="O QR Code impresso desta mesa deixa de funcionar. Se for reutilizar a mesa com outro nome, prefira renomear."
           confirmLabel="Excluir mesa"
           onClose={() => setRemoving(null)}
           onConfirm={async () => {
@@ -1528,7 +1942,7 @@ function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, 
       {viewing && (
         <Modal
           title={viewing}
-          description="Aponte a câmera do celular para testar."
+          description="Aponte a câmera do celular para testar o QR Code desta mesa."
           onClose={() => setViewing(null)}
           size="sm"
           footer={
@@ -1548,7 +1962,7 @@ function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, 
           }
         >
           <div className="kd-qr-big">
-            <QRCodeSVG id="kd-qr-modal" value={tableLink(viewing, tableTokens)} size={220} level="M" bgColor="#ffffff" fgColor="#000000" includeMargin />
+            <QRCodeSVG id="kd-qr-modal" value={tableLink(viewing, tableTokens)} size={232} level="M" bgColor="#ffffff" fgColor="#000000" marginSize={4} />
           </div>
         </Modal>
       )}
@@ -1567,7 +1981,7 @@ function RenameTable({ current, notify, onClose }: { current: string; notify: No
     setSaving(true);
     try {
       await renameRestaurantTable(current, name);
-      notify("Mesa renomeada. O QR Code continua o mesmo.");
+      notify("Mesa renomeada. O QR Code impresso continua valendo.");
       onClose();
     } catch (err) {
       reportError(err, notify, "Não foi possível renomear a mesa. Tente de novo.");
@@ -1579,14 +1993,16 @@ function RenameTable({ current, notify, onClose }: { current: string; notify: No
     <Modal
       title="Renomear mesa"
       size="sm"
-      onClose={saving ? () => undefined : onClose}
+      onClose={onClose}
+      dirty={name !== current}
+      busy={saving}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancelar
           </Button>
           <Button type="submit" form="kd-rename-form" loading={saving}>
-            Salvar
+            {saving ? "Salvando…" : "Salvar nome"}
           </Button>
         </>
       }
@@ -1598,6 +2014,7 @@ function RenameTable({ current, notify, onClose }: { current: string; notify: No
           value={name}
           maxLength={40}
           error={error}
+          data-autofocus
           onChange={(e) => {
             setName(e.target.value);
             setError("");
@@ -1613,8 +2030,9 @@ function RenameTable({ current, notify, onClose }: { current: string; notify: No
 function QrPage({ notify, tables, tableTokens, restaurantName, loaded, loadErrors, onRetry }: DashboardProps) {
   return (
     <div className="kd-stack">
-      <PageIntro
-        description="Imprima e cole um código em cada mesa. A impressão já sai organizada em folha A4, com o nome da mesa abaixo de cada código."
+      <PageHeader
+        title="QR Codes"
+        description="Imprima e cole um código em cada mesa. A impressão sai em folha A4, três por linha, com o nome da mesa abaixo de cada código."
         actions={
           tables.length > 0 && (
             <Button icon={<Printer size={16} />} onClick={() => window.print()}>
@@ -1628,21 +2046,21 @@ function QrPage({ notify, tables, tableTokens, restaurantName, loaded, loadError
           <LoadError message={loadErrors.tables} onRetry={onRetry} />
         </Card>
       ) : !loaded.tables ? (
-        <div className="kd-qr-grid">
+        <div className="kd-qr-grid" role="status" aria-label="Carregando QR Codes">
           {Array.from({ length: 4 }).map((_, i) => (
-            <span key={i} className="kd-skeleton" style={{ height: 280 }} />
+            <span key={i} className="kd-skel" style={{ height: 300 }} />
           ))}
         </div>
       ) : tables.length ? (
-        <div className="kd-qr-grid kd-print-area">
+        <ul className="kd-qr-grid kd-print-area" aria-label="QR Codes das mesas">
           {tables.map((t, i) => {
             const id = `kd-qr-${i}`;
             return (
-              <Card as="article" key={t} className="kd-qr-card kd-rise" style={rise(i)}>
-                <small className="kd-qr-brand">{restaurantName || "Cardápio digital"}</small>
-                <QRCodeSVG id={id} value={tableLink(t, tableTokens)} size={148} level="M" bgColor="#ffffff" fgColor="#000000" includeMargin />
-                <b>{t}</b>
-                <small className="kd-qr-hint">Aponte a câmera para ver o cardápio</small>
+              <li key={t} className="kd-qr-card k-enter" style={stagger(i)}>
+                <span className="kd-qr-brand">{restaurantName || "Cardápio digital"}</span>
+                <QRCodeSVG id={id} value={tableLink(t, tableTokens)} size={152} level="M" bgColor="#ffffff" fgColor="#000000" marginSize={4} />
+                <b className="kd-qr-table">{t}</b>
+                <span className="kd-qr-hint">Aponte a câmera do celular para ver o cardápio e chamar a equipe</span>
                 <div className="kd-qr-actions kd-no-print">
                   <Button
                     size="sm"
@@ -1652,23 +2070,27 @@ function QrPage({ notify, tables, tableTokens, restaurantName, loaded, loadError
                       if (downloadQr(id, `QR-${t.replace(/\s+/g, "-")}.png`)) notify(`Download do QR Code da ${t} iniciado`);
                     }}
                   >
-                    PNG
+                    Baixar PNG
                   </Button>
                   <ButtonLink href={tableLink(t, tableTokens)} external size="sm" variant="ghost" icon={<ExternalLink size={14} />}>
                     Testar
                   </ButtonLink>
                 </div>
-              </Card>
+              </li>
             );
           })}
-        </div>
+        </ul>
       ) : (
         <Card>
           <EmptyState
             icon={<QrCode size={22} />}
             title="Nenhum QR Code para imprimir"
             description="Os QR Codes são gerados automaticamente quando você cadastra as mesas."
-            action={<ButtonLink href="/dashboard/mesas" variant="primary" size="sm">Cadastrar mesas</ButtonLink>}
+            action={
+              <ButtonLink href="/dashboard/mesas" variant="primary" size="sm">
+                Cadastrar mesas
+              </ButtonLink>
+            }
           />
         </Card>
       )}
@@ -1691,7 +2113,7 @@ function ReviewsPage({ settings, setSettings, notify }: DashboardProps) {
         const parsed = new URL(value);
         if (!/^https?:$/.test(parsed.protocol)) throw new Error();
       } catch {
-        return setError("Cole um link completo, começando com https://");
+        return setError("Cole o link completo, começando com https://");
       }
     }
     setError("");
@@ -1701,8 +2123,9 @@ function ReviewsPage({ settings, setSettings, notify }: DashboardProps) {
 
   return (
     <div className="kd-stack kd-narrow">
-      <PageIntro
-        description="Depois de atendido, o cliente pode abrir sua página de avaliação direto pelo cardápio. Mais avaliações ajudam o restaurante a aparecer nas buscas da região."
+      <PageHeader
+        title="Avaliações"
+        description="Depois de atendido, o cliente pode abrir sua página de avaliação do Google direto pelo cardápio. Mais avaliações ajudam o restaurante a aparecer nas buscas da região."
       />
       <Card>
         <form className="kd-form" onSubmit={save} noValidate>
@@ -1715,7 +2138,7 @@ function ReviewsPage({ settings, setSettings, notify }: DashboardProps) {
             error={error}
             hint={
               <>
-                No Perfil da Empresa no Google, toque em <b>Pedir avaliações</b> e copie o link.
+                No Perfil da Empresa no Google, toque em <b>Pedir avaliações</b> e copie o link que aparece.
               </>
             }
             onChange={(e) => {
@@ -1724,8 +2147,8 @@ function ReviewsPage({ settings, setSettings, notify }: DashboardProps) {
             }}
           />
           <div className="kd-row">
-            <Button type="submit" disabled={saved}>
-              {saved && url ? "Salvo" : "Salvar link"}
+            <Button type="submit" disabled={saved} icon={saved && url ? <Check size={15} /> : undefined}>
+              {saved && url ? "Link salvo" : "Salvar link"}
             </Button>
             {settings.googleReviewUrl && (
               <ButtonLink href={settings.googleReviewUrl} external variant="ghost" icon={<ExternalLink size={15} />}>
@@ -1737,11 +2160,9 @@ function ReviewsPage({ settings, setSettings, notify }: DashboardProps) {
       </Card>
       <Card>
         <Switch
-          label="Mostrar botão “Avaliar” no cardápio"
+          label="Mostrar “Avaliar no Google” no cardápio"
           description={
-            settings.googleReviewUrl
-              ? "O botão aparece para o cliente na tela inicial do cardápio."
-              : "Salve o link acima para o botão aparecer no cardápio."
+            settings.googleReviewUrl ? "O botão aparece no topo do cardápio, ao lado do nome do restaurante." : "Salve o link acima para o botão aparecer no cardápio."
           }
           checked={settings.google}
           onChange={(checked) => {
@@ -1756,7 +2177,9 @@ function ReviewsPage({ settings, setSettings, notify }: DashboardProps) {
 
 /* ───────────────────────── Relatórios ───────────────────────── */
 
-function ReportsPage({ calls, foods, categories, tables }: DashboardProps) {
+function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, account }: DashboardProps) {
+  const plan = usePlan(account);
+  const allowed = canAccessFeature(plan, "advanced_reports");
   const byType = useMemo(() => {
     const map = new Map<string, number>();
     calls.forEach((c) => map.set(c.type, (map.get(c.type) || 0) + 1));
@@ -1765,50 +2188,63 @@ function ReportsPage({ calls, foods, categories, tables }: DashboardProps) {
   const byTable = useMemo(() => {
     const map = new Map<string, number>();
     calls.forEach((c) => map.set(c.table, (map.get(c.table) || 0) + 1));
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
   }, [calls]);
-  const max = Math.max(1, ...byType.map(([, n]) => n), ...byTable.map(([, n]) => n));
   const done = calls.filter((c) => c.status === "concluido").length;
   const hidden = foods.filter((f) => f.available === false).length;
   const noPhoto = foods.filter((f) => !f.image).length;
 
+  const stats: [number, string][] = [
+    [calls.length, "Chamados analisados"],
+    [done, "Concluídos"],
+    [foods.length - hidden, "Produtos no cardápio"],
+    [noPhoto, "Produtos sem foto"],
+  ];
+
+  if (!allowed)
+    return (
+      <div className="kd-stack kd-narrow">
+        <PageHeader title="Relatórios" description="Motivos mais comuns dos chamados e as mesas que mais chamam a equipe." />
+        <ProLock feature="Relatórios" plan={plan} />
+      </div>
+    );
+
   return (
     <div className="kd-stack">
-      <PageIntro
-        description="Números calculados a partir dos chamados e do cardápio registrados nesta conta."
+      <PageHeader
+        title="Relatórios"
+        description={
+          chamadosHasMore
+            ? `Calculado com os ${calls.length} chamados mais recentes. Para incluir chamados anteriores, carregue mais na página Chamados.`
+            : "Calculado com todos os chamados registrados e com o cardápio atual."
+        }
       />
-      <div className="kd-metrics">
-        {[
-          [calls.length, "Chamados registrados"],
-          [done, "Chamados concluídos"],
-          [foods.length - hidden, "Produtos visíveis"],
-          [noPhoto, "Produtos sem foto"],
-        ].map(([value, label], i) => (
-          <div key={String(label)} className="kd-metric kd-rise" style={rise(i)}>
-            <b>{value}</b>
-            <span>{label}</span>
+      <div className="kd-stats">
+        {stats.map(([value, label], i) => (
+          <div key={label} className="kd-stat k-enter" style={stagger(i)}>
+            <span className="kd-stat-value kd-num">{value}</span>
+            <span className="kd-stat-label">{label}</span>
           </div>
         ))}
       </div>
       <div className="kd-split">
-        <Card className="kd-rise" style={rise(2)}>
-          <div className="kd-card-head">
-            <h3>Motivos dos chamados</h3>
-          </div>
+        <Card className="k-enter" style={stagger(2)} aria-labelledby="kd-rep-types">
+          <CardHead id="kd-rep-types" title="Motivos dos chamados" />
           {byType.length ? (
-            <BarList rows={byType} max={max} />
+            <BarList rows={byType} />
           ) : (
-            <EmptyState title="Sem chamados ainda" description="Quando as mesas começarem a chamar, você verá aqui os motivos mais comuns." />
+            <EmptyState compact title="Sem chamados ainda" description="Quando as mesas começarem a chamar, os motivos mais comuns aparecem aqui." />
           )}
         </Card>
-        <Card className="kd-rise" style={rise(3)}>
-          <div className="kd-card-head">
-            <h3>Mesas que mais chamaram</h3>
-          </div>
+        <Card className="k-enter" style={stagger(3)} aria-labelledby="kd-rep-tables">
+          <CardHead id="kd-rep-tables" title="Mesas que mais chamaram" />
           {byTable.length ? (
-            <BarList rows={byTable} max={max} />
+            <BarList rows={byTable} />
           ) : (
             <EmptyState
+              compact
               title="Sem dados por mesa"
               description={tables.length ? "Os chamados aparecem aqui por mesa assim que forem feitos." : "Cadastre mesas para acompanhar os chamados por mesa."}
             />
@@ -1816,27 +2252,31 @@ function ReportsPage({ calls, foods, categories, tables }: DashboardProps) {
         </Card>
       </div>
       {categories.length > 0 && noPhoto > 0 && (
-        <div className="kd-callout">
-          <span>
-            {noPhoto} {noPhoto === 1 ? "produto está" : "produtos estão"} sem foto. Pratos com foto costumam ser escolhidos com mais facilidade no cardápio.
-          </span>
-          <ButtonLink href="/dashboard/produtos" size="sm" variant="secondary">
-            Revisar produtos
-          </ButtonLink>
-        </div>
+        <Callout
+          icon={<ImageOff size={18} aria-hidden />}
+          title={`${plural(noPhoto, "produto está", "produtos estão")} sem foto`}
+          action={
+            <ButtonLink href="/dashboard/produtos?media=sem-foto" size="sm" variant="secondary">
+              Ver quais são
+            </ButtonLink>
+          }
+        >
+          Pratos com foto ajudam o cliente a decidir sem precisar chamar a equipe para perguntar.
+        </Callout>
       )}
     </div>
   );
 }
 
-function BarList({ rows, max }: { rows: [string, number][]; max: number }) {
+function BarList({ rows }: { rows: [string, number][] }) {
+  const max = Math.max(1, ...rows.map(([, n]) => n));
   return (
     <ul className="kd-bars">
       {rows.map(([label, n], i) => (
         <li key={label}>
           <span className="kd-bars-label">{label}</span>
-          <span className="kd-bars-track">
-            <i style={{ width: `${(n / max) * 100}%`, ...rise(i) }} />
+          <span className="kd-bars-track" aria-hidden>
+            <i style={{ width: `${(n / max) * 100}%`, ...stagger(i) }} />
           </span>
           <b className="kd-num">{n}</b>
         </li>
@@ -1847,7 +2287,7 @@ function BarList({ rows, max }: { rows: [string, number][]; max: number }) {
 
 /* ───────────────────────── Personalização ───────────────────────── */
 
-function BrandPage({ brand, setBrand, restaurantName, notify }: DashboardProps) {
+function BrandPage({ brand, setBrand, restaurantName, notify, foods, settings }: DashboardProps) {
   const [uploading, setUploading] = useState<"" | "logo" | "cover">("");
   const [pct, setPct] = useState(0);
   const upload = async (input: HTMLInputElement, key: "logo" | "cover") => {
@@ -1866,78 +2306,85 @@ function BrandPage({ brand, setBrand, restaurantName, notify }: DashboardProps) 
       setUploading("");
     }
   };
+  const remove = (key: "logo" | "cover") => {
+    const previous = brand[key];
+    setBrand((current) => ({ ...current, [key]: "" }));
+    notify(key === "logo" ? "Logo removida" : "Capa removida", "success", {
+      label: "Desfazer",
+      onAction: () => setBrand((current) => ({ ...current, [key]: previous })),
+    });
+  };
+  const sample = foods.filter((f) => f.available !== false).slice(0, 2);
+
+  const rows: { key: "logo" | "cover"; title: string; hint: string }[] = [
+    { key: "logo", title: "Logo", hint: "Quadrada, de preferência com fundo. PNG, JPG ou WebP até 10 MB." },
+    { key: "cover", title: "Foto de capa", hint: "Horizontal, do salão ou de um prato da casa. Aparece no topo do cardápio." },
+  ];
 
   return (
     <div className="kd-brand">
       <div className="kd-stack">
-        <PageIntro
-          description="Logo e capa aparecem no topo do cardápio público. As alterações são salvas assim que o envio termina."
+        <PageHeader
+          title="Personalização"
+          description="Logo e capa aparecem no topo do cardápio público. Cada imagem é salva assim que o envio termina."
         />
-        <Card>
-          <div className="kd-upload-row">
-            <span className="kd-avatar kd-avatar--lg" aria-hidden>
-              {brand.logo ? <img src={brand.logo} alt="" /> : (restaurantName.trim()[0] || "K").toUpperCase()}
-            </span>
-            <span className="kd-row-main">
-              <b>Logo</b>
-              <small>Quadrada, PNG, JPG ou WebP até 10 MB.</small>
-            </span>
-            <label className={`kd-btn kd-btn--secondary kd-btn--sm ${uploading ? "is-disabled" : ""}`}>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="kd-sr"
-                disabled={Boolean(uploading)}
-                onChange={(e) => upload(e.currentTarget, "logo")}
-              />
-              <span aria-live="polite">{uploading === "logo" ? `Enviando… ${pct}%` : brand.logo ? "Trocar" : "Enviar"}</span>
-            </label>
-            {brand.logo && (
-              <IconButton label="Remover logo" tone="danger" onClick={() => setBrand((c) => ({ ...c, logo: "" }))}>
-                <Trash2 size={16} />
-              </IconButton>
-            )}
-          </div>
-          <hr className="kd-hr" />
-          <div className="kd-upload-row">
-            <span className="kd-cover-thumb" style={brand.cover ? { backgroundImage: `url(${brand.cover})` } : undefined} aria-hidden />
-            <span className="kd-row-main">
-              <b>Foto de capa</b>
-              <small>Horizontal, de preferência do salão ou de um prato da casa.</small>
-            </span>
-            <label className={`kd-btn kd-btn--secondary kd-btn--sm ${uploading ? "is-disabled" : ""}`}>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="kd-sr"
-                disabled={Boolean(uploading)}
-                onChange={(e) => upload(e.currentTarget, "cover")}
-              />
-              <span aria-live="polite">{uploading === "cover" ? `Enviando… ${pct}%` : brand.cover ? "Trocar" : "Enviar"}</span>
-            </label>
-            {brand.cover && (
-              <IconButton label="Remover capa" tone="danger" onClick={() => setBrand((c) => ({ ...c, cover: "" }))}>
-                <Trash2 size={16} />
-              </IconButton>
-            )}
-          </div>
+        <Card flush>
+          <ul className="kd-rows">
+            {rows.map(({ key, title, hint }) => (
+              <li key={key} className="kd-upload-row">
+                {key === "logo" ? (
+                  <span className="kd-avatar kd-avatar--lg" aria-hidden>
+                    {brand.logo ? <img src={brand.logo} alt="" /> : initial(restaurantName)}
+                  </span>
+                ) : (
+                  <span className="kd-cover-thumb" style={brand.cover ? { backgroundImage: `url(${brand.cover})` } : undefined} aria-hidden />
+                )}
+                <span className="kd-row-main">
+                  <b>{title}</b>
+                  <small>{hint}</small>
+                </span>
+                <span className="kd-upload-actions">
+                  <label className={`kd-btn kd-btn--secondary kd-btn--sm ${uploading ? "is-disabled" : ""}`}>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="kd-sr"
+                      disabled={Boolean(uploading)}
+                      onChange={(e) => upload(e.currentTarget, key)}
+                    />
+                    {uploading === key ? <LoaderCircle size={15} className="k-spin" aria-hidden /> : <ImagePlus size={15} aria-hidden />}
+                    <span aria-live="polite">{uploading === key ? `Enviando… ${pct}%` : brand[key] ? "Trocar" : "Enviar"}</span>
+                  </label>
+                  {brand[key] && (
+                    <IconButton label={key === "logo" ? "Remover logo" : "Remover capa"} tone="danger" onClick={() => remove(key)} disabled={Boolean(uploading)}>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
       </div>
-      <figure className="kd-phone" aria-label="Prévia do topo do cardápio">
-        <div className="kd-phone-screen">
-          <div className="kd-phone-cover" style={brand.cover ? { backgroundImage: `url(${brand.cover})` } : undefined}>
-            <span className="kd-avatar kd-avatar--lg">
-              {brand.logo ? <img src={brand.logo} alt="" /> : (restaurantName.trim()[0] || "K").toUpperCase()}
-            </span>
-          </div>
-          <div className="kd-phone-body">
-            <b>{restaurantName || "Seu estabelecimento"}</b>
-            <small>Cardápio digital</small>
-            <span className="kd-phone-line" />
-            <span className="kd-phone-line kd-phone-line--short" />
-          </div>
+      <figure className="kd-phone">
+        <div className="kd-phone-screen kd-menu" aria-hidden>
+          <MenuHero name={restaurantName || "Seu estabelecimento"} brand={brand} table="Mesa 07" preview />
+          {settings.waiter && (
+            <div className="kd-phone-cta">
+              <span className="kd-btn kd-btn--signal kd-btn--sm kd-btn--block">
+                <ConciergeBell size={15} /> Chamar garçom
+              </span>
+            </div>
+          )}
+          {sample.length > 0 && (
+            <ul className="kd-dish-list">
+              {sample.map((dish) => (
+                <DishRow key={dish.id || dish.name} dish={dish} autoplay={false} />
+              ))}
+            </ul>
+          )}
         </div>
-        <figcaption>Prévia</figcaption>
+        <figcaption>Prévia com os seus dados, como o cliente vê no celular</figcaption>
       </figure>
     </div>
   );
@@ -1945,26 +2392,34 @@ function BrandPage({ brand, setBrand, restaurantName, notify }: DashboardProps) 
 
 /* ───────────────────────── Configurações ───────────────────────── */
 
-function SettingsPage({ settings, setSettings, notify }: DashboardProps) {
+function SettingsPage({ settings, setSettings, notify, account }: DashboardProps) {
+  const billAllowed = canAccessFeature(usePlan(account), "bill_request");
   const options: { key: keyof RestaurantSettings; label: string; description: string }[] = [
     { key: "waiter", label: "Chamar garçom", description: "O cliente avisa a equipe pelo cardápio e o chamado chega com o nome da mesa." },
-    { key: "bill", label: "Pedir a conta", description: "Mostra a opção de pedir a conta pelo cardápio." },
-    { key: "google", label: "Avaliar no Google", description: "Mostra o botão de avaliação. Configure o link em Avaliações." },
+    { key: "bill", label: "Pedir a conta", description: "Mostra o botão “Pedir a conta” no cardápio. O pedido chega como chamado." },
+    { key: "google", label: "Avaliar no Google", description: "Mostra o botão de avaliação no cardápio. Configure o link em Avaliações." },
     { key: "sound", label: "Som para novos chamados", description: "Toca um aviso curto neste navegador quando uma mesa chamar." },
   ];
   return (
     <div className="kd-stack kd-narrow">
-      <PageIntro
-        description="Escolha o que o cliente pode fazer pelo cardápio. Cada alteração é salva na hora."
-      />
-      <Card className="kd-flush">
+      <PageHeader title="Configurações" description="Escolha o que o cliente pode fazer pelo cardápio. Cada alteração é salva na hora." />
+      <Card flush>
         <ul className="kd-rows">
           {options.map((o, i) => (
-            <li key={o.key} className="kd-pad-row kd-rise" style={rise(i)}>
+            <li key={o.key} className="kd-pad-row k-enter" style={stagger(i)}>
               <Switch
                 label={o.label}
-                description={o.description}
-                checked={Boolean(settings[o.key])}
+                description={
+                  o.key === "bill" && !billAllowed ? (
+                    <>
+                      Recurso do plano Pro: no seu plano atual o botão não aparece no cardápio. <Link href="/dashboard/assinatura">Ver planos</Link>
+                    </>
+                  ) : (
+                    o.description
+                  )
+                }
+                checked={o.key === "bill" ? settings.bill && billAllowed : Boolean(settings[o.key])}
+                disabled={o.key === "bill" && !billAllowed}
                 onChange={(checked) => {
                   setSettings((current) => ({ ...current, [o.key]: checked }));
                   if (o.key === "sound" && checked) playCallTone();

@@ -198,6 +198,18 @@
         if (value) element.setAttribute(attribute, value.replace(/\bsunday\b/gi, 'Kardap'));
       });
     });
+    try {
+      const isAuthed = Boolean(localStorage.getItem('kardap-restaurant-owner') || localStorage.getItem('kardap-restaurant-id'));
+      if (isAuthed) {
+        document.querySelectorAll('a[href="/login"], a[href="/criar-conta"]').forEach(link => {
+          if (link.getAttribute('href') === '/login') {
+            link.href = '/dashboard';
+            link.textContent = 'Acessar Dashboard';
+            link.setAttribute('aria-label', 'Acessar Dashboard');
+          }
+        });
+      }
+    } catch (_) {}
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', translate);
   else translate();

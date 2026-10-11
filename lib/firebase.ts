@@ -1,6 +1,5 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 // Chaves públicas do projeto Firebase. As regras do Firestore continuam sendo
 // responsáveis por definir quem pode ler e alterar os dados.
@@ -31,4 +30,4 @@ export function getFirebaseApp() {
 }
 
 export const getDb = () => getFirestore(getFirebaseApp());
-export const getStorageService = () => getStorage(getFirebaseApp());
+// O Storage é inicializado em lib/storage.ts, carregado só pelo painel e pela configuração inicial.

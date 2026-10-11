@@ -1,0 +1,9 @@
+{
+  "extends": "next/core-web-vitals",
+  "ignorePatterns": [".tmp/", ".next-recovery-*/", "public/", "LP KARDAP/"],
+  "rules": {
+    // Fotos e vídeos vêm do Firebase Storage de cada restaurante (hosts dinâmicos) e o logo já é otimizado.
+    // As imagens têm width/height e loading="lazy"; o otimizador do Next teria custo de servidor sem ganho aqui.
+    "@next/next/no-img-element": "off"
+  }
+}

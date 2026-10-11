@@ -32,7 +32,7 @@ O foco deste projeto foi construir uma experiência de uso clara em momentos dif
 
 ## Interface
 
-O painel administrativo segue a direção visual **“clinical blueprint on frosted paper”**: alto contraste, papel claro, tipografia objetiva, números tabulares e poucos elementos visuais para priorizar leitura rápida durante a operação.
+O painel mantém a base de alto contraste em papel claro, com números tabulares e poucos elementos visuais para leitura rápida durante a operação. A identidade vem da própria logo: a barra lateral usa a cor do contorno (lousa), o texto sobre ela usa o creme do chapéu (giz) e o amarelo da cloche fica reservado para o evento central do produto, uma mesa chamando a equipe. A tipografia é a Archivo, com larguras condensadas que ecoam o display de mesa. Detalhes em [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md).
 
 ### Landing page
 
@@ -117,11 +117,14 @@ npm run start
 | `/login` | Acesso à plataforma. |
 | `/criar-conta` | Cadastro de novo restaurante. |
 | `/onboarding` | Configuração inicial após o cadastro. |
+| `/planos` | Planos, preços e comparação de recursos (pública). |
 | `/dashboard` | Visão geral do painel administrativo. |
 | `/dashboard/produtos` | Gestão de produtos. |
 | `/dashboard/categorias` | Gestão de categorias. |
 | `/dashboard/mesas` | Mesas e QR Codes individuais. |
 | `/dashboard/chamados` | Acompanhamento de chamados do salão. |
+| `/dashboard/assinatura` | Plano atual, troca de plano e histórico de pagamentos. |
+| `/admin` | Administração do sistema: visão geral, restaurantes e planos (somente administradores). |
 | `/r/:slug?mesa=:mesa` | Cardápio público por restaurante e mesa. |
 
 ## Estrutura do projeto
@@ -129,18 +132,39 @@ npm run start
 ```text
 app/                       # Rotas, layout global e endpoints
 components/                # Componentes da aplicação
-  dashboard/               # Painel administrativo e componentes de UI
+  admin/                   # Administração do sistema (/admin)
+  dashboard/               # Painel do restaurante
+  menu/                    # Cardápio público
+  plans/                   # Cartões e comparação de planos
+  site/                    # Páginas públicas, onboarding e páginas legais
+  ui/                      # Componentes base do design system
 lib/                       # Firebase, acesso a dados, storage e utilitários
 public/                    # Imagens, ativos e páginas públicas
 docs/                      # Documentação técnica e screenshots
+scripts/                   # Utilitários de manutenção (ex.: liberar administradores)
 ```
+
+O guia de interface (tokens, hierarquia visual, ações, movimento) está em [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
+
+## Administradores do sistema
+
+O acesso a `/admin` depende do documento `admins/{uid}` no Firestore, que as regras impedem de ser criado pelo app.
+
+```bash
+# Com FIREBASE_ADMIN_* configuradas no .env.local
+node scripts/grant-admin.mjs pessoa@empresa.com          # libera
+node scripts/grant-admin.mjs pessoa@empresa.com --remover # remove
+```
+
+Sem as credenciais de servidor, crie o documento pelo console do Firebase: coleção `admins`, ID do documento igual ao UID da conta (a tela de acesso negado em `/admin` mostra o UID com botão de copiar).
 
 ## Qualidade e segurança
 
 - As rotas e dados do restaurante dependem de autenticação Firebase.
 - Os dados administrativos são separados das páginas públicas de cardápio.
 - Uploads de marca e capa passam pelo Firebase Storage.
-- O projeto possui regras dedicadas para Firestore e Storage em `firestore.rules` e `storage.rules`.
+- O projeto possui regras dedicadas para Firestore e Storage em `firestore.rules` e `storage.rules`. Depois de alterar e testar as regras, publique com `firebase deploy --only firestore:rules`.
+- Campos de assinatura, dono e suspensão do restaurante só podem ser alterados pelo servidor ou por administradores.
 - O build de produção pode ser validado com `npm run build`.
 
 ---
