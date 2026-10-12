@@ -1,5 +1,6 @@
 import type { ToastAction } from "@/components/ui/toast";
 import type { RestaurantSubscription } from "@/lib/cakto/types";
+import type { BrandPalette } from "@/lib/palette";
 
 /** Situação comercial do restaurante, lida do próprio documento (sem dados de pagamento). */
 export type AccountInfo = {
@@ -9,7 +10,11 @@ export type AccountInfo = {
   suspendedReason: string;
 };
 
-export type Brand = { logo: string; cover: string };
+/**
+ * `palette`: paleta em uso (null = cores do Kardap). `customPalette`: a paleta montada pelo
+ * restaurante, guardada mesmo quando ele experimenta uma pronta. Ver lib/palette.ts.
+ */
+export type Brand = { logo: string; cover: string; palette: BrandPalette | null; customPalette: BrandPalette | null };
 export type RestaurantSettings = {
   waiter: boolean;
   bill: boolean;

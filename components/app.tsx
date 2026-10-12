@@ -31,6 +31,7 @@ import { BackToTop } from "@/components/site/back-to-top";
 import type { Brand, CallStatus, DataLoaded, LoadErrors, RestaurantSettings } from "@/components/dashboard/types";
 import type { PublicCategory } from "@/components/menu/public-menu";
 import { canAccessFeature, effectiveSubscription } from "@/lib/cakto/access";
+import { readPalette } from "@/lib/palette";
 import type { AccountInfo } from "@/components/dashboard/types";
 
 /* Cada tela carrega só o próprio código: quem abre o cardápio pelo QR não baixa o painel. */
@@ -42,7 +43,18 @@ const LegalPage = dynamic(() => import("@/components/site/legal-page"), { loadin
 const AdminPanel = dynamic(() => import("@/components/admin/admin-panel"), { loading: () => <PanelLoading /> });
 const PlansPage = dynamic(() => import("@/components/site/plans-page"), { loading: () => <PanelLoading /> });
 
-const defaultBrand: Brand = { logo: "", cover: "" };
+const defaultBrand: Brand = { logo: "", cover: "", palette: null, customPalette: null };
+
+/** Marca vinda do Firestore ou do aparelho: só strings nas imagens e paleta validada (cores #rrggbb). */
+function normalizeBrand(raw: unknown): Brand {
+  const b = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  return {
+    logo: typeof b.logo === "string" ? b.logo : "",
+    cover: typeof b.cover === "string" ? b.cover : "",
+    palette: readPalette(b.palette),
+    customPalette: readPalette(b.customPalette),
+  };
+}
 const defaultSettings: RestaurantSettings = {
   waiter: true,
   bill: true,
@@ -150,7 +162,7 @@ export default function App() {
     setStorageReady(true);
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "kardap-calls" && e.newValue) setLegacyCalls(JSON.parse(e.newValue));
-      if (e.key === "kardap-brand" && e.newValue) setBrand({ ...defaultBrand, ...JSON.parse(e.newValue) });
+      if (e.key === "kardap-brand" && e.newValue) setBrand(normalizeBrand(JSON.parse(e.newValue)));
       if (e.key === "kardap-settings" && e.newValue) setSettings({ ...defaultSettings, ...JSON.parse(e.newValue) });
     };
     window.addEventListener("storage", handleStorage);
@@ -219,8 +231,8 @@ export default function App() {
             setLegacyCalls(data.calls as typeof legacyCalls);
           }
           if (data.brand) {
-            const next = { ...defaultBrand, ...(data.brand as Brand) };
-            lastRemoteState.current.brand = JSON.stringify(data.brand);
+            const next = normalizeBrand(data.brand);
+            lastRemoteState.current.brand = JSON.stringify(next);
             if (!meta.fromCache) confirmed.current.brand = next;
             setBrand(next);
           }
@@ -279,7 +291,7 @@ export default function App() {
         setPublicRestaurant({
           id: data.id,
           name: typeof data.name === "string" ? data.name : "",
-          brand: { ...defaultBrand, ...((data.brand as Brand | undefined) || {}) },
+          brand: normalizeBrand(data.brand),
           settings: { ...defaultSettings, ...((data.settings as RestaurantSettings | undefined) || {}) },
           // "Pedir a conta" é recurso do Pro (e do período de teste), conforme lib/cakto/plans.ts.
           billAllowed: canAccessFeature(effectiveSubscription(data.subscription as any, data.createdAt), "bill_request"),

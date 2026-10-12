@@ -61,7 +61,9 @@ import { uploadProductImage, uploadProductVideo, uploadRestaurantImage } from "@
 import { getFirebaseAuth } from "@/lib/auth";
 import { friendlyError, isQueued } from "@/lib/async";
 import { brl, elapsed, greeting, initial, plural, productCents, stagger } from "@/lib/format";
-import { useDialog, useNow } from "@/lib/hooks";
+import { useDialog, useNow, useRootPalette } from "@/lib/hooks";
+import { isDefaultPalette, paletteVars, type PaletteColors } from "@/lib/palette";
+import { PalettePicker } from "./palette-picker";
 import { accountState, canAccessFeature, effectiveSubscription, planLabel, tableLimit, toDate, trialDaysLeft, type SubscriptionSummary } from "@/lib/cakto/access";
 import {
   Badge,
@@ -324,6 +326,7 @@ export default function Dashboard(props: DashboardProps) {
   }, [title, waiting]);
   useEffect(() => setDrawer(false), [path]);
   useDialog(sideRef, () => setDrawer(false), drawer);
+  useRootPalette(brand.palette, brand.palette?.panel !== false);
 
   const allLoaded = loaded.products && loaded.categories && loaded.tables;
   const [slowData, setSlowData] = useState(false);
@@ -2287,8 +2290,12 @@ function BarList({ rows }: { rows: [string, number][] }) {
 
 /* ───────────────────────── Personalização ───────────────────────── */
 
-function BrandPage({ brand, setBrand, restaurantName, notify, foods, settings }: DashboardProps) {
+function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories, settings }: DashboardProps) {
   const [uploading, setUploading] = useState<"" | "logo" | "cover">("");
+  /** Cores em edição no seletor de paleta (ainda não salvas). */
+  const [draftColors, setDraftColors] = useState<PaletteColors | null>(null);
+  const previewColors = draftColors ?? (isDefaultPalette(brand.palette) ? null : brand.palette!.colors);
+  const previewChips = categories.filter((c: any) => c.active !== false).slice(0, 3).map((c: any) => String(c.name));
   const [pct, setPct] = useState(0);
   const upload = async (input: HTMLInputElement, key: "logo" | "cover") => {
     const file = input.files?.[0];
@@ -2326,7 +2333,7 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, settings }:
       <div className="kd-stack">
         <PageHeader
           title="Personalização"
-          description="Logo e capa aparecem no topo do cardápio público. Cada imagem é salva assim que o envio termina."
+          description="Logo, capa e cores do cardápio público. Cada alteração é salva na hora e aparece na prévia ao lado."
         />
         <Card flush>
           <ul className="kd-rows">
@@ -2365,10 +2372,18 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, settings }:
             ))}
           </ul>
         </Card>
+        <PalettePicker brand={brand} setBrand={setBrand} notify={notify} onPreview={setDraftColors} />
       </div>
       <figure className="kd-phone">
-        <div className="kd-phone-screen kd-menu" aria-hidden>
+        <div className="kd-phone-screen kd-menu" aria-hidden style={previewColors ? (paletteVars(previewColors) as React.CSSProperties) : undefined}>
           <MenuHero name={restaurantName || "Seu estabelecimento"} brand={brand} table="Mesa 07" preview />
+          <div className="kd-phone-chips kd-menu-chips">
+            {(previewChips.length ? previewChips : ["Entradas", "Pratos", "Bebidas"]).map((name, i) => (
+              <a key={name + i} className={i === 0 ? "is-active" : ""}>
+                {name}
+              </a>
+            ))}
+          </div>
           {settings.waiter && (
             <div className="kd-phone-cta">
               <span className="kd-btn kd-btn--signal kd-btn--sm kd-btn--block">
@@ -2384,7 +2399,7 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, settings }:
             </ul>
           )}
         </div>
-        <figcaption>Prévia com os seus dados, como o cliente vê no celular</figcaption>
+        <figcaption>{draftColors ? "Prévia da paleta em edição (ainda não salva)" : "Prévia com os seus dados, como o cliente vê no celular"}</figcaption>
       </figure>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isDark, isDefaultPalette, paletteVars, type BrandPalette, type PaletteColors } from "./palette";
 
 /** Relógio que avança sozinho: mantém "há 4 min" correto sem depender de novos dados. */
 export function useNow(intervalMs = 30_000) {
@@ -149,4 +150,26 @@ export function useDialog(ref: React.RefObject<HTMLElement>, onEscape: () => voi
       if (previous && document.contains(previous)) previous.focus({ preventScroll: true });
     };
   }, [active, ref]);
+}
+
+/**
+ * Aplica a paleta do restaurante em <html> enquanto o componente estiver na tela.
+ * Fica na raiz (e não no contêiner) para valer também em diálogos, gaveta e notificações.
+ * A paleta padrão do Kardap não escreve nada: valem as cores de app/globals.css.
+ */
+export function useRootPalette(palette: BrandPalette | null, enabled = true) {
+  const colors = palette && enabled && !isDefaultPalette(palette) ? JSON.stringify(palette.colors) : "";
+  useEffect(() => {
+    if (!colors) return;
+    const root = document.documentElement;
+    const parsed = JSON.parse(colors) as PaletteColors;
+    const vars = paletteVars(parsed);
+    const previousScheme = root.style.colorScheme;
+    for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
+    root.style.colorScheme = isDark(parsed.background) ? "dark" : "light";
+    return () => {
+      for (const name of Object.keys(vars)) root.style.removeProperty(name);
+      root.style.colorScheme = previousScheme;
+    };
+  }, [colors]);
 }

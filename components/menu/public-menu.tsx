@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ConciergeBell, Receipt, Search, Star, UtensilsCrossed, X } from "lucide-react";
 import { addPublicCall } from "@/lib/restaurant-db";
 import { elapsed, plural } from "@/lib/format";
-import { useNow, usePrefersReducedMotion, useSaveData } from "@/lib/hooks";
+import { useNow, usePrefersReducedMotion, useRootPalette, useSaveData } from "@/lib/hooks";
+import { isDefaultPalette } from "@/lib/palette";
 import { Button } from "@/components/ui/primitives";
 import type { Brand, RestaurantSettings } from "@/components/dashboard/types";
 import { MenuHero } from "./menu-hero";
@@ -103,6 +104,8 @@ export default function PublicMenu({
   /** Restaurante suspenso pela administração do Kardap. */
   suspended: boolean;
 }) {
+  useRootPalette(brand.palette);
+  const customColors = !isDefaultPalette(brand.palette);
   const reducedMotion = usePrefersReducedMotion();
   const saveData = useSaveData();
   const autoplay = !reducedMotion && !saveData;
@@ -193,7 +196,7 @@ export default function PublicMenu({
   let running = 0;
 
   return (
-    <div className={`kd-menu kd-menu-page ${canCall ? "has-bar" : ""}`}>
+    <div className={`kd-menu kd-menu-page ${canCall ? "has-bar" : ""} ${customColors ? "has-palette" : ""}`}>
       <div className="kd-menu-column">
         <MenuHero name={restaurantName} brand={brand} table={table}>
           {settings.google && settings.googleReviewUrl && (

@@ -14,8 +14,9 @@
 .kd-menu-page.has-bar { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 .kd-menu-column { width: 100%; max-width: 640px; margin: 0 auto; }
 
+/* Tema escuro automático só com as cores do Kardap; com paleta do restaurante, valem as cores dele. */
 @media (prefers-color-scheme: dark) {
-  .kd-menu-page {
+  .kd-menu-page:not(.has-palette) {
     --k-canvas: #0e1912;
     --k-surface: #15231a;
     --k-sunken: #1f3026;
@@ -36,6 +37,11 @@
     --k-danger-soft: #3a1d18;
     --k-danger-line: #6b3329;
     --k-focus: var(--k-giz);
+    /* Recalculadas aqui porque o padrão de :root aponta para a tinta clara. */
+    --k-primary: var(--k-ink);
+    --k-primary-hover: var(--k-ink-hover);
+    --k-on-primary: var(--k-on-ink);
+    --k-primary-ink: var(--k-ink);
     color-scheme: dark;
   }
 }
@@ -59,7 +65,7 @@
   border-radius: var(--k-r-lg);
   border: 3px solid var(--k-canvas);
   background: var(--k-logo-bg, var(--k-lousa));
-  color: var(--k-cloche);
+  color: var(--k-signal-on-lousa);
   font-size: 2rem;
   font-weight: 800;
 }
@@ -154,7 +160,7 @@
   transition: background-color var(--k-dur-2) var(--k-ease-out), color var(--k-dur-2) var(--k-ease-out), border-color var(--k-dur-2) var(--k-ease-out);
 }
 .kd-menu-chips a:hover { border-color: var(--k-ink); color: var(--k-ink); }
-.kd-menu-chips a.is-active { border-color: var(--k-ink); background: var(--k-ink); color: var(--k-on-ink); }
+.kd-menu-chips a.is-active { border-color: var(--k-primary); background: var(--k-primary); color: var(--k-on-primary); }
 .kd-menu-search {
   flex: 1;
   display: flex;

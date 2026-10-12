@@ -29,6 +29,8 @@
   --k-cloche-line: #ead07a;
   --k-cloche-ink: #6a5200;
   --k-on-cloche: #14201a; /* texto sobre o amarelo: sempre escuro, também no tema escuro */
+  --k-signal-on-lousa: var(--k-cloche); /* amarelo sobre a lousa; vira giz se a paleta não tiver contraste */
+  --k-giz-soft: #d6dcd3; /* texto de navegação sobre a lousa */
 
   /* Papel e tinta */
   --k-canvas: #f3f1ea;
@@ -44,6 +46,12 @@
   --k-placeholder: #7a7468;
   --k-on-ink: #fffefb;
   --k-skel-hi: #f6f4ee;
+
+  /* Ação principal. Por padrão é a própria tinta; paletas do restaurante podem trocar (lib/palette.ts). */
+  --k-primary: var(--k-ink);
+  --k-primary-hover: var(--k-ink-hover);
+  --k-on-primary: var(--k-on-ink);
+  --k-primary-ink: var(--k-ink);
 
   /* Estados */
   --k-success: #1f7a4d;
@@ -249,8 +257,8 @@ button, input, select, textarea { font: inherit; letter-spacing: inherit; }
 .kd-btn--lg { --btn-h: 52px; --btn-px: 22px; --btn-fs: var(--k-fs-base); }
 .kd-btn--block { width: 100%; }
 
-.kd-btn--primary { background: var(--k-ink); color: var(--k-on-ink); }
-.kd-btn--primary:hover:not(:disabled) { background: var(--k-ink-hover); }
+.kd-btn--primary { background: var(--k-primary); color: var(--k-on-primary); }
+.kd-btn--primary:hover:not(:disabled) { background: var(--k-primary-hover); }
 
 .kd-btn--secondary { background: var(--k-surface); border-color: var(--k-line-strong); }
 .kd-btn--secondary:hover:not(:disabled) { border-color: var(--k-ink); }
@@ -261,7 +269,7 @@ button, input, select, textarea { font: inherit; letter-spacing: inherit; }
 .kd-btn--danger:hover:not(:disabled) { background: var(--k-danger-hover); }
 
 /* Chamar a equipe: a única ação que usa o amarelo da cloche. */
-.kd-btn--signal { background: var(--k-cloche); color: var(--k-on-cloche); border-color: rgb(20 32 26 / 0.14); }
+.kd-btn--signal { background: var(--k-cloche); color: var(--k-on-cloche); border-color: color-mix(in srgb, var(--k-on-cloche) 14%, transparent); }
 .kd-btn--signal:hover:not(:disabled) { background: var(--k-cloche-hover); }
 
 .kd-btn--link {
@@ -378,7 +386,7 @@ button, input, select, textarea { font: inherit; letter-spacing: inherit; }
 .kd-callout-action { flex: none; align-self: center; }
 .kd-callout--warn { background: var(--k-cloche-soft); border-color: var(--k-cloche-line); }
 .kd-callout--danger { background: var(--k-danger-soft); border-color: var(--k-danger-line); color: var(--k-danger-ink); }
-.kd-callout--success { background: var(--k-success-soft); border-color: #b9dcc6; color: var(--k-success-ink); }
+.kd-callout--success { background: var(--k-success-soft); border-color: color-mix(in srgb, var(--k-success) 30%, var(--k-success-soft)); color: var(--k-success-ink); }
 @media (max-width: 559px) {
   .kd-callout { flex-wrap: wrap; }
   .kd-callout-action { width: 100%; }
@@ -481,7 +489,7 @@ button, input, select, textarea { font: inherit; letter-spacing: inherit; }
 }
 .kd-input::placeholder { color: var(--k-placeholder); opacity: 1; }
 .kd-input:hover:not(:disabled) { border-color: var(--k-text-2); }
-.kd-input:focus { outline: none; border-color: var(--k-ink); box-shadow: 0 0 0 3px rgb(20 32 26 / 0.14); }
+.kd-input:focus { outline: none; border-color: var(--k-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-ink) 14%, transparent); }
 .kd-input[aria-invalid="true"] { border-color: var(--k-danger); }
 .kd-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px rgb(180 55 42 / 0.2); }
 .kd-input:disabled { background: var(--k-sunken); cursor: not-allowed; }
@@ -569,7 +577,7 @@ textarea.kd-input { min-height: 96px; resize: vertical; }
   box-shadow: 0 1px 3px rgb(20 32 26 / 0.3);
   transition: transform var(--k-dur-3) var(--k-ease-out);
 }
-.kd-switch input:checked + span { background: var(--k-ink); }
+.kd-switch input:checked + span { background: var(--k-primary); }
 .kd-switch input:checked + span::after { transform: translateX(18px); }
 .kd-switch input:focus-visible + span { outline: 2px solid var(--k-focus); outline-offset: 2px; }
 .kd-switch input:disabled { cursor: not-allowed; }
@@ -839,7 +847,7 @@ textarea.kd-input { min-height: 96px; resize: vertical; }
   border: 0;
   border-radius: var(--k-r-xs);
   background: transparent;
-  color: var(--k-cloche);
+  color: var(--k-signal-on-lousa);
   font-size: var(--k-fs-md);
   font-weight: 700;
   cursor: pointer;
