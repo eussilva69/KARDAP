@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { SSO_COOKIE } from "@/lib/sso/config";
 import App from "@/components/app";
 
 const TITLES: Record<string, string> = {
@@ -33,9 +35,16 @@ export default async function Page({ params, searchParams }: { params: { path?: 
   const first = params.path?.[0] || "";
   if (!TITLES[first]) notFound();
   // Login pedido por outro aplicativo (?returnTo=) com a sessão central válida: volta direto, sem renderizar o login.
-  if (first === "login") {
-    const { continueIfSignedIn } = await import("@/lib/sso/continue");
-    const target = await continueIfSignedIn(searchParams);
+  // O módulo de sessão (Admin SDK) só é carregado quando há destino e cookie; se ele falhar por qualquer motivo,
+  // a tela de login abre normalmente e faz a mesma verificação pelo navegador.
+  if (first === "login" && (searchParams.returnTo || searchParams.redirect) && cookies().has(SSO_COOKIE)) {
+    let target: string | null = null;
+    try {
+      const { continueIfSignedIn } = await import("@/lib/sso/continue");
+      target = await continueIfSignedIn(searchParams);
+    } catch (error) {
+      console.error("[sso] login: verificação no servidor indisponível —", (error as Error)?.message?.split("\n")[0]);
+    }
     if (target) redirect(target);
   }
   return (
