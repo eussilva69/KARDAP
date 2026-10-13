@@ -1,6 +1,7 @@
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, QueryDocumentSnapshot, runTransaction, setDoc, startAfter, updateDoc, where, writeBatch } from "firebase/firestore";
 import { getDb } from "./firebase";
 import { withTimeout, withWriteTimeout } from "./async";
+import type { PublishedVideo } from "@/services/video-worker/src/contract";
 
 export type SnapshotMeta = { fromCache: boolean };
 export type Pending = { pending?: boolean };
@@ -25,7 +26,14 @@ function restaurantRef() {
 export type RestaurantData = Record<string, unknown>;
 export type RestaurantTable = { id: string; restaurantId?: string; number: number; name: string; capacity: number; status: "livre" | "ocupada"; qrToken: string };
 export type RestaurantCategory = { id: string; name: string; description: string; order: number; active: boolean; createdAt?: string; updatedAt?: string };
-export type RestaurantProduct = { id: string; name: string; categoryId: string; category: string; description: string; price: string; priceCents: number; image?: string; videoUrl?: string; available: boolean; createdAt?: string; updatedAt?: string };
+/**
+ * `videoUrl`, `videoPoster` e `video` são publicados pelo worker de vídeo (Cloud Run) depois da otimização.
+ * O painel só pode limpá-los (remover o vídeo); vídeos antigos têm só `videoUrl`.
+ */
+/** Metadados da foto otimizada (lib/image-optimization.ts); fotos antigas não têm. */
+export type ImageMeta = { width: number; height: number; format: string; size: number; smallSize: number; originalSize: number };
+
+export type RestaurantProduct = { id: string; name: string; categoryId: string; category: string; description: string; price: string; priceCents: number; image?: string; imageThumb?: string; imageMeta?: ImageMeta | null; videoUrl?: string; videoPoster?: string; video?: PublishedVideo | null; available: boolean; createdAt?: string; updatedAt?: string };
 
 export function watchRestaurant(
   onData: (data: RestaurantData | null, meta: SnapshotMeta) => void,
@@ -108,11 +116,22 @@ export function watchPublicRestaurantCategories(restaurantId: string, onData: (c
     onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as RestaurantCategory))), onError);
 }
 
-export async function createRestaurantProduct(input: Omit<RestaurantProduct, "id" | "createdAt" | "updatedAt">) {
+/** Id de produto gerado antes de gravar: a foto sobe já com o id no nome do arquivo. */
+export function newProductId() {
+  return doc(collection(restaurantRef(), "produtos")).id;
+}
+
+export async function createRestaurantProduct(input: Omit<RestaurantProduct, "id" | "createdAt" | "updatedAt">, id?: string) {
   const category = await withTimeout(getDoc(doc(restaurantRef(), "categorias", input.categoryId)));
   if (!category.exists() || !category.data().active) throw new Error("Selecione uma categoria ativa deste estabelecimento.");
   const now = new Date().toISOString();
-  return withWriteTimeout(addDoc(collection(restaurantRef(), "produtos"), { ...input, name: input.name.trim(), createdAt: now, updatedAt: now }));
+  const data = { ...input, name: input.name.trim(), createdAt: now, updatedAt: now };
+  if (id) {
+    const target = doc(restaurantRef(), "produtos", id);
+    await withWriteTimeout(setDoc(target, data));
+    return target;
+  }
+  return withWriteTimeout(addDoc(collection(restaurantRef(), "produtos"), data));
 }
 
 export async function updateRestaurantProduct(id: string, input: Partial<Omit<RestaurantProduct, "id" | "createdAt" | "updatedAt">>) {
@@ -260,12 +279,8 @@ export async function ensureRestaurant(ownerId: string, ownerName?: string | nul
     active: true,
     createdAt: now,
   });
-  batch.set(doc(restaurant, "configuracoes", "geral"), {
-    brand: { logo: "", cover: "" },
-    settings: { waiter: true, bill: true, google: true, sound: false },
-    createdAt: now,
-    updatedAt: now,
-  });
+  // Marca e configurações ficam no próprio documento do restaurante (brand e settings), que o painel
+  // e o cardápio público leem em tempo real. A antiga cópia em configuracoes/geral não era lida por nada.
   try {
     await withWriteTimeout(batch.commit(), 20000);
     return restaurant.id;

@@ -5,21 +5,68 @@ service firebase.storage {
     function member(restaurantId) {
       return signedIn() && firestore.exists(/databases/(default)/documents/restaurantes/$(restaurantId)/membros/$(request.auth.uid));
     }
+    function videoDoc(restaurantId, videoId) {
+      return firestore.get(/databases/(default)/documents/restaurantes/$(restaurantId)/videos/$(videoId)).data;
+    }
+
+    // ───── Vídeos de produto (services/video-worker) ─────
+    // Original: privado (só a equipe) e aceito apenas se o registro do vídeo existir em "uploading"
+    // com o mesmo caminho e o mesmo tamanho. Não pode ser sobrescrito; o worker processa e apaga.
+    match /restaurantes/{restaurantId}/produtos/{productId}/videos/original/{fileName} {
+      allow read: if member(restaurantId);
+      allow create: if member(restaurantId)
+        && fileName.matches('[A-Za-z0-9_-]{6,64}[.](mp4|mov|webm)')
+        && request.resource.size > 0
+        && request.resource.size <= 200 * 1024 * 1024
+        && request.resource.contentType.matches('video/(mp4|quicktime|webm)')
+        && videoDoc(restaurantId, fileName.split('[.]')[0]).status == 'uploading'
+        && videoDoc(restaurantId, fileName.split('[.]')[0]).productId == productId
+        && videoDoc(restaurantId, fileName.split('[.]')[0]).originalPath == 'restaurantes/' + restaurantId + '/produtos/' + productId + '/videos/original/' + fileName
+        && videoDoc(restaurantId, fileName.split('[.]')[0]).originalSize == request.resource.size;
+      allow update: if false;
+      allow delete: if member(restaurantId);
+    }
+    // Versão otimizada e capa: públicas para o cardápio; criadas só pelo worker (credencial de servidor).
+    // A equipe pode apagar (remover o vídeo do produto).
+    match /restaurantes/{restaurantId}/produtos/{productId}/videos/optimized/{fileName} {
+      allow read: if true;
+      allow create, update: if false;
+      allow delete: if member(restaurantId);
+    }
+    match /restaurantes/{restaurantId}/produtos/{productId}/thumbnails/{fileName} {
+      allow read: if true;
+      allow create, update: if false;
+      allow delete: if member(restaurantId);
+    }
+
+    // Vídeos enviados antes da otimização: continuam no ar; envios novos usam a estrutura acima.
     match /restaurantes/{restaurantId}/produtos/videos/{fileName} {
       allow read: if true;
-      allow write: if member(restaurantId) && request.resource.size < 100 * 1024 * 1024 && request.resource.contentType.matches('video/(mp4|webm|quicktime)');
+      allow create, update: if false;
+      allow delete: if member(restaurantId);
     }
+
+    // Fotos de produto (já otimizadas no navegador: WebP, ou JPEG/PNG no Safari). Só formatos de foto:
+    // SVG fica de fora (pode conter script).
     match /restaurantes/{restaurantId}/produtos/imagens/{fileName} {
       allow read: if true;
-      allow write: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+      allow create: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/(png|jpeg|webp)');
+      allow update: if false;
+      allow delete: if member(restaurantId);
     }
+    // Logo e capa. A exclusão fica separada: em "write" com condições sobre request.resource,
+    // apagar era sempre recusado (não há arquivo enviado), e imagens substituídas ficavam órfãs.
     match /restaurantes/{restaurantId}/logos/{fileName} {
       allow read: if true;
-      allow write: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/(png|jpeg|webp)');
+      allow create: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/(png|jpeg|webp)');
+      allow update: if false;
+      allow delete: if member(restaurantId);
     }
     match /restaurantes/{restaurantId}/capas/{fileName} {
       allow read: if true;
-      allow write: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/(png|jpeg|webp)');
+      allow create: if member(restaurantId) && request.resource.size < 10 * 1024 * 1024 && request.resource.contentType.matches('image/(png|jpeg|webp)');
+      allow update: if false;
+      allow delete: if member(restaurantId);
     }
     match /restaurantes/{restaurantId}/{allPaths=**} { allow read, write: if false; }
   }

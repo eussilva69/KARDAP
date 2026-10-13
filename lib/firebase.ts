@@ -1,5 +1,5 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 
 // Chaves públicas do projeto Firebase. As regras do Firestore continuam sendo
 // responsáveis por definir quem pode ler e alterar os dados.
@@ -29,5 +29,18 @@ export function getFirebaseApp() {
   return initializedApp;
 }
 
-export const getDb = () => getFirestore(getFirebaseApp());
+/**
+ * Emuladores locais do Firebase (desenvolvimento e testes de ponta a ponta), ligados só com
+ * NEXT_PUBLIC_FIREBASE_EMULATORS=1. Portas em firebase.json. Sem a variável, nada muda.
+ */
+export const useEmulators = process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === "1";
+export const EMULATOR_HOST = "127.0.0.1";
+
+let db: Firestore | undefined;
+export const getDb = () => {
+  if (db) return db;
+  db = getFirestore(getFirebaseApp());
+  if (useEmulators) connectFirestoreEmulator(db, EMULATOR_HOST, 8080);
+  return db;
+};
 // O Storage é inicializado em lib/storage.ts, carregado só pelo painel e pela configuração inicial.

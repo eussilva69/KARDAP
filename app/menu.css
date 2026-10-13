@@ -453,7 +453,10 @@
 }
 .kd-slide-media { position: absolute; inset: 0; background: #141210; }
 .kd-slide-media img,
-.kd-slide-media video { width: 100%; height: 100%; object-fit: cover; }
+.kd-slide-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Vídeo horizontal: aparece inteiro, sobre a própria capa desfocada (sem faixas pretas nem corte). */
+.kd-slide-media.is-landscape .kd-slide-poster { filter: blur(28px) brightness(0.5); transform: scale(1.2); }
+.kd-slide-media.is-landscape video { object-fit: contain; }
 .kd-slide-play {
   position: absolute;
   top: 42%;

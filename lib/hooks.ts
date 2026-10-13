@@ -39,27 +39,25 @@ export function useSaveData() {
 export function useInView<T extends Element>(options: IntersectionObserverInit & { once?: boolean } = {}) {
   const { once = false, root = null, rootMargin = "0px", threshold = 0 } = options;
   const [inView, setInView] = useState(false);
-  const observer = useRef<IntersectionObserver | null>(null);
-  const ref = useCallback(
-    (node: T | null) => {
-      observer.current?.disconnect();
-      if (!node) return;
-      if (typeof IntersectionObserver === "undefined") {
-        setInView(true);
-        return;
-      }
-      observer.current = new IntersectionObserver(
-        ([entry]) => {
-          setInView(entry.isIntersecting);
-          if (entry.isIntersecting && once) observer.current?.disconnect();
-        },
-        { root, rootMargin, threshold },
-      );
-      observer.current.observe(node);
-    },
-    [once, root, rootMargin, threshold],
-  );
-  useEffect(() => () => observer.current?.disconnect(), []);
+  // O observador vive num efeito ligado ao elemento: sobrevive à montagem dupla do modo estrito do React.
+  const [node, setNode] = useState<T | null>(null);
+  const ref = useCallback((next: T | null) => setNode(next), []);
+  useEffect(() => {
+    if (!node) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setInView(entry.isIntersecting);
+        if (entry.isIntersecting && once) observer.disconnect();
+      },
+      { root, rootMargin, threshold },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [node, once, root, rootMargin, threshold]);
   return [ref, inView] as const;
 }
 
@@ -172,4 +170,23 @@ export function useRootPalette(palette: BrandPalette | null, enabled = true) {
       root.style.colorScheme = previousScheme;
     };
   }, [colors]);
+}
+
+type NetworkInformation = { saveData?: boolean; effectiveType?: string; addEventListener?: (type: "change", listener: () => void) => void; removeEventListener?: (type: "change", listener: () => void) => void };
+
+/**
+ * true em conexão lenta (2G/3G) ou com economia de dados ligada: vídeos vizinhos não são
+ * pré-carregados para não competir com o que está na tela. Sem a API (Safari), assume conexão boa.
+ */
+export function useConstrainedNetwork() {
+  const [constrained, setConstrained] = useState(false);
+  useEffect(() => {
+    const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection;
+    if (!connection) return;
+    const update = () => setConstrained(Boolean(connection.saveData) || /(^|-)(2g|3g)$/.test(connection.effectiveType || ""));
+    update();
+    connection.addEventListener?.("change", update);
+    return () => connection.removeEventListener?.("change", update);
+  }, []);
+  return constrained;
 }

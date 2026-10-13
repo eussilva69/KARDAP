@@ -14,7 +14,15 @@ export type AccountInfo = {
  * `palette`: paleta em uso (null = cores do Kardap). `customPalette`: a paleta montada pelo
  * restaurante, guardada mesmo quando ele experimenta uma pronta. Ver lib/palette.ts.
  */
-export type Brand = { logo: string; cover: string; palette: BrandPalette | null; customPalette: BrandPalette | null };
+export type Brand = {
+  logo: string;
+  cover: string;
+  /** Versões pequenas geradas no envio (logo 512 px, capa 960 px). Imagens antigas não têm. */
+  logoSmall: string;
+  coverSmall: string;
+  palette: BrandPalette | null;
+  customPalette: BrandPalette | null;
+};
 export type RestaurantSettings = {
   waiter: boolean;
   bill: boolean;
@@ -62,4 +70,6 @@ export type DashboardProps = {
   loadErrors: LoadErrors;
   onRetry: () => void;
   account: AccountInfo;
+  /** Chama `done` quando o Firestore confirmar a próxima gravação de marca ou configurações. */
+  onSaved: (key: "brand" | "settings", done: () => void, failed?: () => void) => void;
 };

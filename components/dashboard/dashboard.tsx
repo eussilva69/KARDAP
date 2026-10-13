@@ -52,12 +52,16 @@ import {
   deleteRestaurantCategory,
   deleteRestaurantProduct,
   deleteRestaurantTable,
+  newProductId,
   publicMenuPath,
   renameRestaurantTable,
   updateRestaurantCategory,
   updateRestaurantProduct,
 } from "@/lib/restaurant-db";
-import { uploadProductImage, uploadProductVideo, uploadRestaurantImage } from "@/lib/storage";
+import { deleteManagedImages, imageMeta, scheduleImageCleanup, uploadImage, type UploadStage, type UploadedImage } from "@/lib/storage";
+import { IMAGE_ACCEPT, IMAGE_HINT, ImageError, describeOptimization, optimizeImage, type OptimizedImage } from "@/lib/image-optimization";
+import { VIDEO_ACCEPT, VIDEO_HINT, VideoFileError, discardProductVideo, startVideoUpload, validateVideoFile } from "@/lib/video-upload";
+import { VideoJobChip, VideoJobInline, VideoUploadsTray, useVideoJobs, type JobView } from "./video-jobs";
 import { getFirebaseAuth } from "@/lib/auth";
 import { friendlyError, isQueued } from "@/lib/async";
 import { brl, elapsed, greeting, initial, plural, productCents, stagger } from "@/lib/format";
@@ -86,10 +90,11 @@ import {
   type BadgeTone,
 } from "@/components/ui";
 import { KardapLogo } from "@/components/brand/logo";
+import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
 import { MenuHero } from "@/components/menu/menu-hero";
 import { DishRow } from "@/components/menu/dish-row";
 import { SubscriptionPage } from "./subscription-page";
-import type { AccountInfo, Call, CallStatus, DashboardProps, Notify, RestaurantSettings } from "./types";
+import type { AccountInfo, Brand, Call, CallStatus, DashboardProps, Notify, RestaurantSettings } from "./types";
 
 export type { Brand, DashboardProps, DataLoaded, LoadErrors, Notify, RestaurantSettings } from "./types";
 
@@ -246,8 +251,10 @@ function LoadError({ message, onRetry }: { message: string; onRetry: () => void 
 }
 
 function ProductThumb({ product, size = 48 }: { product: any; size?: number }) {
-  return product.image ? (
-    <img className="kd-thumb" src={product.image} alt="" loading="lazy" decoding="async" width={size} height={size} />
+  // Miniatura: versão pequena da foto; sem foto, a capa gerada na otimização do vídeo.
+  const src = product.imageThumb || product.image || product.videoPoster;
+  return src ? (
+    <img className="kd-thumb" src={src} alt="" loading="lazy" decoding="async" width={size} height={size} />
   ) : (
     <span className="kd-thumb kd-thumb--empty" aria-hidden>
       {initial(String(product.name || "?"), "?")}
@@ -326,7 +333,7 @@ export default function Dashboard(props: DashboardProps) {
   }, [title, waiting]);
   useEffect(() => setDrawer(false), [path]);
   useDialog(sideRef, () => setDrawer(false), drawer);
-  useRootPalette(brand.palette, brand.palette?.panel !== false);
+  useRootPalette(brand.palette, brand.palette?.panel === true);
 
   const allLoaded = loaded.products && loaded.categories && loaded.tables;
   const [slowData, setSlowData] = useState(false);
@@ -360,8 +367,10 @@ export default function Dashboard(props: DashboardProps) {
   const logout = async () => {
     setSigningOut(true);
     try {
+      // Encerra antes a sessão compartilhada (PDV incluído); sem rede, o cookie ainda vence em até 5 dias.
+      await endSsoSession();
       await signOut(getFirebaseAuth());
-      ["kardap-session", "kardap-restaurant-id", "kardap-restaurant-owner", "kardap-restaurant-slug"].forEach((key) => localStorage.removeItem(key));
+      clearAccountStorage();
       window.location.href = "/";
     } catch {
       setSigningOut(false);
@@ -429,7 +438,7 @@ export default function Dashboard(props: DashboardProps) {
           </a>
           <div className="kd-account">
             <span className="kd-avatar" aria-hidden>
-              {brand.logo ? <img src={brand.logo} alt="" /> : initial(restaurantName)}
+              {brand.logo ? <img src={brand.logoSmall || brand.logo} alt="" /> : initial(restaurantName)}
             </span>
             <span className="kd-account-name">
               <b>{restaurantName || "Seu estabelecimento"}</b>
@@ -530,6 +539,7 @@ export default function Dashboard(props: DashboardProps) {
           <span>Mais</span>
         </button>
       </nav>
+      <VideoUploadsTray products={props.foods} notify={notify} />
     </div>
   );
 }
@@ -1287,6 +1297,7 @@ function MiniSwitch({ checked, label, onChange, busy }: { checked: boolean; labe
 }
 
 function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }: DashboardProps) {
+  const videoJobs = useVideoJobs();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
@@ -1442,11 +1453,12 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
                         <EyeOff size={12} aria-hidden /> categoria oculta
                       </span>
                     )}
-                    {f.videoUrl && (
+                    {f.videoUrl && !videoJobs.byProduct.get(f.id) && (
                       <span className="kd-product-video">
                         <Video size={12} aria-hidden /> vídeo
                       </span>
                     )}
+                    <VideoJobChip job={videoJobs.byProduct.get(f.id)} />
                     {f.pending && <SyncBadge />}
                   </small>
                 </span>
@@ -1498,7 +1510,15 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
 
       </div>
 
-      {editing && <ProductForm product={editing === "new" ? null : editing} categories={categories} notify={notify} onClose={() => setEditing(null)} />}
+      {editing && (
+        <ProductForm
+          product={editing === "new" ? null : editing}
+          categories={categories}
+          notify={notify}
+          videoJob={editing === "new" ? undefined : videoJobs.byProduct.get(editing.id)}
+          onClose={() => setEditing(null)}
+        />
+      )}
       {removing && (
         <ConfirmDialog
           title={`Excluir “${removing.name}”?`}
@@ -1509,6 +1529,10 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
             try {
               await deleteRestaurantProduct(removing.id);
               notify("Produto excluído");
+              // Arquivos do vídeo otimizado saem junto; o que sobrar a limpeza diária do worker remove.
+              discardProductVideo(removing.id, removing.video).catch(() => undefined);
+              // Fotos geradas pelo sistema também saem (fotos antigas, de antes da otimização, ficam no Storage).
+              deleteManagedImages([removing.image, removing.imageThumb]).catch(() => undefined);
             } catch (error) {
               reportError(error, notify, "Não foi possível excluir o produto. Tente de novo.");
               return isQueued(error) ? undefined : false;
@@ -1520,11 +1544,6 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
   );
 }
 
-const uploadPercent = (...parts: (number | null)[]) => {
-  const active = parts.filter((p): p is number => p !== null);
-  return active.length ? Math.round(active.reduce((sum, p) => sum + p, 0) / active.length) : 0;
-};
-
 function UploadBar({ value }: { value: number }) {
   return (
     <span className="kd-upload-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-label="Progresso do envio">
@@ -1533,8 +1552,6 @@ function UploadBar({ value }: { value: number }) {
   );
 }
 
-const IMAGE_TYPES = /^image\/(png|jpe?g|webp)$/;
-const VIDEO_TYPES = /^video\/(mp4|webm|quicktime)$/;
 
 /** Área de arquivo que aceita clique ou arrastar e soltar. */
 function DropZone({
@@ -1546,6 +1563,7 @@ function DropZone({
   error,
   progress,
   preview,
+  note,
   onFile,
   onRemove,
   onUndoRemove,
@@ -1558,6 +1576,8 @@ function DropZone({
   error?: string;
   progress?: number;
   preview?: string;
+  /** Texto no lugar do nome do arquivo (ex.: resultado da otimização). */
+  note?: string;
   onFile: (file: File | null) => void;
   onRemove: () => void;
   onUndoRemove: () => void;
@@ -1581,8 +1601,8 @@ function DropZone({
         }}
       >
         <input type="file" accept={accept} className="kd-sr" onChange={(e) => onFile(e.target.files?.[0] || null)} />
-        {kind === "image" && preview && !removed ? (
-          <img src={preview} alt="Prévia da foto do produto" />
+        {preview && !removed && (kind === "image" || !file) ? (
+          <img src={preview} alt={kind === "image" ? "Prévia da foto do produto" : "Capa do vídeo atual"} />
         ) : kind === "image" ? (
           <ImagePlus size={22} aria-hidden />
         ) : (
@@ -1591,8 +1611,9 @@ function DropZone({
         <b>{hasMedia ? `Trocar ${noun}` : `Adicionar ${noun}`}</b>
         <small>
           {error ||
+            note ||
             file?.name ||
-            (existing && !removed ? `${kind === "image" ? "Foto" : "Vídeo"} atual mantido${kind === "image" ? "a" : ""}` : kind === "image" ? "PNG, JPG ou WebP · até 10 MB" : "MP4, WebM ou MOV · até 100 MB")}
+            (existing && !removed ? `${kind === "image" ? "Foto" : "Vídeo"} atual mantido${kind === "image" ? "a" : ""}` : kind === "image" ? IMAGE_HINT : VIDEO_HINT)}
         </small>
         <small className="kd-drop-hint">Clique ou arraste o arquivo para cá</small>
         {file && progress !== undefined && <UploadBar value={progress} />}
@@ -1606,7 +1627,20 @@ function DropZone({
   );
 }
 
-function ProductForm({ product, categories, notify, onClose }: { product: any | null; categories: any[]; notify: Notify; onClose: () => void }) {
+function ProductForm({
+  product,
+  categories,
+  notify,
+  onClose,
+  videoJob,
+}: {
+  product: any | null;
+  categories: any[];
+  notify: Notify;
+  onClose: () => void;
+  /** Envio ou otimização em andamento para este produto. */
+  videoJob?: JobView;
+}) {
   const start = useRef({
     name: product?.name || "",
     cents: product ? productCents(product) : 0,
@@ -1623,28 +1657,81 @@ function ProductForm({ product, categories, notify, onClose }: { product: any | 
   const [removeVideo, setRemoveVideo] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<"" | "uploading" | "saving">("");
-  const [progress, setProgress] = useState<{ image?: number; video?: number }>({});
-  const uploaded = useRef<{ image?: { file: File; url: string }; video?: { file: File; url: string } }>({});
-  const imagePreview = useMemo(() => (image ? URL.createObjectURL(image) : product?.image || ""), [image, product]);
+  const [progress, setProgress] = useState<{ image?: number }>({});
+  const [videoChecking, setVideoChecking] = useState(false);
+  const pickedVideo = useRef<File | null>(null);
+  // Id definido antes de gravar: a foto sobe com o id do produto no nome do arquivo.
+  const [productId] = useState<string>(() => product?.id ?? newProductId());
+  // Otimização começa quando a foto é escolhida; ao salvar, só falta enviar.
+  const optimizeJob = useRef<{ file: File; promise: Promise<OptimizedImage>; abort: AbortController } | null>(null);
+  const [optimized, setOptimized] = useState<OptimizedImage | null>(null);
+  const [imageStage, setImageStage] = useState<"" | "processing" | "uploading">("");
+  const uploadAbort = useRef<AbortController | null>(null);
+  // Prévia: o arquivo escolhido na hora e, quando pronta, a própria versão que será publicada.
+  const imagePreview = useMemo(
+    () => (optimized ? URL.createObjectURL(optimized.main.blob) : image ? URL.createObjectURL(image) : product?.imageThumb || product?.image || ""),
+    [optimized, image, product],
+  );
   useEffect(
     () => () => {
-      if (image) URL.revokeObjectURL(imagePreview);
+      if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
     },
-    [image, imagePreview],
+    [imagePreview],
+  );
+  useEffect(
+    () => () => {
+      optimizeJob.current?.abort.abort();
+      uploadAbort.current?.abort();
+    },
+    [],
   );
   const s = start.current;
   const dirty =
     name !== s.name || cents !== s.cents || categoryId !== s.categoryId || description !== s.description || Boolean(image || video) || removeImage || removeVideo;
 
   const pickImage = (file: File | null) => {
+    optimizeJob.current?.abort.abort();
+    optimizeJob.current = null;
+    setOptimized(null);
     setImage(file);
     setRemoveImage(false);
-    setErrors((current) => ({ ...current, image: file && !IMAGE_TYPES.test(file.type) ? "Use uma imagem PNG, JPG ou WebP." : "" }));
+    setErrors((current) => ({ ...current, image: "" }));
+    if (!file) return;
+    const abort = new AbortController();
+    const promise = optimizeImage(file, "product", { signal: abort.signal });
+    optimizeJob.current = { file, promise, abort };
+    setImageStage("processing");
+    promise.then(
+      (result) => {
+        if (optimizeJob.current?.file !== file) return;
+        setOptimized(result);
+        setImageStage("");
+      },
+      (error) => {
+        if (optimizeJob.current?.file !== file || (error instanceof ImageError && error.code === "canceled")) return;
+        setImageStage("");
+        setErrors((current) => ({ ...current, image: error instanceof Error ? error.message : "Não foi possível usar essa imagem." }));
+      },
+    );
   };
+  // O formato é conferido pelo conteúdo do arquivo (não pela extensão), além de tamanho e duração.
   const pickVideo = (file: File | null) => {
+    pickedVideo.current = file;
     setVideo(file);
     setRemoveVideo(false);
-    setErrors((current) => ({ ...current, video: file && !VIDEO_TYPES.test(file.type) ? "Use um vídeo MP4, WebM ou MOV." : "" }));
+    setErrors((current) => ({ ...current, video: "" }));
+    if (!file) return;
+    setVideoChecking(true);
+    validateVideoFile(file)
+      .then(
+        () => undefined,
+        (error) => {
+          if (pickedVideo.current === file) setErrors((current) => ({ ...current, video: error instanceof VideoFileError ? error.message : "Não foi possível ler esse vídeo." }));
+        },
+      )
+      .finally(() => {
+        if (pickedVideo.current === file) setVideoChecking(false);
+      });
   };
 
   const validate = () => {
@@ -1652,8 +1739,9 @@ function ProductForm({ product, categories, notify, onClose }: { product: any | 
     if (!name.trim()) next.name = "Informe o nome do produto.";
     if (!categoryId) next.category = "Escolha em qual seção do cardápio ele aparece.";
     if (cents <= 0) next.price = "Informe um preço maior que zero.";
-    if (image && (!IMAGE_TYPES.test(image.type) || image.size > 10 * 1024 * 1024)) next.image = "Use PNG, JPG ou WebP de até 10 MB.";
-    if (video && (!VIDEO_TYPES.test(video.type) || video.size > 100 * 1024 * 1024)) next.video = "Use MP4, WebM ou MOV de até 100 MB.";
+    if (image && errors.image) next.image = errors.image;
+    if (video && errors.video) next.video = errors.video;
+    if (video && videoChecking) next.video = "Aguarde: o vídeo ainda está sendo verificado.";
     setErrors(next);
     return !Object.keys(next).length;
   };
@@ -1662,11 +1750,22 @@ function ProductForm({ product, categories, notify, onClose }: { product: any | 
     e?.preventDefault();
     if (!validate()) return;
     const category = categories.find((c) => c.id === categoryId);
+    let uploadedImage: UploadedImage | undefined;
     try {
       setStatus(image ? "uploading" : "saving");
-      let imageUrl: string | undefined;
       if (image) {
-        imageUrl = await uploadProductImage(image, (pct) => setProgress((current) => ({ ...current, image: pct })));
+        const abort = new AbortController();
+        uploadAbort.current = abort;
+        const ready = optimizeJob.current?.file === image ? await optimizeJob.current.promise : undefined;
+        uploadedImage = await uploadImage({
+          file: image,
+          kind: "product",
+          productId,
+          optimized: ready,
+          signal: abort.signal,
+          onStage: setImageStage,
+          onProgress: (pct) => setProgress({ image: pct }),
+        });
       }
       setStatus("saving");
       const data = {
@@ -1676,38 +1775,46 @@ function ProductForm({ product, categories, notify, onClose }: { product: any | 
         description,
         price: (cents / 100).toFixed(2).replace(".", ","),
         priceCents: cents,
-        ...(imageUrl ? { image: imageUrl } : removeImage ? { image: "" } : {}),
-        ...(removeVideo ? { videoUrl: "" } : {}),
+        ...(uploadedImage
+          ? { image: uploadedImage.url, imageThumb: uploadedImage.smallUrl, imageMeta: imageMeta(uploadedImage) }
+          : removeImage
+            ? { image: "", imageThumb: "", imageMeta: null }
+            : {}),
+        ...(removeVideo ? { videoUrl: "", videoPoster: "", video: null } : {}),
       };
-      let savedId = product?.id;
-      if (product) {
-        await updateRestaurantProduct(product.id, data);
-      } else {
-        const created = await createRestaurantProduct({ ...data, available: true });
-        savedId = created?.id;
-      }
-      notify(product ? "Produto atualizado" : "Produto adicionado ao cardápio");
+      if (product) await updateRestaurantProduct(product.id, data);
+      else await createRestaurantProduct({ ...data, available: true }, productId);
+      const savedId = productId;
+      // Produto gravado com a foto nova: a anterior (se gerada por este sistema) pode sair do Storage.
+      if (product && (uploadedImage || removeImage)) deleteManagedImages([product.image, product.imageThumb]).catch(() => undefined);
+      const saved = product ? "Produto atualizado" : "Produto adicionado ao cardápio";
+      if (!video) notify(saved);
       onClose();
+      if (removeVideo && product) discardProductVideo(product.id, product.video).catch(() => undefined);
 
-      // Upload de vídeo em segundo plano: não bloqueia o administrador nem a navegação
+      // O envio segue em segundo plano (bandeja no canto da tela); a otimização roda no servidor.
       if (video && savedId) {
-        const targetId = savedId;
-        const targetName = name;
-        notify(`Enviando vídeo de "${targetName}" em segundo plano…`, "success");
-        uploadProductVideo(video)
-          .then(async (videoUrl) => {
-            await updateRestaurantProduct(targetId, { videoUrl });
-            notify(`Vídeo de "${targetName}" enviado e vinculado ao produto!`, "success");
-          })
-          .catch((err) => {
-            reportError(err, notify, `Falha no envio do vídeo de "${targetName}". Edite o produto para tentar novamente.`);
-          });
+        try {
+          await startVideoUpload({ productId: savedId, productName: name.trim(), file: video });
+          notify(`${saved}. O vídeo está sendo enviado; acompanhe no canto da tela.`);
+        } catch (err) {
+          reportError(err, notify, "O produto foi salvo, mas o vídeo não começou a ser enviado. Edite o produto para tentar de novo.");
+        }
       }
     } catch (err) {
-      reportError(err, notify, "Não foi possível salvar o produto. Seus dados continuam no formulário; tente de novo.");
+      if (err instanceof ImageError && err.code === "canceled") {
+        notify("Envio da foto cancelado. Os dados continuam no formulário.");
+      } else {
+        reportError(err, notify, "Não foi possível salvar o produto. Seus dados continuam no formulário; tente de novo.");
+      }
       if (isQueued(err)) return onClose();
+      // A foto subiu mas o produto não foi gravado: remove os arquivos para não ficarem órfãos.
+      if (uploadedImage) deleteManagedImages([uploadedImage.url, uploadedImage.smallUrl]).catch(() => undefined);
       setStatus("");
+      setImageStage("");
       setProgress({});
+    } finally {
+      uploadAbort.current = null;
     }
   };
 
@@ -1721,12 +1828,20 @@ function ProductForm({ product, categories, notify, onClose }: { product: any | 
       busy={busy}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancelar
-          </Button>
+          {status === "uploading" ? (
+            <Button variant="ghost" onClick={() => uploadAbort.current?.abort()}>
+              Cancelar envio
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={onClose} disabled={busy}>
+              Cancelar
+            </Button>
+          )}
           <Button type="submit" form="kd-product-form" loading={busy}>
             {status === "uploading"
-              ? `Enviando mídia… ${uploadPercent(image ? progress.image ?? 0 : null, video ? progress.video ?? 0 : null)}%`
+              ? imageStage === "processing"
+                ? "Otimizando foto…"
+                : `Enviando foto… ${progress.image ?? 0}%`
               : status === "saving"
                 ? "Salvando…"
                 : product
@@ -1780,12 +1895,13 @@ function ProductForm({ product, categories, notify, onClose }: { product: any | 
           <div className="kd-form-grid">
             <DropZone
               kind="image"
-              accept="image/png,image/jpeg,image/webp"
+              accept={IMAGE_ACCEPT}
               file={image}
               existing={product?.image}
               removed={removeImage}
               error={errors.image}
-              progress={progress.image}
+              note={image ? (imageStage === "processing" && !optimized ? "Otimizando a foto…" : optimized ? `Otimizada: ${describeOptimization(optimized)}` : undefined) : undefined}
+              progress={status === "uploading" && imageStage === "uploading" ? progress.image : undefined}
               preview={imagePreview}
               onFile={pickImage}
               onRemove={() => setRemoveImage(true)}
@@ -1793,17 +1909,24 @@ function ProductForm({ product, categories, notify, onClose }: { product: any | 
             />
             <DropZone
               kind="video"
-              accept="video/mp4,video/webm,video/quicktime"
+              accept={VIDEO_ACCEPT}
               file={video}
               existing={product?.videoUrl}
+              preview={product?.videoPoster}
               removed={removeVideo}
               error={errors.video}
-              progress={progress.video}
               onFile={pickVideo}
               onRemove={() => setRemoveVideo(true)}
               onUndoRemove={() => setRemoveVideo(false)}
             />
           </div>
+          {video && videoJob && !["ready", "failed", "interrupted"].includes(videoJob.phase) ? (
+            <p className="kd-vinline is-wait" role="status">
+              Ao salvar, este vídeo substitui o que está em envio ou otimização.
+            </p>
+          ) : (
+            <VideoJobInline job={videoJob} />
+          )}
         </fieldset>
       </form>
     </Modal>
@@ -2103,7 +2226,7 @@ function QrPage({ notify, tables, tableTokens, restaurantName, loaded, loadError
 
 /* ───────────────────────── Avaliações ───────────────────────── */
 
-function ReviewsPage({ settings, setSettings, notify }: DashboardProps) {
+function ReviewsPage({ settings, setSettings, notify, onSaved }: DashboardProps) {
   const [url, setUrl] = useState(settings.googleReviewUrl || "");
   const [error, setError] = useState("");
   const saved = (settings.googleReviewUrl || "") === url.trim();
@@ -2120,8 +2243,9 @@ function ReviewsPage({ settings, setSettings, notify }: DashboardProps) {
       }
     }
     setError("");
+    if (value === (settings.googleReviewUrl || "")) return;
     setSettings((current) => ({ ...current, googleReviewUrl: value }));
-    notify(value ? "Link de avaliação salvo" : "Link de avaliação removido");
+    onSaved("settings", () => notify(value ? "Link de avaliação salvo" : "Link de avaliação removido"));
   };
 
   return (
@@ -2290,42 +2414,78 @@ function BarList({ rows }: { rows: [string, number][] }) {
 
 /* ───────────────────────── Personalização ───────────────────────── */
 
-function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories, settings }: DashboardProps) {
+const brandImages = (b: Brand) => [b.logo, b.logoSmall, b.cover, b.coverSmall];
+
+function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories, settings, onSaved }: DashboardProps) {
   const [uploading, setUploading] = useState<"" | "logo" | "cover">("");
   /** Cores em edição no seletor de paleta (ainda não salvas). */
   const [draftColors, setDraftColors] = useState<PaletteColors | null>(null);
   const previewColors = draftColors ?? (isDefaultPalette(brand.palette) ? null : brand.palette!.colors);
   const previewChips = categories.filter((c: any) => c.active !== false).slice(0, 3).map((c: any) => String(c.name));
   const [pct, setPct] = useState(0);
-  const upload = async (input: HTMLInputElement, key: "logo" | "cover") => {
-    const file = input.files?.[0];
-    input.value = "";
-    if (!file) return;
+  const [stage, setStage] = useState<UploadStage>("processing");
+  const uploadAbort = useRef<AbortController | null>(null);
+  // Marca mais recente, para a limpeza agendada saber se a imagem antiga voltou a ser usada (Desfazer).
+  const brandRef = useRef(brand);
+  useEffect(() => {
+    brandRef.current = brand;
+  }, [brand]);
+  const smallKey = (key: "logo" | "cover") => (key === "logo" ? "logoSmall" : "coverSmall");
+
+  const uploadFile = async (file: File, key: "logo" | "cover") => {
+    const abort = new AbortController();
+    uploadAbort.current = abort;
     setUploading(key);
     setPct(0);
+    setStage("processing");
+    const previous = [brand[key], brand[smallKey(key)]];
     try {
-      const url = await uploadRestaurantImage(file, key === "logo" ? "logos" : "capas", setPct);
-      setBrand((current) => ({ ...current, [key]: url }));
-      notify(key === "logo" ? "Logo atualizada no cardápio" : "Capa atualizada no cardápio");
+      const result = await uploadImage({ file, kind: key === "logo" ? "logo" : "cover", signal: abort.signal, onStage: setStage, onProgress: setPct });
+      setBrand((current) => ({ ...current, [key]: result.url, [smallKey(key)]: result.smallUrl }));
+      onSaved(
+        "brand",
+        () => {
+          // Confirmado no Firestore: o cardápio aberto já mostra a imagem nova.
+          notify(`${key === "logo" ? "Logo atualizada" : "Capa atualizada"} no cardápio · ${describeOptimization(result.optimization)}`);
+          scheduleImageCleanup(previous, () => brandImages(brandRef.current));
+        },
+        // A gravação falhou e a marca voltou ao que era: a imagem recém-enviada não fica órfã.
+        () => deleteManagedImages([result.url, result.smallUrl]).catch(() => undefined),
+      );
     } catch (error) {
-      reportError(error, notify, "Não foi possível enviar a imagem. Tente de novo.");
+      if (error instanceof ImageError && error.code === "canceled") notify("Envio cancelado");
+      else
+        notify(friendlyError(error, "Não foi possível enviar a imagem. Tente de novo."), "error", {
+          label: "Tentar de novo",
+          onAction: () => uploadFile(file, key),
+        });
     } finally {
       setUploading("");
+      uploadAbort.current = null;
     }
   };
+  const upload = (input: HTMLInputElement, key: "logo" | "cover") => {
+    const file = input.files?.[0];
+    input.value = "";
+    if (file) uploadFile(file, key);
+  };
   const remove = (key: "logo" | "cover") => {
-    const previous = brand[key];
-    setBrand((current) => ({ ...current, [key]: "" }));
-    notify(key === "logo" ? "Logo removida" : "Capa removida", "success", {
-      label: "Desfazer",
-      onAction: () => setBrand((current) => ({ ...current, [key]: previous })),
+    const previous = { [key]: brand[key], [smallKey(key)]: brand[smallKey(key)] };
+    setBrand((current) => ({ ...current, [key]: "", [smallKey(key)]: "" }));
+    onSaved("brand", () => {
+      notify(key === "logo" ? "Logo removida" : "Capa removida", "success", {
+        label: "Desfazer",
+        onAction: () => setBrand((current) => ({ ...current, ...previous })),
+      });
+      // Só apaga do Storage depois do tempo do Desfazer.
+      scheduleImageCleanup(Object.values(previous), () => brandImages(brandRef.current), 30_000);
     });
   };
   const sample = foods.filter((f) => f.available !== false).slice(0, 2);
 
   const rows: { key: "logo" | "cover"; title: string; hint: string }[] = [
-    { key: "logo", title: "Logo", hint: "Quadrada, de preferência com fundo. PNG, JPG ou WebP até 10 MB." },
-    { key: "cover", title: "Foto de capa", hint: "Horizontal, do salão ou de um prato da casa. Aparece no topo do cardápio." },
+    { key: "logo", title: "Logo", hint: `Quadrada. ${IMAGE_HINT}; fundo transparente é mantido.` },
+    { key: "cover", title: "Foto de capa", hint: `Horizontal, do salão ou de um prato da casa. ${IMAGE_HINT}.` },
   ];
 
   return (
@@ -2341,10 +2501,10 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories,
               <li key={key} className="kd-upload-row">
                 {key === "logo" ? (
                   <span className="kd-avatar kd-avatar--lg" aria-hidden>
-                    {brand.logo ? <img src={brand.logo} alt="" /> : initial(restaurantName)}
+                    {brand.logo ? <img src={brand.logoSmall || brand.logo} alt="" /> : initial(restaurantName)}
                   </span>
                 ) : (
-                  <span className="kd-cover-thumb" style={brand.cover ? { backgroundImage: `url(${brand.cover})` } : undefined} aria-hidden />
+                  <span className="kd-cover-thumb" style={brand.cover ? { backgroundImage: `url(${brand.coverSmall || brand.cover})` } : undefined} aria-hidden />
                 )}
                 <span className="kd-row-main">
                   <b>{title}</b>
@@ -2354,15 +2514,19 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories,
                   <label className={`kd-btn kd-btn--secondary kd-btn--sm ${uploading ? "is-disabled" : ""}`}>
                     <input
                       type="file"
-                      accept="image/png,image/jpeg,image/webp"
+                      accept={IMAGE_ACCEPT}
                       className="kd-sr"
                       disabled={Boolean(uploading)}
                       onChange={(e) => upload(e.currentTarget, key)}
                     />
                     {uploading === key ? <LoaderCircle size={15} className="k-spin" aria-hidden /> : <ImagePlus size={15} aria-hidden />}
-                    <span aria-live="polite">{uploading === key ? `Enviando… ${pct}%` : brand[key] ? "Trocar" : "Enviar"}</span>
+                    <span aria-live="polite">{uploading === key ? (stage === "processing" ? "Otimizando…" : `Enviando… ${pct}%`) : brand[key] ? "Trocar" : "Enviar"}</span>
                   </label>
-                  {brand[key] && (
+                  {uploading === key ? (
+                    <IconButton label="Cancelar envio" onClick={() => uploadAbort.current?.abort()}>
+                      <X size={16} />
+                    </IconButton>
+                  ) : brand[key] && (
                     <IconButton label={key === "logo" ? "Remover logo" : "Remover capa"} tone="danger" onClick={() => remove(key)} disabled={Boolean(uploading)}>
                       <Trash2 size={16} />
                     </IconButton>
@@ -2372,7 +2536,7 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories,
             ))}
           </ul>
         </Card>
-        <PalettePicker brand={brand} setBrand={setBrand} notify={notify} onPreview={setDraftColors} />
+        <PalettePicker brand={brand} setBrand={setBrand} notify={notify} onPreview={setDraftColors} onSaved={onSaved} />
       </div>
       <figure className="kd-phone">
         <div className="kd-phone-screen kd-menu" aria-hidden style={previewColors ? (paletteVars(previewColors) as React.CSSProperties) : undefined}>
@@ -2407,7 +2571,7 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories,
 
 /* ───────────────────────── Configurações ───────────────────────── */
 
-function SettingsPage({ settings, setSettings, notify, account }: DashboardProps) {
+function SettingsPage({ settings, setSettings, notify, account, onSaved }: DashboardProps) {
   const billAllowed = canAccessFeature(usePlan(account), "bill_request");
   const options: { key: keyof RestaurantSettings; label: string; description: string }[] = [
     { key: "waiter", label: "Chamar garçom", description: "O cliente avisa a equipe pelo cardápio e o chamado chega com o nome da mesa." },
@@ -2438,7 +2602,8 @@ function SettingsPage({ settings, setSettings, notify, account }: DashboardProps
                 onChange={(checked) => {
                   setSettings((current) => ({ ...current, [o.key]: checked }));
                   if (o.key === "sound" && checked) playCallTone();
-                  notify(`${o.label}: ${checked ? "ativado" : "desativado"}`);
+                  // O aviso só sai depois que o Firestore confirmou (o cardápio aberto já recebeu a mudança).
+                  onSaved("settings", () => notify(`${o.label}: ${checked ? "ativado" : "desativado"}`));
                 }}
               />
             </li>

@@ -121,16 +121,19 @@ export function PalettePicker({
   setBrand,
   notify,
   onPreview,
+  onSaved,
 }: {
   brand: Brand;
   setBrand: Setter<Brand>;
   notify: Notify;
+  /** Aviso só depois da confirmação do Firestore (ver components/app.tsx). */
+  onSaved?: (key: "brand", done: () => void) => void;
   /** Cores em edição, para a prévia do celular (null: mostra a paleta salva). */
   onPreview: (colors: PaletteColors | null) => void;
 }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const selectedId = brand.palette?.id ?? DEFAULT_PALETTE_ID;
-  const panel = brand.palette?.panel ?? true;
+  const panel = brand.palette?.panel ?? false;
   const custom = brand.customPalette;
 
   useEffect(() => onPreview(draft ? draft.colors : null), [draft, onPreview]);
@@ -141,12 +144,13 @@ export function PalettePicker({
     ...(custom ? [{ id: CUSTOM_ID, name: custom.name, description: describeCustom(custom), colors: custom.colors }] : []),
   ];
   const selected = options.find((o) => o.id === selectedId) ?? options[0];
+  const afterSave = (done: () => void) => (onSaved ? onSaved("brand", done) : done());
 
   /** Troca a paleta em uso, com desfazer (a escolha é salva na hora, como logo e capa). */
   const apply = (next: BrandPalette | null, message: string) => {
     const previous = brand.palette;
     setBrand((current) => ({ ...current, palette: next }));
-    notify(message, "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, palette: previous })) });
+    afterSave(() => notify(message, "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, palette: previous })) }));
   };
 
   const choose = (id: string) => {
@@ -179,14 +183,14 @@ export function PalettePicker({
     const previous = { palette: brand.palette, customPalette: brand.customPalette };
     setBrand((current) => ({ ...current, palette, customPalette: palette }));
     setDraft(null);
-    notify(`Paleta “${palette.name}” salva e aplicada`, "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, ...previous })) });
+    afterSave(() => notify(`Paleta “${palette.name}” salva e aplicada`, "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, ...previous })) }));
   };
 
   const removeCustom = () => {
     const previous = { palette: brand.palette, customPalette: brand.customPalette };
     setBrand((current) => ({ ...current, customPalette: null, palette: current.palette?.id === CUSTOM_ID ? null : current.palette }));
     setDraft(null);
-    notify("Paleta própria excluída", "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, ...previous })) });
+    afterSave(() => notify("Paleta própria excluída", "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, ...previous })) }));
   };
 
   const setColor = (key: PaletteKey, value: string) => setDraft((d) => (d ? { ...d, colors: { ...d.colors, [key]: value } } : d));
@@ -232,8 +236,16 @@ export function PalettePicker({
                 description="Desligado, o painel de gestão fica com as cores do Kardap e só o cardápio usa a paleta."
                 checked={panel}
                 onChange={(checked) => {
-                  setBrand((current) => (current.palette ? { ...current, palette: { ...current.palette, panel: checked } } : current));
-                  notify(checked ? "Paleta aplicada também ao painel" : "Painel voltou às cores do Kardap");
+                  setBrand((current) => {
+                    if (!current.palette) return current;
+                    const nextPalette = { ...current.palette, panel: checked };
+                    const nextCustom =
+                      current.customPalette && current.palette.id === CUSTOM_ID
+                        ? { ...current.customPalette, panel: checked }
+                        : current.customPalette;
+                    return { ...current, palette: nextPalette, customPalette: nextCustom };
+                  });
+                  afterSave(() => notify(checked ? "Paleta aplicada também ao painel" : "Painel voltou às cores do Kardap"));
                 }}
               />
             </div>

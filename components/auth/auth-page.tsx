@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -14,11 +14,13 @@ import {
   signInWithPopup,
   updateProfile,
 } from "firebase/auth";
-import { AlertCircle, ArrowLeft, Eye, EyeOff, MailCheck, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Eye, EyeOff, LockKeyhole, MailCheck, X } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/auth";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { ensureRestaurant, findRestaurantByOwner } from "@/lib/restaurant-db";
 import { friendlyError, withTimeout } from "@/lib/async";
+import { readReturnTo, safeRedirect } from "@/lib/sso/config";
+import { establishSsoSession, linkedUid, readSsoSession } from "@/lib/sso/client";
 import { KardapLogo } from "@/components/brand/logo";
 import { Button, TextField } from "@/components/ui/primitives";
 
@@ -70,8 +72,23 @@ function BrandPanel() {
   );
 }
 
+/** Nome do aplicativo de destino (?returnTo=), para os textos da tela. */
+function destinationName(target: string | null) {
+  if (!target || target.startsWith("/")) return "";
+  try {
+    return new URL(target).hostname.startsWith("pdv.") ? "o PDV" : "";
+  } catch {
+    return "";
+  }
+}
+
 export default function AuthPage({ register, onLogin }: { register: boolean; onLogin: () => void }) {
   const router = useRouter();
+  const query = useSearchParams();
+  // Destino depois do login (?returnTo=, ex.: o PDV). Só caminhos deste site ou origens da lista (lib/sso/config.ts).
+  const redirectTo = useMemo(() => safeRedirect(readReturnTo(query)), [query]);
+  const destination = destinationName(redirectTo);
+  const [notice, setNotice] = useState("");
   const [mode, setMode] = useState<Mode>(register ? "register" : "login");
   const isRegister = mode === "register";
   const [name, setName] = useState("");
@@ -96,6 +113,44 @@ export default function AuthPage({ register, onLogin }: { register: boolean; onL
     setFormError("");
   }, [routeMode]);
 
+  /**
+   * Chegou com ?returnTo= (ex.: o PDV pediu login). Se a sessão compartilhada já vale, volta direto.
+   * Logado aqui, mas sem sessão compartilhada:
+   * - se este navegador já teve uma (logout em outro app, expiração), pede a senha: sair nunca é desfeito sozinho;
+   * - se nunca teve (login anterior ao SSO), tenta criá-la. O servidor só aceita login recente, então em sessões
+   *   antigas a tela também pede a senha (um login velho nunca vira sessão nova).
+   */
+  useEffect(() => {
+    if (!redirectTo || register || !isFirebaseConfigured) return;
+    let alive = true;
+    setStage("Verificando seu acesso…");
+    (async () => {
+      const auth = getFirebaseAuth();
+      await auth.authStateReady().catch(() => undefined);
+      const user = auth.currentUser;
+      const status = await readSsoSession();
+      if (!alive) return;
+      if (status.authenticated && (!user || user.uid === status.uid)) {
+        window.location.replace(redirectTo);
+        return;
+      }
+      if (user) {
+        const sso = linkedUid() === user.uid ? null : await establishSsoSession(user);
+        if (!alive) return;
+        if (sso?.ok) {
+          window.location.replace(redirectTo);
+          return;
+        }
+        if (user.email) setEmail(user.email);
+        setNotice(`Por segurança, confirme sua senha para continuar${destination ? ` para ${destination}` : ""}.`);
+      }
+      setStage("");
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [redirectTo, register, destination]);
+
   const showError = (message: string) => {
     setFormError(message);
     requestAnimationFrame(() => errorRef.current?.focus());
@@ -105,12 +160,24 @@ export default function AuthPage({ register, onLogin }: { register: boolean; onL
    * Depois de entrar: quem já tem restaurante vai para o painel; quem ainda não tem vai para a configuração inicial.
    * O restaurante é localizado antes de marcar a sessão, para o painel já abrir com os dados certos num aparelho novo.
    */
-  const goAfterLogin = async () => {
+  const goAfterLogin = async (keep: boolean) => {
+    const user = getFirebaseAuth().currentUser;
+    // Sessão compartilhada com o PDV (cookie HttpOnly em .kardap.online). Se falhar, o painel funciona igual.
+    const sso = user ? await establishSsoSession(user, keep) : null;
+    if (redirectTo) {
+      if (sso?.ok || redirectTo.startsWith("/")) {
+        onLogin();
+        window.location.replace(redirectTo);
+        return;
+      }
+      setStage("");
+      showError(sso?.message || `Você entrou, mas não foi possível abrir ${destination || "o destino"} agora. Tente entrar de novo.`);
+      return;
+    }
     let found: Awaited<ReturnType<typeof findRestaurantByOwner>> = null;
     const knownId = localStorage.getItem("kardap-restaurant-id");
     if (!knownId || knownId === "unassigned") {
       try {
-        const user = getFirebaseAuth().currentUser;
         if (user) found = await findRestaurantByOwner(user.uid);
       } catch {
         // Sem conexão: a configuração inicial tenta localizar ou criar o restaurante de novo.
@@ -183,12 +250,13 @@ export default function AuthPage({ register, onLogin }: { register: boolean; onL
         } catch {
           await ensureRestaurant(credential.user.uid, fullName).catch(() => undefined);
         }
+        await establishSsoSession(credential.user, true);
         onLogin();
         window.location.href = "/onboarding";
         return;
       }
-      setStage("Abrindo seu painel…");
-      goAfterLogin();
+      setStage(destination ? `Abrindo ${destination}…` : "Abrindo seu painel…");
+      await goAfterLogin(remember);
     } catch (error) {
       setStage("");
       showError(friendlyError(error, "Não foi possível concluir o acesso. Tente de novo."));
@@ -211,8 +279,8 @@ export default function AuthPage({ register, onLogin }: { register: boolean; onL
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       await signInWithPopup(auth, provider);
-      setStage("Abrindo seu painel…");
-      goAfterLogin();
+      setStage(destination ? `Abrindo ${destination}…` : "Abrindo seu painel…");
+      await goAfterLogin(remember);
     } catch (error) {
       showError(friendlyError(error, "Não foi possível entrar com o Google. Tente de novo."));
     } finally {
@@ -325,13 +393,21 @@ export default function AuthPage({ register, onLogin }: { register: boolean; onL
                 </Link>
               </nav>
 
-              <h1 className="kd-h1">{isRegister ? "Criar sua conta" : "Entrar no painel"}</h1>
+              <h1 className="kd-h1">{isRegister ? "Criar sua conta" : destination ? `Entrar para abrir ${destination}` : "Entrar no painel"}</h1>
               <p className="kd-auth-sub">
                 {isRegister
                   ? "15 dias para testar, sem cartão de crédito. Logo depois você configura o restaurante."
-                  : "Mesas, chamados e cardápio do seu restaurante em um só lugar."}
+                  : destination
+                    ? "Use a mesma conta do painel KARDAP. Depois do login você volta automaticamente."
+                    : "Mesas, chamados e cardápio do seu restaurante em um só lugar."}
               </p>
 
+              {notice && !formError && (
+                <div className="kd-auth-notice" role="status">
+                  <LockKeyhole size={18} aria-hidden />
+                  <p>{notice}</p>
+                </div>
+              )}
               {errorBox}
 
               <Button variant="secondary" size="lg" block onClick={signInWithGoogle} loading={googleLoading} disabled={busy} icon={<GoogleMark />}>

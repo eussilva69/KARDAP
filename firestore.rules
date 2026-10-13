@@ -75,6 +75,15 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Login único (SSO_INTEGRATION.md): sessões (id = hash do cookie) e códigos de uso único já trocados.
+    // Só o servidor central (Admin SDK) usa.
+    match /ssoSessoes/{sessionId} {
+      allow read, write: if false;
+    }
+    match /ssoCodigosUsados/{codeId} {
+      allow read, write: if false;
+    }
+
     // ───── Restaurantes ─────
 
     match /restaurantes/{restaurantId} {
@@ -101,9 +110,61 @@ service cloud.firestore {
         allow write: if isAdmin() || isMember(restaurantId) || ownsAfter(restaurantId);
       }
 
+      // O vídeo publicado (videoUrl, videoPoster, video) é gravado só pelo worker de vídeo, com
+      // credencial de servidor (que não passa por estas regras). O painel pode apenas removê-lo.
+      function videoFieldsUntouchedOrCleared() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return !changed.hasAny(['videoUrl', 'videoPoster', 'video'])
+          || (request.resource.data.get('videoUrl', '') == ''
+            && request.resource.data.get('videoPoster', '') == ''
+            && request.resource.data.get('video', null) == null);
+      }
+
       match /produtos/{productId} {
         allow read: if true;
-        allow write: if isMember(restaurantId) || isAdmin();
+        allow create: if isAdmin() || (isMember(restaurantId)
+          && request.resource.data.get('videoUrl', '') == ''
+          && !request.resource.data.keys().hasAny(['videoPoster', 'video']));
+        allow update: if isAdmin() || (isMember(restaurantId) && videoFieldsUntouchedOrCleared());
+        allow delete: if isMember(restaurantId) || isAdmin();
+      }
+
+      // Registros de vídeo de produto (services/video-worker/src/contract.ts).
+      // O painel cria o registro antes de enviar o arquivo e só pode: marcar o envio como concluído,
+      // cancelar ou registrar falha de envio. processing, retrying e ready são exclusivos do worker.
+      function clientVideoUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        let from = resource.data.status;
+        let to = request.resource.data.status;
+        return changed.hasOnly(['status', 'error', 'uploadCompletedAt', 'updatedAt'])
+          && request.resource.data.updatedAt == request.time
+          && (
+            (from in ['pending', 'uploading'] && to in ['pending', 'uploading'] && !changed.hasAny(['error']))
+            || (from in ['pending', 'uploading', 'processing', 'retrying'] && to == 'canceled' && !changed.hasAny(['error']))
+            || (from in ['pending', 'uploading'] && to == 'failed' && request.resource.data.error == 'upload')
+          );
+      }
+
+      match /videos/{videoId} {
+        allow read: if isMember(restaurantId) || isAdmin();
+        allow create: if isMember(restaurantId)
+          && request.resource.data.keys().hasOnly(['productId', 'status', 'originalPath', 'originalSize', 'contentType', 'fileName', 'createdBy', 'createdAt', 'updatedAt'])
+          && request.resource.data.status in ['pending', 'uploading']
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.productId is string
+          && exists(/databases/$(database)/documents/restaurantes/$(restaurantId)/produtos/$(request.resource.data.productId))
+          && request.resource.data.originalPath == 'restaurantes/' + restaurantId + '/produtos/' + request.resource.data.productId + '/videos/original/' + videoId + '.' + request.resource.data.originalPath.split('[.]')[1]
+          && request.resource.data.originalPath.matches('.*[.](mp4|mov|webm)')
+          && request.resource.data.originalSize is int
+          && request.resource.data.originalSize > 0
+          && request.resource.data.originalSize <= 209715200
+          && request.resource.data.contentType in ['video/mp4', 'video/quicktime', 'video/webm']
+          && request.resource.data.fileName is string
+          && request.resource.data.fileName.size() <= 120;
+        allow update: if isAdmin() || (isMember(restaurantId) && clientVideoUpdate());
+        allow delete: if isAdmin() || (isMember(restaurantId) && resource.data.status in ['ready', 'failed', 'canceled']);
       }
 
       match /categorias/{categoryId} {

@@ -114,7 +114,8 @@ npm run start
 | Rota | Descrição |
 | --- | --- |
 | `/` | Landing page institucional. |
-| `/login` | Acesso à plataforma. |
+| `/login` | Acesso à plataforma (login único também do PDV; aceita `?redirect=` para destinos permitidos). |
+| `/logout` | Saída compartilhada com o PDV. |
 | `/criar-conta` | Cadastro de novo restaurante. |
 | `/onboarding` | Configuração inicial após o cadastro. |
 | `/planos` | Planos, preços e comparação de recursos (pública). |
@@ -141,11 +142,28 @@ components/                # Componentes da aplicação
 lib/                       # Firebase, acesso a dados, storage e utilitários
 public/                    # Imagens, ativos e páginas públicas
 docs/                      # Documentação técnica e screenshots
-scripts/                   # Utilitários de manutenção (liberar administradores, rodapé da landing)
+scripts/                   # Utilitários de manutenção (administradores, rodapé da landing, vídeos antigos)
+services/video-worker/     # Worker de vídeo (Cloud Run + FFmpeg): otimiza os vídeos enviados pelo painel
 design/originais/          # Arquivos de arte originais que não vão para o site publicado
 ```
 
 O guia de interface (tokens, hierarquia visual, ações, movimento) está em [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
+
+## Imagens
+
+Fotos de produto, logo e capa são redimensionadas e convertidas para WebP no navegador (Web Worker) antes de subir ao Firebase Storage, em duas versões: a principal e uma pequena para listas e miniaturas. Configurações, limites e a exceção do Safari: [docs/IMAGENS.md](docs/IMAGENS.md).
+
+## Testes
+
+Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel, cardápio público em tempo real, imagens, regras e isolamento entre estabelecimentos; login único com o PDV) contra os emuladores do Firebase: [docs/TESTES.md](docs/TESTES.md).
+
+## Login único com o PDV
+
+O KARDAP é o servidor central de autenticação do ecossistema: o login em `kardap.online` vale também para `pdv.kardap.online` (cookie de sessão HttpOnly em `.kardap.online`, logout global, permissão própria para o PDV, credencial do Firebase para o PDV por código de uso único). Contrato para os outros aplicativos: [SSO_INTEGRATION.md](SSO_INTEGRATION.md). Organização interna: [docs/SSO.md](docs/SSO.md). Kit do PDV: [integrations/pdv-sso/](integrations/pdv-sso/README.md).
+
+## Vídeos de produto
+
+O vídeo vai do painel direto para o Firebase Storage; um worker no Cloud Run (FFmpeg) comprime para MP4 H.264 até 720p, gera a capa WebP e publica no produto. O painel acompanha o envio e a otimização em tempo real, e o cardápio toca só a versão otimizada. Arquitetura, implantação no Google Cloud, permissões, custos e testes: [docs/VIDEOS.md](docs/VIDEOS.md).
 
 ## Rodapé e imagens do site
 

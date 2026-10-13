@@ -210,6 +210,22 @@
 }
 .kd-auth-sent svg { flex: none; }
 .kd-auth-sent p { margin: 0; }
+
+/* Aviso neutro (ex.: confirmar a senha para continuar no PDV) */
+.kd-auth-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--k-s3);
+  padding: var(--k-s3) var(--k-s4);
+  border: 1px solid var(--k-line-strong);
+  border-radius: var(--k-r-md);
+  background: var(--k-sunken);
+  color: var(--k-ink);
+  font-size: var(--k-fs-md);
+  line-height: 1.45;
+}
+.kd-auth-notice svg { flex: none; margin-top: 1px; }
+.kd-auth-notice p { margin: 0; }
 .kd-auth-backlink { justify-self: start; }
 
 .kd-auth-legal {

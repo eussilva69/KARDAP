@@ -4,3 +4,12 @@ node_modules/
 .env
 .npm-cache/
 .tmp/
+
+# Logs dos emuladores do Firebase (testes locais)
+firestore-debug.log
+ui-debug.log
+storage-debug.log
+database-debug.log
+pubsub-debug.log
+firebase-debug.log
+*.log

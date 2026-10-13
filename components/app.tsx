@@ -33,6 +33,8 @@ import type { PublicCategory } from "@/components/menu/public-menu";
 import { canAccessFeature, effectiveSubscription } from "@/lib/cakto/access";
 import { readPalette } from "@/lib/palette";
 import type { AccountInfo } from "@/components/dashboard/types";
+import { readReturnTo, readSsoState, safeRedirect } from "@/lib/sso/config";
+import { clearAccountStorage, linkedUid, readSsoSession, watchSsoState } from "@/lib/sso/client";
 
 /* Cada tela carrega só o próprio código: quem abre o cardápio pelo QR não baixa o painel. */
 const Dashboard = dynamic(() => import("@/components/dashboard/dashboard"), { loading: () => <DashboardSkeleton /> });
@@ -42,8 +44,9 @@ const Onboarding = dynamic(() => import("@/components/site/onboarding"), { loadi
 const LegalPage = dynamic(() => import("@/components/site/legal-page"), { loading: () => <PanelLoading /> });
 const AdminPanel = dynamic(() => import("@/components/admin/admin-panel"), { loading: () => <PanelLoading /> });
 const PlansPage = dynamic(() => import("@/components/site/plans-page"), { loading: () => <PanelLoading /> });
+const LogoutPage = dynamic(() => import("@/components/auth/logout-page"), { loading: () => <PanelLoading /> });
 
-const defaultBrand: Brand = { logo: "", cover: "", palette: null, customPalette: null };
+const defaultBrand: Brand = { logo: "", cover: "", logoSmall: "", coverSmall: "", palette: null, customPalette: null };
 
 /** Marca vinda do Firestore ou do aparelho: só strings nas imagens e paleta validada (cores #rrggbb). */
 function normalizeBrand(raw: unknown): Brand {
@@ -51,6 +54,8 @@ function normalizeBrand(raw: unknown): Brand {
   return {
     logo: typeof b.logo === "string" ? b.logo : "",
     cover: typeof b.cover === "string" ? b.cover : "",
+    logoSmall: typeof b.logoSmall === "string" ? b.logoSmall : "",
+    coverSmall: typeof b.coverSmall === "string" ? b.coverSmall : "",
     palette: readPalette(b.palette),
     customPalette: readPalette(b.customPalette),
   };
@@ -67,6 +72,15 @@ const isPublicPath = (path: string) => path.startsWith("/r/");
 const isPanelPath = (path: string) => path.startsWith("/dashboard") || path === "/onboarding";
 const isAuthPath = (path: string) => path === "/login" || path === "/criar-conta";
 const isAdminPath = (path: string) => path === "/admin" || path.startsWith("/admin/");
+/** Login pedido por outro aplicativo (ex.: o PDV) com destino válido: a tela de login decide para onde voltar. */
+const hasSsoRedirect = () => Boolean(safeRedirect(readReturnTo(new URLSearchParams(window.location.search))));
+
+/** Encerra só a sessão deste site (a compartilhada já acabou em outro lugar). */
+async function signOutHere() {
+  const [{ signOut }, { getFirebaseAuth }] = await Promise.all([import("firebase/auth"), import("@/lib/auth")]);
+  clearAccountStorage();
+  await signOut(getFirebaseAuth()).catch(() => undefined);
+}
 
 type PublicRestaurant = { id: string; name: string; brand: Brand; settings: RestaurantSettings; billAllowed: boolean; suspended: boolean };
 const emptyPublicRestaurant: PublicRestaurant = { id: "", name: "", brand: defaultBrand, settings: defaultSettings, billAllowed: false, suspended: false };
@@ -143,13 +157,27 @@ export default function App() {
   }, []);
   const dismissToast = useCallback(() => setToast(null), []);
 
+  // Avisos que só devem aparecer depois que o Firestore confirmar a próxima gravação daquele campo.
+  type SaveWaiter = { done: () => void; failed?: () => void };
+  const saveWaiters = useRef<Partial<Record<"brand" | "settings", SaveWaiter[]>>>({});
+  const onSaved = useCallback((key: "brand" | "settings", done: () => void, failed?: () => void) => {
+    (saveWaiters.current[key] ||= []).push({ done, failed });
+  }, []);
+
   const persist = <K extends "calls" | "brand" | "settings">(key: K, value: unknown, restore: (value: any) => void) => {
-    saveRestaurant({ [key]: value }).catch((error) => {
+    const waitKey = key === "calls" ? null : (key as "brand" | "settings");
+    const waiting: SaveWaiter[] = waitKey ? saveWaiters.current[waitKey] || [] : [];
+    if (waitKey) saveWaiters.current[waitKey] = [];
+    saveRestaurant({ [key]: value })
+      .then(() => waiting.forEach((w) => w.done()))
+      .catch((error) => {
       if (isTimeout(error)) {
         notify("Sem resposta do servidor. A alteração ficou guardada neste aparelho e será enviada quando a conexão voltar.", "error");
         return;
       }
-      notify(friendlyError(error, "Não foi possível salvar a alteração. Ela foi desfeita; tente de novo."), "error");
+      waiting.forEach((w) => w.failed?.());
+      const reason = friendlyError(error, "");
+      notify(reason ? `${reason} A alteração foi desfeita.` : "Não foi possível salvar a alteração. Ela foi desfeita; tente de novo.", "error");
       const previous = confirmed.current[key];
       if (previous !== undefined) {
         lastRemoteState.current[key] = JSON.stringify(previous);
@@ -161,9 +189,11 @@ export default function App() {
   useEffect(() => {
     setStorageReady(true);
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === "kardap-calls" && e.newValue) setLegacyCalls(JSON.parse(e.newValue));
-      if (e.key === "kardap-brand" && e.newValue) setBrand(normalizeBrand(JSON.parse(e.newValue)));
-      if (e.key === "kardap-settings" && e.newValue) setSettings({ ...defaultSettings, ...JSON.parse(e.newValue) });
+      // Marca e configurações não passam pelo armazenamento local: o Firestore em tempo real
+      // já sincroniza abas e aparelhos (evita gravações duplicadas e dados da conta no navegador).
+      // Chamados legados idem: com o Firebase, a cópia local de outra aba (que pode estar vazia, de uma aba
+      // recém-aberta) não pode substituir a lista nem ser gravada de volta no restaurante.
+      if (!isFirebaseConfigured && e.key === "kardap-calls" && e.newValue) setLegacyCalls(JSON.parse(e.newValue));
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
@@ -179,23 +209,33 @@ export default function App() {
         if (!alive) return;
         unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (user) => {
           if (!alive) return;
+          // A sessão compartilhada deste navegador acabou enquanto o site estava fechado (logout no PDV,
+          // expiração dos 5 dias): o login guardado aqui também não vale mais.
+          if (user && firstAuthEvent.current && linkedUid() === user.uid && !readSsoState()) {
+            firstAuthEvent.current = false;
+            await signOutHere();
+            return;
+          }
           if (user) {
+            const fromApp = hasSsoRedirect();
             const cachedUserId = localStorage.getItem("kardap-restaurant-owner");
             if (cachedUserId && cachedUserId !== user.uid) localStorage.removeItem("kardap-restaurant-id");
             localStorage.setItem("kardap-restaurant-owner", user.uid);
 
             if (!localStorage.getItem("kardap-restaurant-id")) {
               const found = await findRestaurantByOwner(user.uid);
-              if (found && isAuthPath(window.location.pathname)) {
+              if (found && isAuthPath(window.location.pathname) && !fromApp) {
                 if (found.onboardingCompleted) router.replace("/dashboard");
                 else router.replace("/onboarding");
               }
-            } else if (firstAuthEvent.current && isAuthPath(window.location.pathname)) {
+            } else if (firstAuthEvent.current && isAuthPath(window.location.pathname) && !fromApp) {
               firstAuthEvent.current = false;
               router.replace("/dashboard");
             }
           } else {
             setRestaurantLoaded(false);
+            // Sem sessão, nada é gravado (o estado da tela anterior não volta para o Firestore).
+            setCloudReady(false);
           }
           firstAuthEvent.current = false;
           setSession(Boolean(user));
@@ -210,6 +250,33 @@ export default function App() {
       unsubscribe?.();
     };
   }, [needsAuth, router]);
+
+  // Logout feito no PDV ou em outra aba, sessão expirada ou revogada: esta aba também sai, sem recarregar.
+  useEffect(() => {
+    if (!session || !needsAuth) return;
+    let alive = true;
+    // Não depende da marca kardap-sso-uid: outra aba (o login aberto pelo PDV, por exemplo) pode já tê-la apagado.
+    const end = () => {
+      if (!alive) return;
+      alive = false;
+      signOutHere().then(() => notify("Sua sessão foi encerrada. Entre de novo para continuar.", "error"));
+    };
+    const stop = watchSsoState({
+      onEnded: end,
+      // Outro login neste navegador: se for outra conta, esta aba não pode continuar com a anterior.
+      onReplaced: () =>
+        Promise.all([readSsoSession(), import("@/lib/auth")]).then(([status, { getFirebaseAuth }]) => {
+          const uid = getFirebaseAuth().currentUser?.uid;
+          if (status.authenticated && uid && status.uid !== uid) end();
+        }),
+    });
+    // Revogada em outro aparelho ("sair de todos"): confere uma vez ao abrir. Sem rede não desloga.
+    if (linkedUid() && readSsoState()) readSsoSession().then((status) => status.authenticated === false && end());
+    return () => {
+      alive = false;
+      stop();
+    };
+  }, [session, needsAuth, notify]);
 
   const ownerData = session && inPanel;
 
@@ -238,7 +305,8 @@ export default function App() {
           }
           if (data.settings) {
             const next = { ...defaultSettings, ...(data.settings as RestaurantSettings) };
-            lastRemoteState.current.settings = JSON.stringify(data.settings);
+            // Compara com o valor já completado pelos padrões: senão o painel regravaria a cada carregamento.
+            lastRemoteState.current.settings = JSON.stringify(next);
             if (!meta.fromCache) confirmed.current.settings = next;
             setSettings(next);
           }
@@ -464,7 +532,6 @@ export default function App() {
   }, [legacyCalls, storageReady]);
   useEffect(() => {
     if (!storageReady) return;
-    localStorage.setItem("kardap-brand", JSON.stringify(brand));
     const serialized = JSON.stringify(brand);
     if (cloudReady && lastRemoteState.current.brand !== serialized) {
       lastRemoteState.current.brand = serialized;
@@ -475,7 +542,6 @@ export default function App() {
   }, [brand, storageReady]);
   useEffect(() => {
     if (!storageReady) return;
-    localStorage.setItem("kardap-settings", JSON.stringify(settings));
     const serialized = JSON.stringify(settings);
     if (cloudReady && lastRemoteState.current.settings !== serialized) {
       lastRemoteState.current.settings = serialized;
@@ -511,6 +577,8 @@ export default function App() {
     );
   } else if (path === "/planos") {
     page = <PlansPage session={session} />;
+  } else if (path === "/logout") {
+    page = <LogoutPage />;
   } else if (isAdminPath(path)) {
     page = !authReady ? <PanelLoading /> : session ? <AdminPanel path={path} notify={notify} /> : <AuthPage register={false} onLogin={onLogin} />;
   } else if (isAuthPath(path)) {
@@ -556,6 +624,7 @@ export default function App() {
           loadErrors={loadErrors}
           onRetry={retry}
           account={account}
+          onSaved={onSaved}
         />
       );
     }

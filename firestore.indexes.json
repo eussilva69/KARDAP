@@ -1,7 +1,10 @@
 {
   "indexes": [
     { "collectionGroup": "pedidos", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
-    { "collectionGroup": "chamados", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] }
+    { "collectionGroup": "chamados", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "videos", "queryScope": "COLLECTION_GROUP", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "videos", "queryScope": "COLLECTION_GROUP", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "leaseUntil", "order": "ASCENDING" }] },
+    { "collectionGroup": "videos", "queryScope": "COLLECTION_GROUP", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "ASCENDING" }] }
   ],
   "fieldOverrides": []
 }

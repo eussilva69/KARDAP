@@ -24,6 +24,7 @@ import {
   type RestaurantDetail,
 } from "@/lib/admin-db";
 import { KardapLogo } from "@/components/brand/logo";
+import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
 import { PLAN_ORDER, PlanComparison } from "@/components/plans/plan-cards";
 import {
   Badge,
@@ -132,7 +133,9 @@ export default function AdminPanel({ path, notify }: { path: string; notify: Not
 
 async function signOutToLogin(notify: Notify) {
   try {
+    await endSsoSession();
     await signOut(getFirebaseAuth());
+    clearAccountStorage();
     window.location.href = "/login";
   } catch {
     notify("Não foi possível sair agora. Tente de novo.", "error");

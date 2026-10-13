@@ -649,6 +649,69 @@
 
 .kd-phone-chips { padding: 0 var(--k-s4) var(--k-s3); overflow: hidden; }
 
+/* ─────────────── Vídeos: status e bandeja de envios ─────────────── */
+
+.kd-vchip { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; white-space: nowrap; }
+.kd-vchip svg { flex: none; }
+.kd-vchip.is-busy { color: var(--k-text-2); }
+.kd-vchip.is-wait { color: var(--k-cloche-ink); }
+.kd-vchip.is-ok { color: var(--k-success-ink); }
+.kd-vchip.is-bad { color: var(--k-danger-ink); }
+.kd-vinline { display: flex; align-items: flex-start; gap: var(--k-s2); margin: 0; padding: var(--k-s2) var(--k-s3); border-radius: var(--k-r-sm); background: var(--k-sunken); font-size: var(--k-fs-sm); color: var(--k-text-2); }
+.kd-vinline svg { flex: none; margin-top: 2px; }
+.kd-vinline.is-bad { background: var(--k-danger-soft); color: var(--k-danger-ink); }
+.kd-vinline.is-wait { background: var(--k-cloche-soft); color: var(--k-cloche-ink); }
+
+/* Fica no canto inferior esquerdo (as notificações usam o direito) e acima da barra do celular. */
+.kd-vtray {
+  position: fixed;
+  left: calc(248px + 16px);
+  bottom: 16px;
+  z-index: var(--k-z-toast);
+  width: min(360px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--k-line);
+  border-radius: var(--k-r-md);
+  background: var(--k-surface);
+  color: var(--k-ink);
+  box-shadow: var(--k-shadow-float);
+}
+.kd-vtray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--k-s2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--k-s4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--k-fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.kd-vtray-head svg { transition: transform var(--k-dur-2) var(--k-ease-out); }
+.kd-vtray.is-open .kd-vtray-head { border-bottom: 1px solid var(--k-line); }
+.kd-vtray.is-open .kd-vtray-head svg { transform: rotate(180deg); }
+.kd-vtray-list { display: grid; max-height: min(320px, 50vh); margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.kd-vjob { display: flex; align-items: center; gap: var(--k-s2); padding: var(--k-s3) var(--k-s2) var(--k-s3) var(--k-s4); }
+.kd-vjob + .kd-vjob { border-top: 1px solid var(--k-line); }
+.kd-vjob-main { display: grid; flex: 1; gap: 4px; min-width: 0; }
+.kd-vjob-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--k-fs-sm); font-weight: 650; }
+.kd-vjob-main small { display: flex; align-items: flex-start; gap: 4px; font-size: var(--k-fs-xs); color: var(--k-muted); line-height: 1.4; }
+.kd-vjob-main small svg { flex: none; margin-top: 1px; }
+.kd-vjob.is-ok small { color: var(--k-success-ink); }
+.kd-vjob.is-bad small { color: var(--k-danger-ink); }
+.kd-vjob .kd-upload-bar { height: 4px; }
+.kd-vjob-actions { display: flex; flex: none; }
+.kd-vjob-actions .kd-icon-btn { width: 36px; height: 36px; }
+@media (max-width: 1023px) {
+  /* A bandeja fica no <body> (portal): usa a altura da barra do celular diretamente. */
+  .kd-vtray { left: 16px; bottom: calc(64px + env(safe-area-inset-bottom) + 12px); }
+}
+
 /* ─────────────── Paleta de cores (Personalização) ─────────────── */
 
 .kd-pal-intro { margin: 0 0 var(--k-s4); font-size: var(--k-fs-md); color: var(--k-muted); }

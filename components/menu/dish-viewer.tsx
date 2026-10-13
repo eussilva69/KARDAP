@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, ConciergeBell, Play, Volume2, VolumeX } from "lucide-react";
 import { brl, productCents } from "@/lib/format";
-import { useDialog } from "@/lib/hooks";
+import { useConstrainedNetwork, useDialog } from "@/lib/hooks";
+import { pauseVideo, playExclusive, releaseVideo } from "@/lib/video-playback";
 import type { Dish } from "./dish-row";
 
 function Slide({
@@ -11,32 +12,41 @@ function Slide({
   index,
   active,
   near,
+  preload,
   muted,
   autoplay,
   canCall,
   onCall,
+  onPlaying,
 }: {
   dish: Dish;
   index: number;
   active: boolean;
   near: boolean;
+  /** auto: vídeo atual (ou o próximo, com conexão boa); metadata: vizinhos; none: resto. */
+  preload: "auto" | "metadata" | "none";
   muted: boolean;
   autoplay: boolean;
   canCall: boolean;
   onCall: () => void;
+  onPlaying: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   // Com movimento reduzido ou economia de dados, o vídeo só toca quando o cliente pede.
   const [requested, setRequested] = useState(false);
   const [playing, setPlaying] = useState(false);
   const shouldPlay = active && (autoplay || requested);
+  const poster = dish.videoPoster || dish.image || "";
+  // Vídeo horizontal numa tela em pé: aparece inteiro (sem corte) sobre a própria capa desfocada.
+  const landscape = Boolean(dish.video && dish.video.width > dish.video.height);
+
   useEffect(() => {
     const el = video.current;
     if (!el) return;
     if (shouldPlay) {
-      el.play().catch(() => undefined);
+      playExclusive(el);
     } else {
-      el.pause();
+      pauseVideo(el);
       if (!active) {
         try {
           el.currentTime = 0;
@@ -47,26 +57,33 @@ function Slide({
   useEffect(() => {
     if (!active) setRequested(false);
   }, [active]);
+  // Slide que sai do alcance: interrompe o download antes de o elemento sumir.
+  useEffect(() => {
+    const el = video.current;
+    return () => releaseVideo(el);
+  }, [near]);
 
   return (
     <section className="kd-slide" data-index={index} aria-label={dish.name} aria-hidden={!active}>
-      <div className="kd-slide-media">
-        {dish.videoUrl && near ? (
+      <div className={`kd-slide-media ${landscape ? "is-landscape" : ""} ${playing ? "is-playing" : ""}`}>
+        {poster && <img className="kd-slide-poster" src={poster} alt="" loading={near ? "eager" : "lazy"} decoding="async" />}
+        {dish.videoUrl && near && (
           <video
             ref={video}
             src={dish.videoUrl}
-            poster={dish.image || undefined}
+            poster={landscape ? undefined : poster || undefined}
             muted={muted}
             loop
             playsInline
-            preload={active ? "auto" : "metadata"}
-            onPlay={() => setPlaying(true)}
+            preload={preload}
+            onPlaying={() => {
+              setPlaying(true);
+              if (active) onPlaying();
+            }}
             onPause={() => setPlaying(false)}
             onClick={() => !autoplay && setRequested((r) => !r)}
           />
-        ) : dish.image ? (
-          <img src={dish.image} alt="" loading={near ? "eager" : "lazy"} decoding="async" />
-        ) : null}
+        )}
         {dish.videoUrl && !autoplay && !playing && active && (
           <button type="button" className="kd-slide-play" onClick={() => setRequested(true)}>
             <Play size={18} fill="currentColor" aria-hidden /> Ver vídeo
@@ -92,8 +109,9 @@ function Slide({
 }
 
 /**
- * Pratos em tela cheia, um por vez, deslizando na vertical. Só o vídeo do prato visível toca;
- * os vizinhos ficam pré-carregados e o restante nem é criado.
+ * Pratos em tela cheia, um por vez, deslizando na vertical (estilo Reels). Só o vídeo do prato visível
+ * toca; o anterior e o próximo existem com pré-carregamento leve (o próximo completo só com conexão
+ * boa e depois que o atual já está tocando); o restante nem é criado.
  */
 export function DishViewer({
   dishes,
@@ -114,6 +132,10 @@ export function DishViewer({
   const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(startIndex);
   const [muted, setMuted] = useState(true);
+  // O próximo vídeo só é pré-carregado depois que o atual começou a tocar, e só com conexão boa.
+  const [activePlaying, setActivePlaying] = useState(false);
+  const constrained = useConstrainedNetwork();
+  useEffect(() => setActivePlaying(false), [index]);
   useDialog(ref, onClose);
 
   useLayoutEffect(() => {
@@ -183,10 +205,12 @@ export function DishViewer({
             index={i}
             active={i === index}
             near={Math.abs(i - index) <= 1}
+            preload={i === index ? "auto" : i === index + 1 && activePlaying && !constrained ? "auto" : Math.abs(i - index) === 1 ? "metadata" : "none"}
             muted={muted}
             autoplay={autoplay}
             canCall={canCall}
             onCall={() => onCall(dish)}
+            onPlaying={() => setActivePlaying(true)}
           />
         ))}
       </div>

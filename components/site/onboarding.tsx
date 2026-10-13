@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, ImagePlus, LoaderCircle } from "lucide-react";
 import { createInitialTables, ensureRestaurant, reserveMenuSlug, saveRestaurant } from "@/lib/restaurant-db";
-import { uploadRestaurantImage } from "@/lib/storage";
+import { scheduleImageCleanup, uploadImage, type UploadStage } from "@/lib/storage";
+import { IMAGE_ACCEPT, IMAGE_HINT } from "@/lib/image-optimization";
 import { getFirebaseAuth } from "@/lib/auth";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { friendlyError, isQueued } from "@/lib/async";
@@ -33,6 +34,12 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [menuSlug, setMenuSlug] = useState("");
   const [logo, setLogo] = useState("");
   const [cover, setCover] = useState("");
+  // Versões pequenas geradas no envio (logo 512 px, capa 960 px).
+  const [logoSmall, setLogoSmall] = useState("");
+  const [coverSmall, setCoverSmall] = useState("");
+  const [uploadStage, setUploadStage] = useState<UploadStage>("processing");
+  const images = useRef<string[]>([]);
+  images.current = [logo, logoSmall, cover, coverSmall];
   const [review, setReview] = useState("");
   const [tableCount, setTableCount] = useState("");
   const [error, setError] = useState("");
@@ -65,6 +72,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         setMenuSlug(draft.menuSlug || "");
         setLogo(draft.logo || "");
         setCover(draft.cover || "");
+        setLogoSmall(draft.logoSmall || "");
+        setCoverSmall(draft.coverSmall || "");
         setReview(draft.review || "");
         setTableCount(draft.tableCount || "");
       } catch {
@@ -76,9 +85,9 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   useEffect(() => {
     if (!draftReady) return;
-    const draft = encodeURIComponent(JSON.stringify({ step, name, kind, phone, email, menuSlug, logo, cover, review, tableCount }));
+    const draft = encodeURIComponent(JSON.stringify({ step, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount }));
     document.cookie = `${draftCookieName}=${draft}; Max-Age=${60 * 60 * 24 * 30}; Path=/; SameSite=Lax`;
-  }, [draftReady, draftCookieName, step, name, kind, phone, email, menuSlug, logo, cover, review, tableCount]);
+  }, [draftReady, draftCookieName, step, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount]);
 
   const provision = () => {
     const user = isFirebaseConfigured ? getFirebaseAuth().currentUser : null;
@@ -122,7 +131,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         establishmentType: kind,
         businessPhone: phone,
         businessEmail: email,
-        brand: { logo, cover },
+        brand: { logo, cover, logoSmall, coverSmall },
         setup: { tableCount: Number(tableCount) || 0 },
         onboarding: { completed: false, currentStep: nextStep, updatedAt: new Date().toISOString() },
         ...(review.trim() && !skip ? { settings: { googleReviewUrl: review.trim() } } : {}),
@@ -156,18 +165,27 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
     setStage("");
   };
 
-  const uploadImage = async (input: HTMLInputElement, target: "logos" | "capas") => {
+  const uploadImageFor = async (input: HTMLInputElement, target: "logos" | "capas") => {
     const file = input.files?.[0];
     input.value = "";
     if (!file) return;
     setSaving(true);
     setUploadingKind(target);
     setUploadPct(0);
+    setUploadStage("processing");
     setError("");
+    const previous = target === "logos" ? [logo, logoSmall] : [cover, coverSmall];
     try {
-      const url = await uploadRestaurantImage(file, target, setUploadPct);
-      if (target === "logos") setLogo(url);
-      else setCover(url);
+      const result = await uploadImage({ file, kind: target === "logos" ? "logo" : "cover", onStage: setUploadStage, onProgress: setUploadPct });
+      if (target === "logos") {
+        setLogo(result.url);
+        setLogoSmall(result.smallUrl);
+      } else {
+        setCover(result.url);
+        setCoverSmall(result.smallUrl);
+      }
+      // Imagem trocada durante a configuração: a anterior sai do Storage se não estiver mais em uso.
+      scheduleImageCleanup(previous, () => images.current);
     } catch (uploadError) {
       setError(friendlyError(uploadError, "Não foi possível enviar a imagem. Tente de novo."));
     } finally {
@@ -180,7 +198,9 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const primaryLabel = provisioning
     ? "Preparando seu restaurante…"
     : uploadingKind
-      ? `Enviando imagem… ${uploadPct}%`
+      ? uploadStage === "processing"
+        ? "Otimizando imagem…"
+        : `Enviando imagem… ${uploadPct}%`
       : saving
         ? stage || "Salvando…"
         : step === 5
@@ -264,20 +284,20 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               <p className="kd-lead">Logo e foto de capa aparecem no topo do cardápio. Você pode pular e adicionar depois em Personalização.</p>
               <div className="kd-onb-brand">
                 <label className={`kd-onb-upload ${uploadingKind ? "is-busy" : ""}`}>
-                  <input className="kd-sr" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => uploadImage(e.currentTarget, "logos")} disabled={busy} />
+                  <input className="kd-sr" type="file" accept={IMAGE_ACCEPT} onChange={(e) => uploadImageFor(e.currentTarget, "logos")} disabled={busy} />
                   <span className="kd-onb-logo" aria-hidden>
-                    {logo ? <img src={logo} alt="" /> : initial(name)}
+                    {logo ? <img src={logoSmall || logo} alt="" /> : initial(name)}
                   </span>
                   <span className="kd-onb-upload-text" aria-live="polite">
-                    <b>{uploadingKind === "logos" ? `Enviando… ${uploadPct}%` : logo ? "Trocar logo" : "Adicionar logo"}</b>
-                    <small>Quadrada · PNG, JPG ou WebP até 10 MB</small>
+                    <b>{uploadingKind === "logos" ? (uploadStage === "processing" ? "Otimizando…" : `Enviando… ${uploadPct}%`) : logo ? "Trocar logo" : "Adicionar logo"}</b>
+                    <small>Quadrada · {IMAGE_HINT}</small>
                   </span>
                 </label>
-                <label className={`kd-onb-upload kd-onb-upload--cover ${uploadingKind ? "is-busy" : ""}`} style={cover ? { backgroundImage: `url(${cover})` } : undefined}>
-                  <input className="kd-sr" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => uploadImage(e.currentTarget, "capas")} disabled={busy} />
+                <label className={`kd-onb-upload kd-onb-upload--cover ${uploadingKind ? "is-busy" : ""}`} style={cover ? { backgroundImage: `url(${coverSmall || cover})` } : undefined}>
+                  <input className="kd-sr" type="file" accept={IMAGE_ACCEPT} onChange={(e) => uploadImageFor(e.currentTarget, "capas")} disabled={busy} />
                   <span className="kd-onb-upload-text" aria-live="polite">
                     {uploadingKind === "capas" ? <LoaderCircle size={20} className="k-spin" aria-hidden /> : <ImagePlus size={20} aria-hidden />}
-                    <b>{uploadingKind === "capas" ? `Enviando… ${uploadPct}%` : cover ? "Trocar foto de capa" : "Adicionar foto de capa"}</b>
+                    <b>{uploadingKind === "capas" ? (uploadStage === "processing" ? "Otimizando…" : `Enviando… ${uploadPct}%`) : cover ? "Trocar foto de capa" : "Adicionar foto de capa"}</b>
                     <small>Horizontal · do salão ou de um prato da casa</small>
                   </span>
                 </label>

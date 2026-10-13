@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import App from "@/components/app";
 
 const TITLES: Record<string, string> = {
@@ -14,8 +14,9 @@ const TITLES: Record<string, string> = {
   privacidade: "Política de Privacidade",
   termos: "Termos de Uso",
   cookies: "Política de Cookies",
+  logout: "Sair",
 };
-const PRIVATE = new Set(["dashboard", "onboarding", "login", "criar-conta", "admin"]);
+const PRIVATE = new Set(["dashboard", "onboarding", "login", "criar-conta", "admin", "logout"]);
 
 /** Título por rota e sem indexação das áreas privadas (painel, login, configuração inicial). */
 export function generateMetadata({ params }: { params: { path?: string[] } }): Metadata {
@@ -26,10 +27,17 @@ export function generateMetadata({ params }: { params: { path?: string[] } }): M
   };
 }
 
-export default function Page({ params }: { params: { path?: string[] } }) {
+export default async function Page({ params, searchParams }: { params: { path?: string[] }; searchParams: Record<string, string | string[] | undefined> }) {
   // Endereços desconhecidos respondem 404 (as páginas da landing são servidas antes, pelo middleware).
   // O <Suspense> fica aqui, e não no layout, para o 404 ser decidido antes de a resposta começar.
-  if (!TITLES[params.path?.[0] || ""]) notFound();
+  const first = params.path?.[0] || "";
+  if (!TITLES[first]) notFound();
+  // Login pedido por outro aplicativo (?returnTo=) com a sessão central válida: volta direto, sem renderizar o login.
+  if (first === "login") {
+    const { continueIfSignedIn } = await import("@/lib/sso/continue");
+    const target = await continueIfSignedIn(searchParams);
+    if (target) redirect(target);
+  }
   return (
     <Suspense>
       <App />

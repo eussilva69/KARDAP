@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
     await db.runTransaction(async (tx) => {
       tx.set(restaurant, { name, slug: `${slugify(name)}-${restaurant.id.slice(0, 6)}`, ownerId: decoded.uid, status: "active", createdAt: now, updatedAt: now });
       tx.set(restaurant.collection("membros").doc(decoded.uid), { uid: decoded.uid, role: "owner", permissions: ["*"], active: true, createdAt: now });
-      tx.set(restaurant.collection("configuracoes").doc("geral"), { brand: { logo: "", cover: "" }, settings: { waiter: true, bill: true, google: true, sound: false }, createdAt: now, updatedAt: now });
       tx.set(db.collection("usuarios").doc(decoded.uid), { email: decoded.email ?? null, displayName: decoded.name ?? null, restaurantIds: [restaurant.id], updatedAt: now });
     });
     return NextResponse.json({ restaurantId: restaurant.id }, { status: 201 });

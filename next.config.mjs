@@ -6,7 +6,9 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
 ];
 const nextConfig = {
-  images: { remotePatterns: [{ protocol: 'https', hostname: 'images.unsplash.com' }] },
+  // Lista de origens do SSO (não é segredo): a tela de login também valida o destino de retorno no navegador.
+  env: { SSO_ALLOWED_ORIGINS: process.env.SSO_ALLOWED_ORIGINS || '' },
+  images:{ remotePatterns: [{ protocol: 'https', hostname: 'images.unsplash.com' }] },
   async headers() { return [{ source: '/:path*', headers: securityHeaders }]; },
 };
 export default nextConfig;

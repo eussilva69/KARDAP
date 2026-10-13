@@ -320,12 +320,12 @@ export function readPalette(value: unknown): BrandPalette | null {
     name: typeof v.name === "string" && v.name.trim() ? v.name.trim().slice(0, 40) : "Minha paleta",
     colors: { background: c.background!, text: c.text!, primary: c.primary!, signal: c.signal!, brand: c.brand! },
     ...(typeof v.basedOn === "string" ? { basedOn: v.basedOn.slice(0, 40) } : {}),
-    panel: v.panel !== false,
+    panel: v.panel === true,
   };
 }
 
 /** Paleta pronta no formato salvo. */
-export function paletteFromPreset(preset: PalettePreset, panel: boolean): BrandPalette {
+export function paletteFromPreset(preset: PalettePreset, panel = false): BrandPalette {
   return { id: preset.id, name: preset.name, colors: { ...preset.colors }, panel };
 }
 
