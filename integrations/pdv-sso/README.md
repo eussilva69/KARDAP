@@ -1,11 +1,11 @@
 # Login único (SSO) no PDV — kit de integração
 
-Para quem mantém o repositório do PDV (`pdv.kardap.online`). É a parte do PDV do contrato descrito em
+Para quem mantém o repositório do PDV (`pdv.kardapp.online`). É a parte do PDV do contrato descrito em
 [`SSO_INTEGRATION.md`](../../SSO_INTEGRATION.md), testada de ponta a ponta com um PDV montado a partir destes mesmos
 arquivos (`npm run test:sso` no KARDAP).
 
 O PDV **não precisa de credencial do Firebase Admin** para o login: valida a sessão e obtém o custom token pelo
-servidor central (`kardap.online`), autenticado com o segredo do cliente.
+servidor central (`kardapp.online`), autenticado com o segredo do cliente.
 
 ## Arquivos
 
@@ -39,7 +39,7 @@ Copiar deste kit:
 1. Copie os arquivos acima.
 2. Mova as páginas protegidas para `app/(pdv)/` (o grupo não muda as URLs).
 3. Remova o login próprio do PDV (ou faça `/login` redirecionar para
-   `https://kardap.online/login?returnTo=https://pdv.kardap.online/`) e qualquer `setPersistence(browserLocalPersistence)`.
+   `https://kardapp.online/login?returnTo=https://pdv.kardapp.online/`) e qualquer `setPersistence(browserLocalPersistence)`.
 4. Se o PDV inicializa o Firebase em outro arquivo, mantenha um único app `[DEFAULT]` e use `pdvAuth()`, ou crie o Auth
    com `initializeAuth(app, { persistence: inMemoryPersistence })`.
 5. Nas páginas:
@@ -64,7 +64,7 @@ Copiar deste kit:
 
 | Sintoma | Causa |
 | --- | --- |
-| Volta sempre para o login | PDV fora de HTTPS ou fora de `*.kardap.online` (o cookie não chega) |
+| Volta sempre para o login | PDV fora de HTTPS ou fora de `*.kardapp.online` (o cookie não chega) |
 | Página de erro ao abrir o PDV | `SSO_CLIENT_SECRET` ausente ou diferente do KARDAP, ou servidor central inacessível (`SSO_CENTRAL_URL`) |
 | "Não foi possível conectar ao PDV" | A troca do código falhou: confira o segredo e se a conta tem a permissão `pdv` |
 | Firestore recusa leitura | Projeto do Firebase do navegador diferente do KARDAP, ou a pessoa não é membro do restaurante |

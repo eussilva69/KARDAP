@@ -24,11 +24,11 @@ export function logSsoError(scope: string, error: unknown) {
   console.error(`[sso] ${scope}: ${code || "erro"}${message ? ` — ${message}` : ""}`);
 }
 
-/** Domínio do cookie: .kardap.online em produção (vale para os subdomínios). Outros ambientes: SSO_COOKIE_DOMAIN. */
+/** Domínio do cookie: .kardapp.online em produção (vale para os subdomínios). Outros ambientes: SSO_COOKIE_DOMAIN. */
 export function cookieDomain(): string | undefined {
   const configured = process.env.SSO_COOKIE_DOMAIN?.trim();
   if (configured) return configured;
-  return process.env.NODE_ENV === "production" ? ".kardap.online" : undefined;
+  return process.env.NODE_ENV === "production" ? ".kardapp.online" : undefined;
 }
 
 /** Secure sempre em produção. Só testes locais em http podem desligar (SSO_INSECURE_COOKIES=1 fora de produção). */

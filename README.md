@@ -159,7 +159,7 @@ Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel,
 
 ## Login único com o PDV
 
-O KARDAP é o servidor central de autenticação do ecossistema: o login em `kardap.online` vale também para `pdv.kardap.online` (cookie de sessão HttpOnly em `.kardap.online`, logout global, permissão própria para o PDV, credencial do Firebase para o PDV por código de uso único). Contrato para os outros aplicativos: [SSO_INTEGRATION.md](SSO_INTEGRATION.md). Organização interna: [docs/SSO.md](docs/SSO.md). Kit do PDV: [integrations/pdv-sso/](integrations/pdv-sso/README.md).
+O KARDAP é o servidor central de autenticação do ecossistema: o login em `kardapp.online` vale também para `pdv.kardapp.online` (cookie de sessão HttpOnly em `.kardapp.online`, logout global, permissão própria para o PDV, credencial do Firebase para o PDV por código de uso único). Contrato para os outros aplicativos: [SSO_INTEGRATION.md](SSO_INTEGRATION.md). Organização interna: [docs/SSO.md](docs/SSO.md). Kit do PDV: [integrations/pdv-sso/](integrations/pdv-sso/README.md).
 
 ## Vídeos de produto
 

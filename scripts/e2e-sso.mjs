@@ -5,7 +5,7 @@
 // do PDV, sem credencial do Firebase Admin: o PDV fala com o servidor central usando só o segredo do cliente),
 // sobe os dois apps e abre um navegador em que kardap.test e
 // pdv.kardap.test apontam para esta máquina (só dentro do navegador de teste). Assim os cookies de domínio
-// (.kardap.test) se comportam como em kardap.online / pdv.kardap.online. Cookies Secure: o navegador trata as
+// (.kardap.test) se comportam como em kardapp.online / pdv.kardapp.online. Cookies Secure: o navegador trata as
 // duas origens de teste como seguras (--unsafely-treat-insecure-origin-as-secure).
 //
 // Pré-requisitos (docs/TESTES.md): emuladores rodando
@@ -138,6 +138,27 @@ async function waitHttp(url, timeout = 240000) {
 startServer(ROOT, 3100, "kardap-server.log", kardapEnv);
 startServer(PDV_DIR, 3200, "pdv-server.log", pdvEnv);
 await Promise.all([waitHttp(`${K_LOCAL}/api/auth/csrf`), waitHttp(`${P_LOCAL}/sem-permissao`)]);
+// Aquecimento: compila páginas e rotas antes dos cenários. A primeira compilação do next dev é lenta e, numa pasta
+// .next recém-criada (ainda mais dentro de uma pasta sincronizada, como o OneDrive), pode falhar uma vez.
+async function warm(url, headers = {}) {
+  for (let i = 0; i < 5; i++) {
+    try {
+      if ((await fetch(url, { redirect: "manual", headers })).status < 500) return;
+    } catch {}
+    await sleep(3000);
+  }
+}
+const fakeSession = { cookie: "kardap_sso_session=aquecimento~0123456789abcdefghij" };
+for (const [url, headers] of [
+  [`${K_LOCAL}/login`],
+  [`${K_LOCAL}/login?returnTo=%2Fdashboard`, fakeSession],
+  [`${K_LOCAL}/dashboard`],
+  [`${K_LOCAL}/logout`],
+  [`${K_LOCAL}/api/auth/session`],
+  [`${P_LOCAL}/caixa`, fakeSession],
+]) {
+  await warm(url, headers);
+}
 
 // ───────── 3. Navegador (CDP) ─────────
 const port = 9400 + Math.floor(Math.random() * 400);
@@ -592,7 +613,7 @@ await test("S19", "CSRF e origem: pedidos sem token ou de outro site são recusa
   return "9 tentativas recusadas; logout legítimo aceito";
 });
 
-await test("S20", "CORS: só kardap.online e pdv.kardap.online leem a sessão", async () => {
+await test("S20", "CORS: só kardapp.online e pdv.kardapp.online leem a sessão", async () => {
   const evil = await fetch(`${K_LOCAL}/api/auth/session`, { headers: { origin: "http://evil.test" } });
   const pdv = await fetch(`${K_LOCAL}/api/auth/session`, { headers: { origin: PDV } });
   const pre = await fetch(`${K_LOCAL}/api/auth/session`, { method: "OPTIONS", headers: { origin: "http://evil.test", "access-control-request-method": "POST" } });
@@ -774,6 +795,29 @@ await test("S32", "Introspecção da sessão só com o segredo do cliente", asyn
   assert(results.semSegredo === 401 && results.segredoErrado === 401, JSON.stringify(results));
   assert(valid.body.active === true && valid.body.uid === A.uid && valid.body.access?.allowed === true, JSON.stringify(valid.body).slice(0, 160));
   assert(invalid.status === 200 && invalid.body.active === false, JSON.stringify(invalid.body));
+});
+
+await test("S33", "Origens de produção: kardapp.online, www.kardapp.online e pdv.kardapp.online aceitas; domínio antigo e imitações recusados", async () => {
+  const allowed = ["https://kardapp.online", "https://www.kardapp.online", "https://pdv.kardapp.online"];
+  const refused = ["https://kardap.online", "https://pdv.kardap.online", "https://kardapp.online.evil.test", "https://evilkardapp.online", "http://kardapp.online"];
+  const cors = async (origin) => (await fetch(`${K_LOCAL}/api/auth/session`, { headers: { origin } })).headers.get("access-control-allow-origin");
+  const badCors = [];
+  for (const o of allowed) if ((await cors(o)) !== o) badCors.push(`${o} recusada`);
+  for (const o of refused) if (await cors(o)) badCors.push(`${o} aceita`);
+  assert(badCors.length === 0, badCors.join("; "));
+  // Destino de retorno: com sessão válida, o servidor só devolve para as origens oficiais.
+  const sA = await createSessionApi(A);
+  const back = async (target) => {
+    const r = await fetch(`${K_LOCAL}/login?returnTo=${encodeURIComponent(target)}`, { redirect: "manual", headers: { cookie: `kardap_sso_session=${sA.cookie}` } });
+    return r.status === 307 ? r.headers.get("location") : null;
+  };
+  const okTargets = ["https://www.kardapp.online/dashboard", "https://pdv.kardapp.online/caixa", "https://kardapp.online/dashboard"];
+  const badTargets = ["https://kardap.online/dashboard", "https://pdv.kardap.online/", "https://www.kardapp.online.evil.test/"];
+  const wrong = [];
+  for (const t of okTargets) if ((await back(t)) !== t) wrong.push(`${t} não voltou`);
+  for (const t of badTargets) if (await back(t)) wrong.push(`${t} voltou`);
+  assert(wrong.length === 0, wrong.join("; "));
+  return `${allowed.length} origens aceitas, ${refused.length} recusadas; destinos conferidos`;
 });
 
 // Os últimos cenários precisam de logins com mais de 5 minutos (E no cadastro, C no S6).

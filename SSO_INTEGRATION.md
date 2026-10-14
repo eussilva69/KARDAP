@@ -1,15 +1,16 @@
 # Contrato de integração do SSO KARDAP
 
-Para quem integra outro aplicativo do ecossistema (o primeiro é o PDV, `https://pdv.kardap.online`) ao login
-central do KARDAP (`https://kardap.online`). O kit pronto para o PDV está em `integrations/pdv-sso/` e segue este
-contrato.
+Para quem integra outro aplicativo do ecossistema (o primeiro é o PDV, `https://pdv.kardapp.online`) ao login
+central do KARDAP (`https://kardapp.online`, também em `https://www.kardapp.online`). O kit pronto para o PDV está
+em `integrations/pdv-sso/` e segue este contrato.
 
 ## 1. Arquitetura
 
-- **Servidor central:** `kardap.online`. Faz login, cadastro, recuperação de senha, emissão e revogação da sessão,
-  logout global, verificação de sessão para os aplicativos e emissão de credencial do Firebase para eles.
+- **Servidor central:** `kardapp.online` (e `www.kardapp.online`, que usa o mesmo cookie). Faz login, cadastro,
+  recuperação de senha, emissão e revogação da sessão, logout global, verificação de sessão para os aplicativos e
+  emissão de credencial do Firebase para eles.
 - **Mesmo Firebase Authentication** em todos os aplicativos: mesmos usuários, mesmos UIDs, nenhuma conta duplicada.
-- **Sessão central:** um Firebase Session Cookie (`kardap_sso_session`), HttpOnly, no domínio `.kardap.online`.
+- **Sessão central:** um Firebase Session Cookie (`kardap_sso_session`), HttpOnly, no domínio `.kardapp.online`.
   Cada sessão tem um registro no Firestore (`ssoSessoes/{sha256 do cookie}`, só o servidor acessa) para que o logout
   encerre exatamente aquela sessão.
 - **Aplicativos:** recebem o cookie (mesmo domínio-pai), mas **não o validam sozinhos e não precisam de credencial do
@@ -21,20 +22,20 @@ contrato.
   com persistência em memória. As regras do Firestore e do Storage valem com o uid original.
 
 ```
-Navegador (pdv)                     Servidor do PDV                       kardap.online
+Navegador (pdv)                     Servidor do PDV                       kardapp.online
 ──────────────────────────────────────────────────────────────────────────────────────────────────
 GET /caixa  ─────────────────────►  middleware: há cookie?
-                                     não → 302 kardap.online/login?returnTo=https://pdv.kardap.online/caixa
+                                     não → 302 kardapp.online/login?returnTo=https://pdv.kardapp.online/caixa
                                      sim → layout: POST /api/sso/introspect ─────►  sessão válida? permissão?
                                                                              ◄─────  { active, uid, access }
           ◄───────────────────────  página (ou login / sem-permissao)
-POST kardap.online/api/sso/code (CORS + cookie + CSRF) ────────────────────────────►  { code } (60 s, uso único)
+POST kardapp.online/api/sso/code (CORS + cookie + CSRF) ────────────────────────────►  { code } (60 s, uso único)
 POST /api/auth/firebase-token { code } ─►  POST /api/sso/token (Basic) ────────────►  { firebase_custom_token }
           ◄───────────────────────  { token }
 signInWithCustomToken (memória) → Firestore / Storage com o mesmo uid
 ```
 
-Por que assim: o cookie da sessão chega a qualquer subdomínio de `kardap.online`. Com este desenho, um subdomínio
+Por que assim: o cookie da sessão chega a qualquer subdomínio de `kardapp.online`. Com este desenho, um subdomínio
 que não seja de confiança, mesmo recebendo o cookie, não consegue credencial do Firebase (precisa do segredo do
 cliente) nem criar sessões (precisa de um login de verdade). No máximo lê os dados mínimos de
 `GET /api/auth/session` ou encerra a sessão. Veja a seção 11.
@@ -43,9 +44,9 @@ cliente) nem criar sessões (precisa de um login de verdade). No máximo lê os 
 
 | Cookie | Conteúdo | Atributos |
 | --- | --- | --- |
-| `kardap_sso_session` (configurável: `SSO_COOKIE_NAME`) | Firebase Session Cookie seguido de um identificador aleatório da sessão (`<cookie>~<id>`). Trate o valor como opaco | `Domain=.kardap.online; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=432000` (5 dias). Sem "Manter conectado": cookie de sessão do navegador |
+| `kardap_sso_session` (configurável: `SSO_COOKIE_NAME`) | Firebase Session Cookie seguido de um identificador aleatório da sessão (`<cookie>~<id>`). Trate o valor como opaco | `Domain=.kardapp.online; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=432000` (5 dias). Sem "Manter conectado": cookie de sessão do navegador |
 | `kardap_sso_state` | Valor aleatório, muda a cada login, sem nenhum segredo | Mesmo domínio e validade, **legível** pelo JavaScript. Só serve para as abas perceberem login e logout |
-| `kardap_csrf` | Token anti-CSRF | `Domain=.kardap.online; Path=/; Secure; SameSite=Lax; Max-Age=43200`, legível pelo JavaScript |
+| `kardap_csrf` | Token anti-CSRF | `Domain=.kardapp.online; Path=/; Secure; SameSite=Lax; Max-Age=43200`, legível pelo JavaScript |
 
 Nenhum token vai em `localStorage`, `sessionStorage`, IndexedDB ou URL.
 
@@ -126,24 +127,25 @@ custom token traz a claim `kardapApp: "<client_id>"` e vale 1 hora, só para `si
 
 | Página | Uso |
 | --- | --- |
-| `GET https://kardap.online/login?returnTo=<url>` | Login central. Com sessão válida, o servidor responde `307` direto para o destino (sem mostrar a tela). `redirect=` também é aceito |
-| `GET https://kardap.online/logout?returnTo=<url>[&all=1]` | Logout global por navegação: encerra a sessão, sai do Firebase em `kardap.online` e vai ao destino. Vindo de um dos aplicativos, sai na hora; de outro site, pede confirmação |
+| `GET https://kardapp.online/login?returnTo=<url>` | Login central. Com sessão válida, o servidor responde `307` direto para o destino (sem mostrar a tela). `redirect=` também é aceito |
+| `GET https://kardapp.online/logout?returnTo=<url>[&all=1]` | Logout global por navegação: encerra a sessão, sai do Firebase em `kardapp.online` e vai ao destino. Vindo de um dos aplicativos, sai na hora; de outro site, pede confirmação |
 
 ## 5. Fluxo de login
 
-1. A pessoa informa e-mail e senha (ou entra com o Google) em `kardap.online/login`.
+1. A pessoa informa e-mail e senha (ou entra com o Google) em `kardapp.online/login`.
 2. O Firebase Authentication valida as credenciais.
 3. A tela obtém o ID token e o envia por HTTPS para `POST /api/auth/session`, com CSRF.
 4. O servidor valida o ID token com o Admin SDK (`checkRevoked`) e confere se o login tem até 5 minutos.
 5. O servidor cria o Firebase Session Cookie e o registro da sessão, e encerra a sessão anterior do navegador.
-6. A resposta grava `kardap_sso_session` e `kardap_sso_state` em `.kardap.online`.
+6. A resposta grava `kardap_sso_session` e `kardap_sso_state` em `.kardapp.online`.
 7. A tela segue para o destino autorizado (`returnTo`) ou para o painel.
 
 ## 6. Fluxo de redirecionamento
 
-1. O aplicativo, sem sessão, manda para `https://kardap.online/login?returnTo=<endereço completo do aplicativo>`.
+1. O aplicativo, sem sessão, manda para `https://kardapp.online/login?returnTo=<endereço completo do aplicativo>`.
 2. O KARDAP valida o destino: só caminhos do próprio site (`/x`, nunca `//x` ou `/\x`) ou URLs de
-   `https://kardap.online` e `https://pdv.kardap.online` (lista `SSO_ALLOWED_ORIGINS`), sem usuário e senha na URL.
+   `https://kardapp.online`, `https://www.kardapp.online` e `https://pdv.kardapp.online` (lista `SSO_ALLOWED_ORIGINS`),
+   sem usuário e senha na URL.
    Qualquer outro destino (outros sites, `javascript:`, `data:`) é ignorado e vale o painel.
 3. Sessão válida → `307` para o destino, no servidor. Sem sessão → tela de login; depois do login, volta ao destino.
 4. Conta logada no KARDAP, mas sem sessão central: se o navegador já teve uma (logout ou expiração), pede a senha; se
@@ -153,10 +155,10 @@ custom token traz a claim `kardapApp: "<client_id>"` e vale 1 hora, só para `si
 
 ## 7. Fluxo de logout
 
-1. **No aplicativo:** `POST https://kardap.online/api/auth/logout` (CORS, `credentials: "include"`, CSRF), depois
+1. **No aplicativo:** `POST https://kardapp.online/api/auth/logout` (CORS, `credentials: "include"`, CSRF), depois
    `signOut` do Firebase na aba e navegação para
-   `https://kardap.online/logout?returnTo=https%3A%2F%2Fkardap.online%2Flogin%3FreturnTo%3D<app>` (encerra também o
-   login do Firebase guardado em `kardap.online`).
+   `https://kardapp.online/logout?returnTo=https%3A%2F%2Fkardapp.online%2Flogin%3FreturnTo%3D<app>` (encerra também o
+   login do Firebase guardado em `kardapp.online`).
 2. **No KARDAP:** "Sair" no painel ou na administração chama `POST /api/auth/logout` e faz `signOut`.
 3. **Abas abertas:** os aplicativos observam `kardap_sso_state` (a cada 1,5 s e ao focar a aba). Quando ele some, a
    aba sai na hora. O PDV também confere a sessão no servidor a cada 2 minutos.
@@ -177,7 +179,7 @@ Três credenciais diferentes, cada uma no seu lugar:
 
 Passos no aplicativo (o kit já faz):
 1. Criar o Auth com `inMemoryPersistence` (nenhum token salvo no navegador; cada aba se conecta sozinha).
-2. `POST https://kardap.online/api/sso/code` → `{ code }`.
+2. `POST https://kardapp.online/api/sso/code` → `{ code }`.
 3. `POST /api/auth/firebase-token` (rota do próprio aplicativo, mesma origem, CSRF) com `{ code }`. O servidor do
    aplicativo confere a sessão do cookie, troca o código em `/api/sso/token` e confere se o uid é o mesmo.
 4. `signInWithCustomToken(auth, token)`. Pronto: Firestore e Storage com o uid original.
@@ -192,10 +194,10 @@ código. Custom tokens nunca aparecem em URL.
 | Variável | Padrão | Uso |
 | --- | --- | --- |
 | `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, `FIREBASE_ADMIN_PRIVATE_KEY` | já existentes | Admin SDK (somente servidor) |
-| `SSO_COOKIE_DOMAIN` | `.kardap.online` em produção | Domínio do cookie |
+| `SSO_COOKIE_DOMAIN` | `.kardapp.online` em produção | Domínio do cookie |
 | `SSO_COOKIE_NAME` | `kardap_sso_session` | Nome do cookie da sessão |
 | `SSO_SESSION_MAX_AGE` | `432000` | Duração em segundos |
-| `SSO_ALLOWED_ORIGINS` | as duas origens oficiais | Origens extras (homologação), separadas por vírgula |
+| `SSO_ALLOWED_ORIGINS` | `https://kardapp.online`, `https://www.kardapp.online`, `https://pdv.kardapp.online` (sempre aceitas) | Origens extras (homologação), separadas por vírgula |
 | `SSO_CLIENT_SECRET_PDV` | — (**obrigatória** para o PDV) | Segredo do cliente `pdv`, 32+ caracteres (`openssl rand -base64 48`) |
 | `SSO_SIGNING_SECRET` | derivada da chave do Admin | Opcional: chave dos códigos de uso único, 32+ caracteres |
 
@@ -240,7 +242,7 @@ Nenhuma credencial privada usa o prefixo `NEXT_PUBLIC_`.
 - Autorização por usuário e estabelecimento: dono, ou membro ativo com `permissions` contendo `"pdv"` ou `"*"`, de
   restaurante não suspenso. Conferida a cada carregamento, a cada código e a cada 2 minutos com o aplicativo aberto.
 - Logs sem tokens, cookies ou segredos (só código e mensagem do erro).
-- **Subdomínios:** todo subdomínio de `kardap.online` recebe o cookie. Com este desenho, um subdomínio não confiável
+- **Subdomínios:** todo subdomínio de `kardapp.online` recebe o cookie. Com este desenho, um subdomínio não confiável
   não consegue credencial do Firebase nem sessão nova, mas poderia ler os dados mínimos (uid, e-mail, nome) ou
   derrubar a sessão. Antes de apontar um subdomínio para um serviço de terceiros (blog, central de ajuda, e-mail
   marketing), avalie esse risco; se necessário, use outro domínio para esse serviço.
@@ -267,7 +269,10 @@ Nenhuma credencial privada usa o prefixo `NEXT_PUBLIC_`.
 **Configuração pendente em produção**
 
 - [ ] `SSO_CLIENT_SECRET_PDV` no KARDAP e `SSO_CLIENT_SECRET` no PDV (mesmo valor).
-- [ ] Firebase → Authentication → Authorized domains: `kardap.online` e `pdv.kardap.online`.
-- [ ] Se a chave de API do navegador tem restrição de referenciador, incluir `https://pdv.kardap.online/*`.
+- [ ] Firebase → Authentication → Authorized domains: `kardapp.online`, `www.kardapp.online` e `pdv.kardapp.online`.
+- [ ] Se a chave de API do navegador tem restrição de referenciador, incluir `https://www.kardapp.online/*` e
+  `https://pdv.kardapp.online/*`.
+- [ ] Netlify: `kardapp.online` e `www.kardapp.online` no mesmo site (um deles como domínio principal); Node 22
+  (`.nvmrc`), exigido pelo `firebase-admin`.
 - [ ] Opcional: política de TTL do Firestore em `ssoSessoes.expiresAt` e `ssoCodigosUsados.expiresAt`.
 - [ ] Publicar as regras restritivas do Firestore (fecha `ssoSessoes` e `ssoCodigosUsados`), quando decidido.

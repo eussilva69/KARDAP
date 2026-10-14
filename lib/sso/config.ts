@@ -24,11 +24,12 @@ export const RECENT_SIGN_IN_SECONDS = 5 * 60;
 export const RETURN_PARAM = "returnTo";
 export const readReturnTo = (params: URLSearchParams) => params.get(RETURN_PARAM) ?? params.get("redirect");
 
-const PRODUCTION_ORIGINS = ["https://kardap.online", "https://pdv.kardap.online"];
+/** O KARDAP responde em kardapp.online e www.kardapp.online; o PDV, em pdv.kardapp.online. */
+const PRODUCTION_ORIGINS = ["https://kardapp.online", "https://www.kardapp.online", "https://pdv.kardapp.online"];
 
 /** Endereços dos aplicativos (outros ambientes: NEXT_PUBLIC_KARDAP_ORIGIN e NEXT_PUBLIC_PDV_ORIGIN). */
-export const KARDAP_ORIGIN = (process.env.NEXT_PUBLIC_KARDAP_ORIGIN || "https://kardap.online").replace(/\/+$/, "");
-export const PDV_ORIGIN = (process.env.NEXT_PUBLIC_PDV_ORIGIN || "https://pdv.kardap.online").replace(/\/+$/, "");
+export const KARDAP_ORIGIN = (process.env.NEXT_PUBLIC_KARDAP_ORIGIN || "https://kardapp.online").replace(/\/+$/, "");
+export const PDV_ORIGIN = (process.env.NEXT_PUBLIC_PDV_ORIGIN || "https://pdv.kardapp.online").replace(/\/+$/, "");
 
 /**
  * Aplicativos que podem pedir credencial do Firebase ao servidor central (código de uso único).
@@ -42,7 +43,7 @@ export const clientForOrigin = (origin: string | null | undefined) =>
 
 /**
  * Origens confiáveis (destino de retorno, Origin aceito nas rotas, CORS).
- * Produção: as duas URLs oficiais. Outros ambientes: SSO_ALLOWED_ORIGINS (lista separada por vírgula;
+ * Produção: as três URLs oficiais. Outros ambientes: SSO_ALLOWED_ORIGINS (lista separada por vírgula;
  * repassada ao navegador pelo next.config.mjs).
  */
 export function allowedOrigins(): string[] {
@@ -58,7 +59,7 @@ export const isAllowedOrigin = (origin: string | null | undefined) => Boolean(or
 /**
  * Destino de retorno depois do login/logout. Aceita só:
  * - caminho relativo deste site ("/dashboard"), nunca "//host" ou "/\host";
- * - URL absoluta cuja origem esteja na lista (ex.: https://pdv.kardap.online/caixa), sem usuário/senha.
+ * - URL absoluta cuja origem esteja na lista (ex.: https://pdv.kardapp.online/caixa), sem usuário/senha.
  * Qualquer outra coisa (outros sites, javascript:, data:…) vira null e o chamador usa o destino padrão.
  */
 export function safeRedirect(value: string | null | undefined): string | null {

@@ -64,7 +64,7 @@ FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIRESTORE_EMULATOR_HOST=127.0.0.1:808
 `lib/sso` (sem nenhuma credencial do Firebase Admin no PDV; um segredo de cliente é gerado a cada execução), sobe o
 KARDAP (porta 3100) e o PDV (porta 3200) apontando para os emuladores e abre o navegador com
 `kardap.test` e `pdv.kardap.test` resolvidos para a própria máquina. Assim, o cookie `Domain=.kardap.test` funciona
-como `.kardap.online` em produção, inclusive `Secure`. Requisitos: emuladores rodando (passo 1 acima), portas 3100 e
+como `.kardapp.online` em produção, inclusive `Secure`. Requisitos: emuladores rodando (passo 1 acima), portas 3100 e
 3200 livres. Leva cerca de 7 minutos, porque dois cenários precisam de um login com mais de 5 minutos.
 
 ```bash
@@ -96,3 +96,4 @@ BROWSER_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" node
 | S30 | Código de uso único: sem segredo, segredo errado, outro cliente, código forjado, reuso, origem errada, conta sem permissão e sessão encerrada são recusados; a troca válida devolve custom token do uid certo |
 | S31 | Código com mais de 60 s é recusado |
 | S32 | Introspecção só com o segredo do cliente; sessão inválida responde `active: false` |
+| S33 | Origens de produção: `kardapp.online`, `www.kardapp.online` e `pdv.kardapp.online` aceitas no CORS e como destino; domínio antigo e imitações recusados |

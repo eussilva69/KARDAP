@@ -107,7 +107,7 @@ export async function endSsoSession(everywhere = false) {
 }
 
 /**
- * Observa o cookie de estado (o mesmo para kardap.online e pdv.kardap.online). Chama `onEnded` quando a
+ * Observa o cookie de estado (o mesmo para kardapp.online e pdv.kardapp.online). Chama `onEnded` quando a
  * sessão some (logout em outro aplicativo ou aba, expiração) e `onReplaced` quando outro login a substitui.
  */
 export function watchSsoState(handlers: { onEnded: () => void; onReplaced?: () => void }) {

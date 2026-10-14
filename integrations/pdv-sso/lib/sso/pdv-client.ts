@@ -9,7 +9,7 @@ function readCookie(name: string) {
   return match ? decodeURIComponent(match.slice(name.length + 1)) : "";
 }
 
-/** Token anti-CSRF (cookie kardap_csrf do domínio .kardap.online, o mesmo nos aplicativos). */
+/** Token anti-CSRF (cookie kardap_csrf do domínio .kardapp.online, o mesmo nos aplicativos). */
 export async function csrfToken() {
   const current = readCookie(CSRF_COOKIE);
   if (current) return current;
@@ -36,7 +36,7 @@ export async function requestCode(): Promise<{ status: number; code?: string; er
   return { status, code: typeof data.code === "string" ? data.code : undefined, error: data.error };
 }
 
-/** Login central (kardap.online) com retorno para a página atual do PDV. */
+/** Login central (kardapp.online) com retorno para a página atual do PDV. */
 export function goToLogin(path = window.location.pathname + window.location.search) {
   const url = new URL("/login", KARDAP_ORIGIN);
   url.searchParams.set(RETURN_PARAM, PDV_ORIGIN + (path.startsWith("/") && !path.startsWith("//") ? path : "/"));
@@ -45,10 +45,10 @@ export function goToLogin(path = window.location.pathname + window.location.sear
 
 /**
  * Logout global:
- * 1. POST /api/auth/logout no servidor central: encerra a sessão e apaga os cookies de .kardap.online na hora;
+ * 1. POST /api/auth/logout no servidor central: encerra a sessão e apaga os cookies de .kardapp.online na hora;
  *    as abas abertas do KARDAP e do PDV percebem pelo cookie de estado;
  * 2. sai do Firebase nesta aba;
- * 3. passa pela página /logout do KARDAP, que encerra também o login do Firebase guardado em kardap.online
+ * 3. passa pela página /logout do KARDAP, que encerra também o login do Firebase guardado em kardapp.online
  *    e termina no login central, com volta ao PDV.
  * `everywhere`: encerra as sessões da conta em todos os aparelhos. Se o passo 1 falhar, a página /logout o refaz.
  */

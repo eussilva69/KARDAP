@@ -30,7 +30,7 @@ type State = { status: "loading" } | { status: "error" } | { status: "ready"; us
 
 /**
  * Conecta o Firebase Client SDK do PDV à sessão central (SSO_INTEGRATION.md):
- * 1. pede ao servidor central um código de uso único (POST kardap.online/api/sso/code, CORS + CSRF);
+ * 1. pede ao servidor central um código de uso único (POST kardapp.online/api/sso/code, CORS + CSRF);
  * 2. entrega o código ao servidor do PDV (POST /api/auth/firebase-token, mesma origem, CSRF), que o troca no
  *    servidor central com o segredo do cliente e devolve o custom token no corpo;
  * 3. signInWithCustomToken com persistência SÓ em memória (nenhum token em localStorage/IndexedDB);

@@ -162,7 +162,7 @@ export default function AuthPage({ register, onLogin }: { register: boolean; onL
    */
   const goAfterLogin = async (keep: boolean) => {
     const user = getFirebaseAuth().currentUser;
-    // Sessão compartilhada com o PDV (cookie HttpOnly em .kardap.online). Se falhar, o painel funciona igual.
+    // Sessão compartilhada com o PDV (cookie HttpOnly em .kardapp.online). Se falhar, o painel funciona igual.
     const sso = user ? await establishSsoSession(user, keep) : null;
     if (redirectTo) {
       if (sso?.ok || redirectTo.startsWith("/")) {

@@ -1,5 +1,5 @@
 /**
- * PDV — conversa com o servidor central de autenticação (kardap.online). Somente servidor.
+ * PDV — conversa com o servidor central de autenticação (kardapp.online). Somente servidor.
  * O PDV não precisa de credencial do Firebase Admin para o login: valida a sessão e obtém o custom token pelo
  * servidor central, autenticado com o segredo do cliente (SSO_CLIENT_ID + SSO_CLIENT_SECRET).
  */
