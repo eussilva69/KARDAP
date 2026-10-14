@@ -33,7 +33,7 @@ export type RestaurantCategory = { id: string; name: string; description: string
 /** Metadados da foto otimizada (lib/image-optimization.ts); fotos antigas não têm. */
 export type ImageMeta = { width: number; height: number; format: string; size: number; smallSize: number; originalSize: number };
 
-export type RestaurantProduct = { id: string; name: string; categoryId: string; category: string; description: string; price: string; priceCents: number; image?: string; imageThumb?: string; imageMeta?: ImageMeta | null; videoUrl?: string; videoPoster?: string; video?: PublishedVideo | null; available: boolean; createdAt?: string; updatedAt?: string };
+export type RestaurantProduct = { id: string; name: string; categoryId: string; category: string; description: string; price: string; priceCents: number; image?: string; imageThumb?: string; imageMeta?: ImageMeta | null; videoUrl?: string; videoPoster?: string; video?: PublishedVideo | null; likes?: number; available: boolean; createdAt?: string; updatedAt?: string };
 
 export function watchRestaurant(
   onData: (data: RestaurantData | null, meta: SnapshotMeta) => void,

@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test:e2e": "node scripts/e2e-emulators.mjs",
     "test:sso": "node scripts/e2e-sso.mjs",
+    "test:reels": "node scripts/e2e-reels.mjs",
     "seo:landing": "node scripts/seo-landing.mjs"
   },
   "dependencies": {

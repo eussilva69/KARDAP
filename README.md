@@ -155,7 +155,7 @@ Fotos de produto, logo e capa são redimensionadas e convertidas para WebP no na
 
 ## Testes
 
-Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel, cardápio público em tempo real, imagens, regras e isolamento entre estabelecimentos; login único com o PDV) contra os emuladores do Firebase: [docs/TESTES.md](docs/TESTES.md).
+Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel, cardápio público em tempo real, imagens, regras e isolamento entre estabelecimentos; login único com o PDV; Reels) contra os emuladores do Firebase: [docs/TESTES.md](docs/TESTES.md).
 
 ## SEO e indexação
 
@@ -168,6 +168,10 @@ O KARDAP é o servidor central de autenticação do ecossistema: o login em `kar
 ## Vídeos de produto
 
 O vídeo vai do painel direto para o Firebase Storage; um worker no Cloud Run (FFmpeg) comprime para MP4 H.264 até 720p, gera a capa WebP e publica no produto. O painel acompanha o envio e a otimização em tempo real, e o cardápio toca só a versão otimizada. Arquitetura, implantação no Google Cloud, permissões, custos e testes: [docs/VIDEOS.md](docs/VIDEOS.md).
+
+## Reels do cardápio
+
+No cardápio público, os pratos em vídeo viram um feed vertical em tela cheia no padrão dos Reels: deslizar para cima e para baixo, toque para pausar, dois toques para curtir, segurar para ver o prato inteiro. Curtir e enviar não pedem conta (a curtida usa uma identidade anônima do Firebase Auth); salvar fica no celular ou numa conta de cliente (Google ou e-mail). O painel mostra as curtidas de cada produto. Gestos, dados, regras, desempenho e a configuração necessária no Firebase (ativar o login anônimo): [docs/REELS.md](docs/REELS.md).
 
 ## Rodapé e imagens do site
 

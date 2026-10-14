@@ -97,3 +97,29 @@ BROWSER_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" node
 | S31 | Código com mais de 60 s é recusado |
 | S32 | Introspecção só com o segredo do cliente; sessão inválida responde `active: false` |
 | S33 | Origens de produção: `kardapp.online`, `www.kardapp.online` e `pdv.kardapp.online` aceitas no CORS e como destino; domínio antigo e imitações recusados |
+
+## Reels do cardápio
+
+`scripts/e2e-reels.mjs` (`npm run test:reels`) limpa os emuladores, cria um restaurante de teste com três pratos em
+vídeo (os MP4 de `public/`) e um sem vídeo, sobe o app na porta 3100 (ou usa o que já estiver no ar nessa porta, com as
+mesmas variáveis) e testa num celular emulado (390×844, toque de verdade pelo DevTools). Requisitos: emuladores rodando
+(passo 1 acima). Leva cerca de 3 minutos. Detalhes da funcionalidade em [REELS.md](REELS.md).
+
+```bash
+BROWSER_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" node scripts/e2e-reels.mjs ./reels-capturas
+```
+
+| Cenário | O que verifica |
+| --- | --- |
+| N1–N9, P1–P2 | Regras com tokens reais: contador sem curtida, curtida sem contador, curtida em nome de outro, +5, curtir duas vezes, mudar preço, ler curtida alheia, anônimo gravando conta, salvos alheios ou fora do formato são recusados; curtir e descurtir válidos passam |
+| S1–S2 | Identidade anônima não cria restaurante nem abre sessão do SSO |
+| U1–U2 | Entrada dos Reels no cardápio; o feed abre com o primeiro vídeo tocando sem som e só os vizinhos como vídeo |
+| U3 | Deslizar: o próximo toca, o anterior pausa e volta ao início, nunca dois tocando |
+| U4–U5 | Toque pausa/continua; segurar pausa e esconde os botões |
+| U6–U8 | Dois toques curtem (coração, botão, contador e curtida no Firestore com identidade anônima); descurtir; toques rápidos sem contagem dupla |
+| U9 | Contador em tempo real num segundo celular |
+| U10–U11 | Enviar: link do prato sem a mesa; opções próprias quando não há folha do sistema |
+| U12–U15 | Salvar no celular; criar conta pelo aviso (mesmo uid, curtidas mantidas, salvos na conta); lista de salvos; remover do celular e da conta |
+| U16–U19 | Link `?reel=` abre no prato e mantém a mesa; "voltar" fecha o feed; feed de todos os pratos; som pelo alto-falante; cartão final |
+| U20 | Nenhum erro de JavaScript |
+| G1 | Visitante anônimo que abre `/dashboard` vê o login, sem configuração inicial nem restaurante criado |

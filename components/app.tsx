@@ -207,8 +207,10 @@ export default function App() {
     Promise.all([import("firebase/auth"), import("@/lib/auth")])
       .then(([{ onAuthStateChanged }, { getFirebaseAuth }]) => {
         if (!alive) return;
-        unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (user) => {
+        unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (authUser) => {
           if (!alive) return;
+          // Identidade anônima criada ao curtir um prato no cardápio público não é login no painel.
+          const user = authUser?.isAnonymous ? null : authUser;
           // A sessão compartilhada deste navegador acabou enquanto o site estava fechado (logout no PDV,
           // expiração dos 5 dias): o login guardado aqui também não vale mais.
           if (user && firstAuthEvent.current && linkedUid() === user.uid && !readSsoState()) {
@@ -378,8 +380,10 @@ export default function App() {
   }, [path, retryKey]);
 
   const publicId = publicRestaurant.id;
+  // Só o token da mesa importa aqui: outros parâmetros (ex.: ?reel= dos Reels) não reiniciam a leitura.
+  const tableToken = query.get("mesa") || "";
   useEffect(() => {
-    const token = query.get("mesa");
+    const token = tableToken;
     if (!isPublicPath(path) || !publicId || !token) {
       setPublicTableName("");
       return;
@@ -390,7 +394,7 @@ export default function App() {
       (table) => setPublicTableName(table?.name || ""),
       () => setPublicTableName(""),
     );
-  }, [path, publicId, query]);
+  }, [path, publicId, tableToken]);
 
   useEffect(() => {
     if (!isPublicPath(path) || !publicId) return;
@@ -565,6 +569,7 @@ export default function App() {
         onRetry={retry}
         productsLoaded={publicProductsLoaded}
         restaurantId={publicId}
+        slug={path.split("/")[2] || ""}
         table={publicTableName}
         brand={publicRestaurant.brand}
         settings={publicRestaurant.settings}

@@ -11,6 +11,8 @@ export async function POST(request: NextRequest) {
   if (!token) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   try {
     const decoded = await adminAuth().verifyIdToken(token);
+    // Identidade anônima (curtidas no cardápio público) não cria restaurante.
+    if (decoded.firebase?.sign_in_provider === "anonymous") return NextResponse.json({ error: "Entre com uma conta para criar o restaurante" }, { status: 403 });
     const payload = await request.json();
     const name = typeof payload.name === "string" ? payload.name.trim() : "";
     if (name.length < 2 || name.length > 100) {

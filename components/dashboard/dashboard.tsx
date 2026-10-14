@@ -40,6 +40,7 @@ import {
   Tags,
   Trash2,
   EyeOff,
+  Heart,
   UtensilsCrossed,
   Video,
   X,
@@ -1459,6 +1460,11 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
                       </span>
                     )}
                     <VideoJobChip job={videoJobs.byProduct.get(f.id)} />
+                    {Number(f.likes) > 0 && (
+                      <span className="kd-product-likes" title="Curtidas dos clientes nos Reels do cardápio">
+                        <Heart size={12} aria-hidden /> {plural(Number(f.likes), "curtida", "curtidas")}
+                      </span>
+                    )}
                     {f.pending && <SyncBadge />}
                   </small>
                 </span>

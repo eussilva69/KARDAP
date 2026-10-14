@@ -23,6 +23,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Identidade anônima: criada no cardápio público na primeira curtida (sem cadastro).
+    function isAnonymous() {
+      return request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
     function isAdmin() {
       return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
@@ -84,6 +89,32 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ───── Clientes do cardápio (Reels, docs/REELS.md) ─────
+    // Conta de cliente: serve só para guardar pratos salvos. Cada pessoa lê e grava apenas o que é dela;
+    // a identidade anônima (de quem só curtiu) não grava aqui.
+    match /clientes/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid && !isAnonymous()
+        && request.resource.data.keys().hasOnly(['tipo', 'email', 'atualizadoEm'])
+        && request.resource.data.tipo == 'cliente'
+        && request.resource.data.atualizadoEm == request.time;
+
+      match /salvos/{saveId} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid && !isAnonymous()
+          && request.resource.data.keys().hasOnly(['restaurantId', 'restaurantSlug', 'restaurantName', 'productId', 'name', 'priceCents', 'image', 'savedAt'])
+          && request.resource.data.restaurantId is string
+          && request.resource.data.productId is string
+          && saveId == request.resource.data.restaurantId + '_' + request.resource.data.productId
+          && request.resource.data.restaurantSlug is string && request.resource.data.restaurantSlug.size() <= 120
+          && request.resource.data.restaurantName is string && request.resource.data.restaurantName.size() <= 200
+          && request.resource.data.name is string && request.resource.data.name.size() <= 200
+          && request.resource.data.image is string && request.resource.data.image.size() <= 2048
+          && request.resource.data.priceCents is int
+          && request.resource.data.savedAt is int;
+      }
+    }
+
     // ───── Restaurantes ─────
 
     match /restaurantes/{restaurantId} {
@@ -120,13 +151,59 @@ service cloud.firestore {
             && request.resource.data.get('video', null) == null);
       }
 
+      // Curtidas dos Reels: uma por pessoa e prato (id = produto_uid). A curtida e o contador `likes` do
+      // produto mudam no mesmo lote (+1 ao criar, −1 ao apagar); uma sem a outra é recusada.
+      function productPath(productId) {
+        return /databases/$(database)/documents/restaurantes/$(restaurantId)/produtos/$(productId);
+      }
+      function myLikePath(productId) {
+        return /databases/$(database)/documents/restaurantes/$(restaurantId)/curtidas/$(productId + '_' + request.auth.uid);
+      }
+
+      // Contador de curtidas: quem curte soma 1 (ou subtrai, ao descurtir), sempre junto com a própria curtida.
+      function likeCounterUpdate(productId) {
+        let before = resource.data.get('likes', 0);
+        let after = request.resource.data.get('likes', 0);
+        return signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+          && after is int
+          && ((after == before + 1 && !exists(myLikePath(productId)) && existsAfter(myLikePath(productId)))
+            || (after == before - 1 && exists(myLikePath(productId)) && !existsAfter(myLikePath(productId))));
+      }
+
+      // O painel não altera o contador (ele reflete só curtidas reais).
+      function likesUntouched() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes']);
+      }
+
       match /produtos/{productId} {
         allow read: if true;
         allow create: if isAdmin() || (isMember(restaurantId)
           && request.resource.data.get('videoUrl', '') == ''
-          && !request.resource.data.keys().hasAny(['videoPoster', 'video']));
-        allow update: if isAdmin() || (isMember(restaurantId) && videoFieldsUntouchedOrCleared());
+          && !request.resource.data.keys().hasAny(['videoPoster', 'video', 'likes']));
+        allow update: if isAdmin()
+          || (isMember(restaurantId) && videoFieldsUntouchedOrCleared() && likesUntouched())
+          || likeCounterUpdate(productId);
         allow delete: if isMember(restaurantId) || isAdmin();
+      }
+
+      match /curtidas/{likeId} {
+        // Cada pessoa vê só as próprias curtidas (para pintar o coração); o total fica no produto.
+        allow read: if signedIn() && resource.data.uid == request.auth.uid;
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['productId', 'uid', 'createdAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.productId is string
+          && likeId == request.resource.data.productId + '_' + request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && exists(productPath(request.resource.data.productId))
+          && getAfter(productPath(request.resource.data.productId)).data.get('likes', 0)
+            == get(productPath(request.resource.data.productId)).data.get('likes', 0) + 1;
+        allow delete: if signedIn()
+          && resource.data.uid == request.auth.uid
+          && getAfter(productPath(resource.data.productId)).data.get('likes', 0)
+            == get(productPath(resource.data.productId)).data.get('likes', 0) - 1;
+        allow update: if false;
       }
 
       // Registros de vídeo de produto (services/video-worker/src/contract.ts).

@@ -22,6 +22,8 @@ export type Dish = {
   videoPoster?: string;
   /** Dimensões do vídeo otimizado (vídeos novos). */
   video?: { width: number; height: number } | null;
+  /** Curtidas nos Reels (contador mantido junto com cada curtida, ver lib/reels.ts). */
+  likes?: number;
 };
 
 /**

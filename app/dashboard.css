@@ -465,7 +465,8 @@
 .kd-product-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--k-fs-base); font-weight: 650; }
 .kd-product-hidden-cat { display: inline-flex; align-items: center; gap: 3px; color: var(--k-cloche-ink); font-weight: 650; }
 .kd-product-main small { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--k-muted); font-size: var(--k-fs-sm); }
-.kd-product-video { display: inline-flex; align-items: center; gap: 3px; }
+.kd-product-video,
+.kd-product-likes { display: inline-flex; align-items: center; gap: 3px; }
 .kd-product-price { min-width: 92px; text-align: right; font-size: var(--k-fs-base); font-weight: 650; }
 .kd-product.is-off .kd-thumb { opacity: 0.45; filter: grayscale(1); }
 .kd-product.is-off .kd-product-main b,

@@ -12,6 +12,29 @@ export function playExclusive(video: HTMLVideoElement) {
   return video.play().catch(() => undefined);
 }
 
+/**
+ * Como playExclusive, mas diz o que aconteceu. Se o navegador recusar o som sem um toque recente
+ * (política de autoplay, comum no iPhone), toca sem som: "muted". "failed" inclui a pausa que
+ * interrompe o carregamento (AbortError), que não é um problema.
+ */
+export async function playExclusiveReporting(video: HTMLVideoElement): Promise<"ok" | "muted" | "failed"> {
+  if (playing && playing !== video) playing.pause();
+  playing = video;
+  try {
+    await video.play();
+    return "ok";
+  } catch (error) {
+    if ((error as { name?: string })?.name !== "NotAllowedError" || video.muted) return "failed";
+    video.muted = true;
+    try {
+      await video.play();
+      return "muted";
+    } catch {
+      return "failed";
+    }
+  }
+}
+
 export function pauseVideo(video: HTMLVideoElement) {
   video.pause();
   if (playing === video) playing = null;

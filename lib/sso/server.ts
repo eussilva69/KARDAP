@@ -42,6 +42,10 @@ export async function createSession(idToken: string) {
   } catch {
     throw new SsoError("invalid_token", 401, "Sessão inválida. Entre de novo.");
   }
+  // Identidade anônima (curtidas no cardápio público) não é conta: não abre sessão compartilhada.
+  if (decoded.firebase?.sign_in_provider === "anonymous") {
+    throw new SsoError("invalid_token", 401, "Entre com e-mail e senha ou Google para continuar.");
+  }
   if (Date.now() / 1000 - decoded.auth_time > RECENT_SIGN_IN_SECONDS) {
     throw new SsoError("recent_login_required", 401, "Por segurança, entre de novo para continuar.");
   }

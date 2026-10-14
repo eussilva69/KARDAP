@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ConciergeBell, Receipt, Search, Star, UtensilsCrossed, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Bookmark, Check, Clapperboard, ConciergeBell, Receipt, Search, Star, UtensilsCrossed, X } from "lucide-react";
 import { addPublicCall } from "@/lib/restaurant-db";
 import { elapsed, plural } from "@/lib/format";
 import { useNow, usePrefersReducedMotion, useRootPalette, useSaveData } from "@/lib/hooks";
@@ -11,8 +12,16 @@ import type { Brand, RestaurantSettings } from "@/components/dashboard/types";
 import { MenuHero } from "./menu-hero";
 import { DishRow, type Dish } from "./dish-row";
 import { CallSheet, type CallIntent } from "./call-sheet";
-import { DishViewer } from "./dish-viewer";
 import { MenuMessage, MenuSkeleton } from "./menu-states";
+import { ReelsRail } from "./reels/reels-rail";
+import type { ReelsMode } from "./reels/reels-viewer";
+import { useEngagement } from "./reels/use-engagement";
+
+// O feed e a lista de salvos só baixam quando são usados (ou quando o celular fica ocioso, ver abaixo):
+// o primeiro carregamento do cardápio não cresce.
+const loadViewer = () => import("./reels/reels-viewer");
+const ReelsViewer = dynamic(() => loadViewer().then((m) => m.ReelsViewer), { ssr: false, loading: () => <div className="kd-reels" aria-busy="true" /> });
+const SavedSheet = dynamic(() => import("./reels/saved-sheet").then((m) => m.SavedSheet), { ssr: false });
 
 export type PublicCategory = { id: string; name: string; description?: string; order?: number; active?: boolean };
 type Section = { id: string; name: string; description?: string; dishes: Dish[] };
@@ -78,6 +87,7 @@ export default function PublicMenu({
   onRetry,
   productsLoaded,
   restaurantId,
+  slug,
   table,
   brand,
   settings,
@@ -92,6 +102,8 @@ export default function PublicMenu({
   onRetry: () => void;
   productsLoaded: boolean;
   restaurantId: string;
+  /** Endereço do cardápio (/r/:slug), usado nos links de compartilhamento dos Reels. */
+  slug: string;
   table: string;
   brand: Brand;
   settings: RestaurantSettings;
@@ -112,7 +124,8 @@ export default function PublicMenu({
   const now = useNow(30_000);
 
   const [sheet, setSheet] = useState<CallIntent | null>(null);
-  const [viewer, setViewer] = useState<{ list: Dish[]; index: number } | null>(null);
+  const [viewer, setViewer] = useState<{ mode: ReelsMode; list: Dish[]; index: number; key: number } | null>(null);
+  const [savedOpen, setSavedOpen] = useState(false);
   const [lastCall, setLastCall] = useState<{ reason: string; at: number } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -126,6 +139,76 @@ export default function PublicMenu({
   const allDishes = useMemo(() => sections.flatMap((s) => s.dishes), [sections]);
   const term = normalize(query.trim());
   const results = searchOpen && term ? allDishes.filter((d) => normalize(d.name).includes(term) || normalize(d.description || "").includes(term)) : null;
+  const videoDishes = useMemo(() => allDishes.filter((d) => d.videoUrl), [allDishes]);
+  const liveDishes = useMemo(() => new Map(allDishes.filter((d) => d.id).map((d) => [d.id as string, d])), [allDishes]);
+  // A lista do feed é fixada ao abrir (a ordem não muda enquanto a pessoa assiste), mas cada prato vem
+  // atualizado do Firestore (curtidas, preço); um prato retirado do cardápio no meio fica como estava.
+  const viewerDishes = useMemo(() => (viewer ? viewer.list.map((d) => (d.id && liveDishes.get(d.id)) || d) : []), [viewer, liveDishes]);
+  const restaurant = useMemo(
+    () => ({ id: restaurantId, slug, name: restaurantName, logo: brand.logoSmall || brand.logo }),
+    [restaurantId, slug, restaurantName, brand.logoSmall, brand.logo],
+  );
+  const engagement = useEngagement(restaurant);
+  const viewerOpen = useRef(false);
+  viewerOpen.current = Boolean(viewer);
+
+  /** Abre o feed. Cria uma entrada no histórico: o "voltar" do celular fecha o feed, não sai do cardápio. */
+  const openViewer = useCallback((mode: ReelsMode, list: Dish[], index: number) => {
+    if (!list.length) return;
+    if (!viewerOpen.current) {
+      try {
+        window.history.pushState({ kdReel: true }, "");
+      } catch {}
+    }
+    setViewer({ mode, list, index: Math.max(0, Math.min(list.length - 1, index)), key: Date.now() });
+  }, []);
+
+  const closeViewer = useCallback(() => {
+    if ((window.history.state as { kdReel?: boolean } | null)?.kdReel) window.history.back();
+    else setViewer(null);
+  }, []);
+
+  useEffect(() => {
+    if (!viewer) return;
+    const onPop = () => {
+      if (!(window.history.state as { kdReel?: boolean } | null)?.kdReel) setViewer(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [viewer]);
+
+  /** Prato da lista: abre o feed com todos os pratos do cardápio, começando nele. */
+  const openDish = useCallback((list: Dish[], index: number) => openViewer("menu", list, index), [openViewer]);
+
+  // Com o cardápio na tela e o celular ocioso, adianta o download do feed: o primeiro toque abre na hora.
+  // Com economia de dados, espera o toque.
+  useEffect(() => {
+    if (!ready || saveData) return;
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const run = () => void loadViewer().catch(() => undefined);
+    if (idle) idle(run);
+    else setTimeout(run, 2000);
+  }, [ready, saveData]);
+
+  // Link compartilhado (/r/:slug?reel=<prato>): abre direto no vídeo do prato, uma vez.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (!ready || deepLinked.current) return;
+    deepLinked.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("reel");
+    if (!target) return;
+    params.delete("reel");
+    // Tira o ?reel do endereço (recarregar a página volta ao cardápio); a mesa (?mesa=) continua.
+    const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+    try {
+      window.history.replaceState(null, "", clean);
+    } catch {}
+    const inReels = videoDishes.findIndex((d) => d.id === target);
+    const inMenu = allDishes.findIndex((d) => d.id === target);
+    if (inReels >= 0) openViewer("reels", videoDishes, inReels);
+    else if (inMenu >= 0) openViewer("menu", allDishes, inMenu);
+  }, [ready, videoDishes, allDishes, openViewer]);
 
   useEffect(() => {
     if (restaurantName) document.title = `${restaurantName} · Cardápio`;
@@ -199,14 +282,27 @@ export default function PublicMenu({
     <div className={`kd-menu kd-menu-page ${canCall ? "has-bar" : ""} ${customColors ? "has-palette" : ""}`}>
       <div className="kd-menu-column">
         <MenuHero name={restaurantName} brand={brand} table={table}>
-          {settings.google && settings.googleReviewUrl && (
-            <a className="kd-menu-review" href={settings.googleReviewUrl} target="_blank" rel="noopener noreferrer">
-              <Star size={15} aria-hidden />
-              Avaliar no Google
-              <span className="kd-sr"> (abre em nova aba)</span>
-            </a>
+          {((settings.google && settings.googleReviewUrl) || engagement.saved.length > 0 || engagement.account) && (
+            <div className="kd-menu-pills">
+              {settings.google && settings.googleReviewUrl && (
+                <a className="kd-menu-review" href={settings.googleReviewUrl} target="_blank" rel="noopener noreferrer">
+                  <Star size={15} aria-hidden />
+                  Avaliar no Google
+                  <span className="kd-sr"> (abre em nova aba)</span>
+                </a>
+              )}
+              {(engagement.saved.length > 0 || engagement.account) && (
+                <button type="button" className="kd-menu-review kd-menu-saved" onClick={() => setSavedOpen(true)}>
+                  <Bookmark size={15} aria-hidden />
+                  Salvos
+                  {engagement.saved.length > 0 && <span className="kd-menu-pill-count kd-num">{engagement.saved.length}</span>}
+                </button>
+              )}
+            </div>
           )}
         </MenuHero>
+
+        <ReelsRail dishes={videoDishes} onOpen={(index) => openViewer("reels", videoDishes, index)} />
 
         {sections.length === 0 ? (
           <div className="kd-empty">
@@ -241,6 +337,11 @@ export default function PublicMenu({
                   <button ref={searchButton} type="button" className="kd-menu-search-btn" onClick={() => setSearchOpen(true)} aria-label="Buscar no cardápio">
                     <Search size={18} />
                   </button>
+                  {videoDishes.length > 0 && (
+                    <button type="button" className="kd-menu-search-btn" onClick={() => openViewer("reels", videoDishes, 0)} aria-label="Assistir os pratos em vídeo (Reels)">
+                      <Clapperboard size={18} />
+                    </button>
+                  )}
                   <div className="kd-menu-chips" ref={chipsRef}>
                     {sections.map((s) => (
                       <a
@@ -275,7 +376,7 @@ export default function PublicMenu({
                         dish={dish}
                         categoryLabel={dish.category}
                         autoplay={autoplay}
-                        onOpen={() => setViewer({ list: results, index: i })}
+                        onOpen={() => openDish(results, i)}
                       />
                     ))}
                   </ul>
@@ -302,7 +403,7 @@ export default function PublicMenu({
                     </header>
                     <ul className="kd-dish-list">
                       {section.dishes.map((dish, j) => (
-                        <DishRow key={dish.id || `${dish.name}-${j}`} dish={dish} autoplay={autoplay} onOpen={() => setViewer({ list: allDishes, index: start + j })} />
+                        <DishRow key={dish.id || `${dish.name}-${j}`} dish={dish} autoplay={autoplay} onOpen={() => openDish(allDishes, start + j)} />
                       ))}
                     </ul>
                   </section>
@@ -337,13 +438,31 @@ export default function PublicMenu({
       )}
 
       {viewer && (
-        <DishViewer
-          dishes={viewer.list}
+        <ReelsViewer
+          key={viewer.key}
+          dishes={viewerDishes}
           startIndex={viewer.index}
+          mode={viewer.mode}
           autoplay={autoplay}
+          restaurant={restaurant}
+          engagement={engagement}
           canCall={settings.waiter}
           onCall={() => setSheet("order")}
-          onClose={() => setViewer(null)}
+          onClose={closeViewer}
+          onShowSaved={() => setSavedOpen(true)}
+        />
+      )}
+      {savedOpen && (
+        <SavedSheet
+          restaurant={restaurant}
+          engagement={engagement}
+          dishes={liveDishes}
+          onOpen={(productId) => {
+            setSavedOpen(false);
+            const index = allDishes.findIndex((d) => d.id === productId);
+            if (index >= 0) openViewer("menu", allDishes, index);
+          }}
+          onClose={() => setSavedOpen(false)}
         />
       )}
       {sheet && (
