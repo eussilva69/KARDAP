@@ -1,0 +1,40 @@
+# Kardap
+
+> Kardap é um cardápio digital para restaurantes, bares, cafés e lanchonetes: pratos com fotos e vídeos curtos, QR Code por mesa e chamados de garçom em tempo real, tudo gerenciado por um painel web. O cliente abre o cardápio no navegador do celular, sem instalar aplicativo.
+
+## Como funciona
+
+- O restaurante cria a conta, informa o nome do estabelecimento, envia logo e capa e cadastra os pratos com preço, descrição, foto e vídeo.
+- O Kardap gera um QR Code para cada mesa; o display de mesa sai pronto para imprimir em folha A4.
+- O cliente escaneia o QR Code, navega pelas categorias, busca pratos e assiste aos vídeos.
+- Pelo cardápio, o cliente chama o garçom (e, no plano Pro, pede a conta); o chamado aparece no painel do restaurante na hora, com a mesa identificada e alerta sonoro.
+- Alterações de pratos, preços, logo, capa e cores aparecem imediatamente no cardápio aberto nas mesas.
+
+## Recursos
+
+- Fotos e vídeos curtos nos produtos; os vídeos são convertidos para um formato leve (até 720p) com imagem de capa.
+- Busca de pratos e organização por categorias.
+- Identidade visual do restaurante: logo, capa e cores, com ajuste automático de contraste para leitura no celular.
+- Avaliações no Google integradas ao cardápio.
+- Relatórios de chamados e horários de pico (plano Pro).
+
+## Planos e preços (em reais)
+
+- Essencial: R$ 49,00 por mês ou R$ 470,00 por ano. Até 30 mesas.
+- Pro: R$ 99,00 por mês ou R$ 950,00 por ano. Mesas e produtos ilimitados, pedido de conta pelo cardápio, relatórios, personalização avançada e suporte prioritário via WhatsApp.
+- Teste grátis de 15 dias, sem cartão de crédito.
+
+## Páginas principais
+
+- [Página inicial](https://kardapp.online/)
+- [Planos e preços](https://kardapp.online/planos)
+- [Cardápio em vídeo](https://kardapp.online/cardapio-video)
+- [QR Code para mesas](https://kardapp.online/qr-code-mesas)
+- [Gestão do cardápio](https://kardapp.online/gestao-cardapio)
+- [Cardápio com a identidade do restaurante](https://kardapp.online/sua-marca)
+- [Central de ajuda e perguntas frequentes](https://kardapp.online/central-ajuda)
+- [Criar conta](https://kardapp.online/criar-conta)
+
+## Contato
+
+- WhatsApp: +55 11 93213-8691 (https://wa.me/5511932138691)

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo } from "next/font/google";
+import { OG_IMAGE, SITE_NAME, SITE_URL } from "@/lib/seo/site";
 import "./globals.css";
 import "./auth.css";
 import "./dashboard.css";
@@ -17,10 +18,19 @@ const archivo = Archivo({
   variable: "--font-archivo",
 });
 
+const DEFAULT_DESCRIPTION = "Cardápio digital com fotos e vídeos dos pratos, QR Code por mesa e chamados de garçom em tempo real para restaurantes, bares e cafés.";
+
 export const metadata: Metadata = {
-  title: { default: "Kardap · Cardápio digital por QR Code", template: "%s · Kardap" },
-  description: "Cardápio digital com fotos e vídeos dos pratos, QR Code por mesa e chamados de garçom em tempo real para restaurantes, bares e cafés.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: "Cardápio digital com vídeo e QR Code por mesa | Kardap", template: "%s | Kardap" },
+  description: DEFAULT_DESCRIPTION,
   applicationName: "Kardap",
+  // Verificação de propriedade: só com os códigos reais nas variáveis de ambiente (docs/SEO.md).
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: process.env.BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION } : undefined,
+  },
+  twitter: { card: "summary_large_image", images: [OG_IMAGE.url] },
   icons: {
     icon: [
       { url: "/brand/kardap-icon-48.png", sizes: "48x48", type: "image/png" },
@@ -31,9 +41,10 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    siteName: "Kardap",
-    title: "Kardap · Cardápio digital por QR Code",
-    description: "Cardápio com fotos e vídeos, QR Code por mesa e chamados de garçom em tempo real.",
+    siteName: SITE_NAME,
+    title: "Cardápio digital com vídeo e QR Code por mesa | Kardap",
+    description: DEFAULT_DESCRIPTION,
+    images: [OG_IMAGE],
   },
 };
 

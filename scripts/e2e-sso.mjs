@@ -284,18 +284,26 @@ const cookie = async (contextId, name) => (await cookiesOf(contextId)).find((c) 
 
 // Login pela tela do KARDAP (como uma pessoa faria).
 async function loginForm(page, email, password, { remember = true } = {}) {
-  await page.waitFor(
-    `location.host === "kardap.test:3100" && location.pathname === "/login" && !!document.querySelector("form fieldset") && !document.querySelector("form fieldset").disabled && [...document.querySelectorAll("label")].some(l => l.textContent.trim().startsWith("Senha"))`,
-    90000,
-    "formulário de login do KARDAP",
-  );
-  await sleep(1200); // hidratação do React
-  await page.fill("E-mail", email);
-  await page.fill("Senha", password);
-  if (!remember) {
-    await page.evaluate(`(() => { const box = [...document.querySelectorAll("input[type=checkbox]")].find(c => c.closest("label")?.textContent.includes("Manter conectado")); if (box && box.checked) box.click(); return true; })()`);
+  // O next dev pode recarregar a página ao compilar uma rota nova: se o formulário sumir, espera e tenta de novo.
+  for (let attempt = 1; ; attempt++) {
+    await page.waitFor(
+      `location.host === "kardap.test:3100" && location.pathname === "/login" && !!document.querySelector("form fieldset") && !document.querySelector("form fieldset").disabled && [...document.querySelectorAll("label")].some(l => l.textContent.trim().startsWith("Senha"))`,
+      90000,
+      "formulário de login do KARDAP",
+    );
+    await sleep(1200); // hidratação do React
+    try {
+      await page.fill("E-mail", email);
+      await page.fill("Senha", password);
+      if (!remember) {
+        await page.evaluate(`(() => { const box = [...document.querySelectorAll("input[type=checkbox]")].find(c => c.closest("label")?.textContent.includes("Manter conectado")); if (box && box.checked) box.click(); return true; })()`);
+      }
+      await page.evaluate(`document.querySelector("form button[type=submit]").click()`);
+      return;
+    } catch (error) {
+      if (attempt >= 3) throw error;
+    }
   }
-  await page.evaluate(`document.querySelector("form button[type=submit]").click()`);
 }
 const atLogin = `location.host === "kardap.test:3100" && location.pathname === "/login"`;
 const pdvReady = (uid) => `location.host === "pdv.kardap.test:3200" && document.querySelector("#pdv-uid")?.textContent === ${JSON.stringify(uid)}`;
@@ -702,6 +710,7 @@ async function introspect(session, auth = basic("pdv", CLIENT_SECRET)) {
   return { status: r.status, body: await r.json().catch(() => ({})) };
 }
 let lateCode = "";
+let lateCodeAt = 0;
 
 const ctxNovo = await newContext();
 const novo = await newPage(ctxNovo);
@@ -781,6 +790,7 @@ await test("S30", "Código de uso único: só com o segredo do cliente, uma vez,
   assert(wrong.length === 0, JSON.stringify(results));
   // Um código guardado para o teste de validade (S31), depois da espera.
   lateCode = (await requestCodeApi((await createSessionApi(A)).cookie)).body.code || "";
+  lateCodeAt = Date.now();
   return `custom token do uid certo; recusas: ${JSON.stringify(results)}`;
 });
 
@@ -822,7 +832,8 @@ await test("S33", "Origens de produção: kardapp.online, www.kardapp.online e p
 
 // Os últimos cenários precisam de logins com mais de 5 minutos (E no cadastro, C no S6).
 const newest = Math.max(E.signedAt, C.browserLoginAt || Date.now());
-const wait = newest + 5 * 60_000 + 10_000 - Date.now();
+// …e o código guardado no S30 precisa ter mais de 60 s (S31).
+const wait = Math.max(newest + 5 * 60_000 + 10_000, lateCodeAt + 65_000) - Date.now();
 if (wait > 0) {
   console.log(`… aguardando ${Math.ceil(wait / 1000)} s para os logins ficarem com mais de 5 minutos`);
   await sleep(wait);

@@ -1,0 +1,112 @@
+{
+  "index": {
+    "path": "/",
+    "title": "Cardápio digital com vídeo e QR Code por mesa | Kardap",
+    "index": true
+  },
+  "cardapio-video": {
+    "path": "/cardapio-video",
+    "title": "Cardápio em vídeo para restaurantes | Kardap",
+    "index": true
+  },
+  "qr-code-mesas": {
+    "path": "/qr-code-mesas",
+    "title": "QR Code por mesa para cardápio digital | Kardap",
+    "index": true
+  },
+  "cardapio-inteligente": {
+    "path": "/cardapio-inteligente",
+    "title": "Cardápio digital com busca e categorias | Kardap",
+    "index": true
+  },
+  "gestao-cardapio": {
+    "path": "/gestao-cardapio",
+    "title": "Gestão do cardápio digital pelo painel | Kardap",
+    "index": true
+  },
+  "sua-marca": {
+    "path": "/sua-marca",
+    "title": "Cardápio digital com a identidade do seu restaurante | Kardap",
+    "index": true
+  },
+  "experiencia-visual": {
+    "path": "/experiencia-visual",
+    "title": "Cardápio visual com fotos e vídeos dos pratos | Kardap",
+    "index": true
+  },
+  "experiencia-cliente": {
+    "path": "/experiencia-cliente",
+    "title": "Experiência do cliente no cardápio digital | Kardap",
+    "index": true
+  },
+  "para-restaurantes": {
+    "path": "/para-restaurantes",
+    "title": "Cardápio digital para restaurantes, bares e cafés | Kardap",
+    "index": true
+  },
+  "central-ajuda": {
+    "path": "/central-ajuda",
+    "title": "Central de ajuda e perguntas frequentes | Kardap",
+    "index": true
+  },
+  "sobre": {
+    "path": "/sobre",
+    "title": "Sobre o Kardap | Cardápio digital com vídeo",
+    "index": true
+  },
+  "produtos-destaque": {
+    "path": "/produtos-destaque",
+    "title": "Produtos em destaque | Kardap",
+    "index": false
+  },
+  "ai-menu": {
+    "path": "/ai-menu",
+    "title": "AI Menu® | Kardap",
+    "index": false
+  },
+  "ai-reconciliation": {
+    "path": "/ai-reconciliation",
+    "title": "AI Reconciliation® | Kardap",
+    "index": false
+  },
+  "ai-tips": {
+    "path": "/ai-tips",
+    "title": "AI Tips® | Kardap",
+    "index": false
+  },
+  "blog": {
+    "path": "/blog",
+    "title": "Blog da Kardap | Kardap",
+    "index": false
+  },
+  "materiais": {
+    "path": "/materiais",
+    "title": "Materiais | Kardap",
+    "index": false
+  },
+  "novidades": {
+    "path": "/novidades",
+    "title": "Novidades | Kardap",
+    "index": false
+  },
+  "parceiros": {
+    "path": "/parceiros",
+    "title": "Parceiros | Kardap",
+    "index": false
+  },
+  "experiencias": {
+    "path": "/experiencias",
+    "title": "Experiências | Kardap",
+    "index": false
+  },
+  "dicas-restaurantes": {
+    "path": "/dicas-restaurantes",
+    "title": "Dicas para restaurantes | Kardap",
+    "index": false
+  },
+  "empresa": {
+    "path": "/empresa",
+    "title": "A empresa | Kardap",
+    "index": false
+  }
+}

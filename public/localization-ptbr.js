@@ -149,9 +149,10 @@
     if (copy[trimmed]) node.nodeValue = original.replace(trimmed, copy[trimmed]);
     node.nodeValue = node.nodeValue.replace(/\bsunday\b/gi, 'Kardap');
   };
+  // O texto j\u00e1 vem traduzido no HTML (scripts/seo-landing.mjs); aqui s\u00f3 sobram ajustes de interface.
+  // T\u00edtulo, descri\u00e7\u00e3o, \u00edcones e metadados de cada p\u00e1gina ficam como est\u00e3o no HTML (n\u00e3o sobrescrever).
   const translate = () => {
     document.documentElement.lang = 'pt-BR';
-    document.title = 'Kardap | Card\u00e1pio em v\u00eddeo para restaurantes';
     document.querySelectorAll('a.logo').forEach(brandLogo => {
       if (brandLogo.classList.contains('kardap-brand')) return;
       brandLogo.classList.add('kardap-brand');
@@ -176,18 +177,9 @@
       `;
       document.head.appendChild(style);
     }
-    document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach(link => {
-      link.href = '/brand/kardap-icon-192.png';
-    });
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach(replaceText);
-    document.querySelectorAll('meta[name="description"], meta[property="og:description"]').forEach(meta => {
-      meta.content = 'A solução para restaurantes: clientes escaneiam, pedem e pagam pelo QR Code. Mais gorjetas, avaliações e eficiência para sua equipe.';
-    });
-    document.querySelectorAll('meta[property="og:title"]').forEach(meta => {
-      meta.content = 'Kardap | Card\u00e1pio em v\u00eddeo para restaurantes';
-    });
     document.querySelectorAll('a[href*="sundayapp.com"]').forEach(link => {
       link.href = '#';
       link.removeAttribute('target');

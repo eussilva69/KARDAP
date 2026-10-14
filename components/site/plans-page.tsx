@@ -7,27 +7,8 @@ import type { BillingCycle } from "@/lib/cakto/types";
 import { TRIAL_DAYS } from "@/lib/cakto/access";
 import { PLANS } from "@/lib/cakto/plans";
 import { CycleToggle, PLAN_ORDER, PlanCard, PlanComparison } from "@/components/plans/plan-cards";
+import { PLANS_FAQ } from "@/lib/plans-faq";
 import { SiteFooter, SiteHeader } from "./site-chrome";
-
-/** Perguntas respondidas com o que já está nos Termos de Uso e no fluxo de assinatura. */
-const FAQ = [
-  {
-    q: "Como funciona o teste grátis?",
-    a: `Ao criar a conta, o restaurante usa tudo do plano Pro por ${TRIAL_DAYS} dias, sem cartão de crédito. Depois você escolhe o plano no painel, em Assinatura.`,
-  },
-  {
-    q: "Tem fidelidade?",
-    a: "Não. Você cancela pelo painel quando quiser e continua com acesso até o fim do período já pago, sem multa.",
-  },
-  {
-    q: "Quais formas de pagamento?",
-    a: "Cartão de crédito, Pix Automático ou Pix a cada cobrança. Os pagamentos são processados pela Cakto; o Kardap não guarda dados do cartão.",
-  },
-  {
-    q: "Posso trocar de plano depois?",
-    a: "Sim. Em Assinatura, no painel, você contrata o outro plano a qualquer momento.",
-  },
-];
 
 export default function PlansPage({ session }: { session: boolean }) {
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
@@ -108,7 +89,7 @@ export default function PlansPage({ session }: { session: boolean }) {
             Dúvidas frequentes
           </h2>
           <div className="kd-faq">
-            {FAQ.map((item) => (
+            {PLANS_FAQ.map((item) => (
               <details key={item.q}>
                 <summary>{item.q}</summary>
                 <p>{item.a}</p>

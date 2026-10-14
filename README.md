@@ -157,6 +157,10 @@ Fotos de produto, logo e capa são redimensionadas e convertidas para WebP no na
 
 Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel, cardápio público em tempo real, imagens, regras e isolamento entre estabelecimentos; login único com o PDV) contra os emuladores do Firebase: [docs/TESTES.md](docs/TESTES.md).
 
+## SEO e indexação
+
+Títulos, descrições, canonical, Open Graph, dados estruturados (JSON-LD), `robots.txt`, `sitemap.xml` e `llms.txt`. As páginas estáticas da landing (`public/*.html`) são ajustadas por `npm run seo:landing`, que deve ser rodado depois de editar qualquer uma delas. Detalhes, páginas com "noindex" e configurações pendentes (Search Console, Bing, Analytics): [docs/SEO.md](docs/SEO.md).
+
 ## Login único com o PDV
 
 O KARDAP é o servidor central de autenticação do ecossistema: o login em `kardapp.online` vale também para `pdv.kardapp.online` (cookie de sessão HttpOnly em `.kardapp.online`, logout global, permissão própria para o PDV, credencial do Firebase para o PDV por código de uso único). Contrato para os outros aplicativos: [SSO_INTEGRATION.md](SSO_INTEGRATION.md). Organização interna: [docs/SSO.md](docs/SSO.md). Kit do PDV: [integrations/pdv-sso/](integrations/pdv-sso/README.md).
