@@ -150,3 +150,10 @@
   .kd-kpi:not(.is-lead) .kd-kpi-note { grid-column: 1; grid-row: 2; font-size: var(--k-fs-xs); }
   .kd-kpi:not(.is-lead) .kd-kpi-value { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 1.625rem; }
 }
+
+/* Assinatura na administração: plano, situação, limites e recursos personalizados. */
+.kd-admin-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--k-s3) var(--k-s4); margin: var(--k-s4) 0; }
+.kd-admin-features { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px var(--k-s4); margin: 0 0 var(--k-s4); padding: 0; border: 0; }
+.kd-admin-features legend { margin-bottom: var(--k-s2); }
+.kd-admin-feature { display: flex; align-items: center; gap: 8px; font-size: var(--k-fs-sm); }
+.kd-admin-feature select { min-height: 32px; padding: 0 6px; border: 1px solid var(--k-line-strong); border-radius: var(--k-r-sm); background: var(--k-surface); color: var(--k-ink); font: inherit; font-size: var(--k-fs-sm); }

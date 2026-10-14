@@ -126,6 +126,11 @@
 .kd-side-plan:hover { background: var(--k-lousa-2); }
 .kd-side-plan.is-urgent { border-color: var(--k-cloche-line); }
 .kd-side-plan.is-urgent small { color: var(--k-signal-on-lousa); }
+/* Botão do PDV no menu lateral (fundo lousa). Travado: contorno discreto com o selo "Pro". */
+.kd-side-pdv { width: 100%; justify-content: center; }
+.kd-side-pdv.is-locked { border-color: var(--k-lousa-3); background: transparent; color: var(--k-giz); }
+.kd-side-pdv.is-locked:hover:not(:disabled) { border-color: var(--k-giz-muted); background: var(--k-lousa-2); }
+.kd-plan-summary .kd-card-head { margin-bottom: var(--k-s4); }
 .kd-side-public {
   display: flex;
   align-items: center;
@@ -808,8 +813,8 @@
 .kd-plan-now-price span { color: var(--k-muted); font-size: var(--k-fs-sm); }
 .kd-plan-now-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--k-s4); padding-top: var(--k-s5); border-top: 1px solid var(--k-line); }
 .kd-plan-now-facts > div:not(.kd-plan-now-actions) { display: grid; gap: 4px; }
-.kd-plan-now-facts span { display: inline-flex; align-items: center; gap: 6px; font-size: var(--k-fs-sm); color: var(--k-muted); }
-.kd-plan-now-facts b { font-weight: 650; }
+.kd-plan-now-facts > div:not(.kd-plan-now-actions) > span { display: inline-flex; align-items: center; gap: 6px; font-size: var(--k-fs-sm); color: var(--k-muted); }
+.kd-plan-now-facts > div:not(.kd-plan-now-actions) > b { font-weight: 650; }
 .kd-plan-now-actions { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: var(--k-s2); }
 .kd-text-danger { color: var(--k-danger-ink); }
 .kd-text-danger:hover:not(:disabled) { background: var(--k-danger-soft); }

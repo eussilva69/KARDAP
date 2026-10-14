@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     if (!session) throw new SsoError("invalid_session", 401, "Sessão expirada ou encerrada.");
     res = session.access.allowed
       ? NextResponse.json({ ok: true, uid: session.uid })
-      : NextResponse.json({ error: "forbidden", message: "Sua conta não tem acesso ao PDV." }, { status: 403 });
+      : NextResponse.json({ error: "forbidden", message: "Sua conta não tem acesso ao PDV.", reason: session.access.blocked?.[0]?.reason || "permission" }, { status: 403 });
   } catch (error) {
     const { status, body } = errorBody("pdv status", error);
     res = NextResponse.json(body, { status });

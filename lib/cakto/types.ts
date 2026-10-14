@@ -1,54 +1,34 @@
-export type PlanId = "essencial" | "pro";
+import type { PlanId as CatalogPlanId, PlanLimits, FeatureKey } from "../billing/plans";
+
+/** Planos atuais e os anteriores ("essencial"), que ainda podem estar gravados em assinaturas antigas. */
+export type PlanId = CatalogPlanId | "essencial";
+/** Assinaturas novas são mensais; "annual" só aparece em assinaturas anteriores. */
 export type BillingCycle = "monthly" | "annual";
 
-export type PlanFeature =
-  | "digital_menu"
-  | "dish_videos"
-  | "table_qrcodes"
-  | "waiter_call"
-  | "google_reviews"
-  | "bill_request"
-  | "advanced_analytics"
-  | "custom_branding"
-  | "priority_support";
-
-export type PlanConfig = {
-  id: PlanId;
-  name: string;
-  tagline: string;
-  description: string;
-  popular?: boolean;
-  prices: {
-    monthly: {
-      cents: number;
-      display: string;
-      periodLabel: string;
-      offerIdEnvKey: string;
-    };
-    annual: {
-      cents: number;
-      display: string;
-      equivalentMonthlyDisplay: string;
-      periodLabel: string;
-      discountPercent: number;
-      offerIdEnvKey: string;
-    };
-  };
-  features: string[];
-  maxTables: number | null; // null = ilimitado
-};
-
+/** Situação gravada. Os valores antigos (trial, late, inactive, paused) continuam aceitos na leitura. */
 export type SubscriptionStatus =
+  | "trialing"
   | "active"
-  | "trial"
-  | "inactive"
-  | "late"
-  | "paused"
+  | "past_due"
   | "canceled"
-  | "expired";
+  | "expired"
+  | "suspended"
+  | "trial"
+  | "late"
+  | "inactive"
+  | "paused";
 
 export type RestaurantSubscription = {
   planId: PlanId;
+  /** Versão do catálogo em que a assinatura foi contratada (2 = Start/Pro/Business/Enterprise). */
+  planVersion?: number;
+  paymentProvider?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  /** Mudança para um plano menor, agendada para o fim do período pago. */
+  scheduledChange?: { planId: PlanId; effectiveAt: string | null; requestedAt: string } | null;
+  /** Personalizações do contrato (Enterprise ou condições mantidas de planos anteriores). */
+  customLimits?: Partial<PlanLimits> | null;
+  customFeatures?: Partial<Record<FeatureKey, boolean>> | null;
   planName: string;
   status: SubscriptionStatus;
   cycle: BillingCycle;

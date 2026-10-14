@@ -5,24 +5,34 @@
  * são lidas estritamente no ambiente do servidor (Node.js runtime).
  */
 
+const env = (name: string) => process.env[name]?.trim() || "";
+
 export const CAKTO_CONFIG = {
   // URLs da API e Checkout
-  baseUrl: process.env.CAKTO_BASE_URL?.trim() || "https://api.cakto.com.br",
-  payBaseUrl: process.env.CAKTO_PAY_BASE_URL?.trim() || "https://pay.cakto.com.br",
+  baseUrl: env("CAKTO_BASE_URL") || "https://api.cakto.com.br",
+  payBaseUrl: env("CAKTO_PAY_BASE_URL") || "https://pay.cakto.com.br",
 
   // Credenciais OAuth2
-  clientId: process.env.CAKTO_CLIENT_ID?.trim() || "",
-  clientSecret: process.env.CAKTO_CLIENT_SECRET?.trim() || "",
+  clientId: env("CAKTO_CLIENT_ID"),
+  clientSecret: env("CAKTO_CLIENT_SECRET"),
 
   // Segredo de validação HMAC-SHA256 do Webhook
-  webhookSecret: process.env.CAKTO_WEBHOOK_SECRET?.trim() || "",
+  webhookSecret: env("CAKTO_WEBHOOK_SECRET"),
 
-  // Mapeamento de IDs de ofertas cadastradas na Cakto
+  /**
+   * Ofertas mensais dos planos atuais (docs/PLANOS.md). Sem a variável, o plano não abre checkout: nunca há
+   * um identificador inventado. O Enterprise não tem oferta: é contratado com o time comercial.
+   */
   offers: {
-    essencialMonthly: process.env.CAKTO_OFFER_ESSENCIAL_MONTHLY?.trim() || "kardap-essencial-mensal",
-    essencialAnnual: process.env.CAKTO_OFFER_ESSENCIAL_ANNUAL?.trim() || "kardap-essencial-anual",
-    proMonthly: process.env.CAKTO_OFFER_PRO_MONTHLY?.trim() || "kardap-pro-mensal",
-    proAnnual: process.env.CAKTO_OFFER_PRO_ANNUAL?.trim() || "kardap-pro-anual",
+    start: env("CAKTO_OFFER_START"),
+    pro: env("CAKTO_OFFER_PRO"),
+    business: env("CAKTO_OFFER_BUSINESS"),
+  },
+
+  /** Ofertas dos planos anteriores: só para reconhecer renovações de quem já assinava. */
+  legacyOffers: {
+    essencial: [env("CAKTO_OFFER_ESSENCIAL_MONTHLY"), env("CAKTO_OFFER_ESSENCIAL_ANNUAL")].filter(Boolean),
+    pro: [env("CAKTO_OFFER_PRO_MONTHLY"), env("CAKTO_OFFER_PRO_ANNUAL")].filter(Boolean),
   },
 
   // Período de teste inicial para novos estabelecimentos (15 dias)
@@ -41,4 +51,14 @@ export function isCaktoConfigured(): boolean {
 
 export function isWebhookConfigured(): boolean {
   return Boolean(CAKTO_CONFIG.webhookSecret);
+}
+
+/**
+ * Webhook sem segredo só é aceito nos testes com os emuladores (projeto demo-*, que nunca toca serviços reais).
+ * Em qualquer outro ambiente, sem CAKTO_WEBHOOK_SECRET nenhum evento é processado: ninguém ativa um plano
+ * mandando um evento falso.
+ */
+export function unsignedWebhooksAllowed(): boolean {
+  const project = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "";
+  return Boolean(process.env.FIRESTORE_EMULATOR_HOST) && project.startsWith("demo-") && process.env.CAKTO_WEBHOOK_ALLOW_UNSIGNED === "1";
 }

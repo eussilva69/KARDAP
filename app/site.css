@@ -268,3 +268,27 @@
   .kd-onb-actions-main { flex-direction: column-reverse; align-items: stretch; }
   .kd-onb-actions .kd-btn { width: 100%; }
 }
+
+/* Página de preços: identidade oficial do KARDAP (amarelo #F7EA48, tinta #111, fundo branco, cinza #F5F5F3). */
+.kd-pricing {
+  --k-canvas: #ffffff;
+  --k-surface: #ffffff;
+  --k-sunken: #f5f5f3;
+  --k-line: #e7e7e3;
+  --k-line-strong: #d3d3cd;
+  --k-ink: #111111;
+  --k-text-2: #333333;
+  --k-muted: #666666;
+  --k-cloche: #f7ea48;
+  --k-cloche-hover: #efe02e;
+  --k-on-cloche: #111111;
+  --k-primary: #f7ea48;
+  --k-primary-hover: #efe02e;
+  --k-on-primary: #111111;
+  color-scheme: light;
+  background: #ffffff;
+  color: #111111;
+}
+.kd-pricing .kd-plan.is-popular { box-shadow: inset 0 0 0 2px #f7ea48, 0 12px 32px rgb(17 17 17 / 0.08); }
+.kd-pricing .kd-plan-features li::before { background: #111111; }
+.kd-pricing .kd-plans-section + .kd-plans-section { margin-top: var(--k-s9); }

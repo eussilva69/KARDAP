@@ -120,8 +120,14 @@ custom token traz a claim `kardapApp: "<client_id>"` e vale 1 hora, só para `si
 `200 { "active": false }` ou
 ```json
 { "active": true, "uid": "…", "email": "…", "name": "…", "expiresAt": 1791000000,
-  "access": { "allowed": true, "restaurants": [{ "id": "…", "name": "…", "role": "member" }] } }
+  "access": { "allowed": true, "restaurants": [{ "id": "…", "name": "…", "role": "member", "planId": "pro" }],
+              "blocked": [{ "id": "…", "name": "…", "role": "owner", "planId": "start", "reason": "plan" }] } }
 ```
+`allowed` exige o papel (dono, `*` ou `pdv`) **e** o plano: assinatura válida que inclua o PDV (Pro, Business,
+Enterprise ou o teste do Pro). `blocked` lista os restaurantes em que a pessoa tem o papel, mas o plano não libera:
+`reason: "plan"` (Start: convite ao upgrade) ou `"subscription"` (vencida/pendente: regularizar). O kit manda para
+`/sem-permissao?motivo=plano` ou `?motivo=assinatura`. Planos, franquia de pedidos e as APIs de pedidos:
+[docs/PLANOS.md](docs/PLANOS.md).
 
 ### Páginas
 

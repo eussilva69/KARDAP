@@ -8,20 +8,22 @@ import { redirect } from "next/navigation";
 import { KARDAP_ORIGIN, PDV_ORIGIN, RETURN_PARAM, SSO_COOKIE } from "./config";
 import { SsoError } from "./http";
 
-export type AppRestaurant = { id: string; name: string; role: string };
+export type AppRestaurant = { id: string; name: string; role: string; planId?: string };
+/** Restaurante em que a conta tem o papel certo, mas o plano não inclui o PDV ("plan") ou está vencido ("subscription"). */
+export type BlockedRestaurant = AppRestaurant & { reason: "plan" | "subscription" };
 export type CentralSession = {
   uid: string;
   email: string | null;
   name: string | null;
   expiresAt: number;
-  access: { allowed: boolean; restaurants: AppRestaurant[] };
+  access: { allowed: boolean; restaurants: AppRestaurant[]; blocked?: BlockedRestaurant[] };
 };
 
 const CLIENT_ID = process.env.SSO_CLIENT_ID || "pdv";
 /** Endereço do servidor central para chamadas de servidor (padrão: o público). Permite rede interna. */
 const CENTRAL_URL = (process.env.SSO_CENTRAL_URL || KARDAP_ORIGIN).replace(/\/+$/, "");
 
-async function central(path: string, body: unknown) {
+export async function central(path: string, body: unknown) {
   const secret = process.env.SSO_CLIENT_SECRET || "";
   if (secret.length < 32) throw new SsoError("sso_not_configured", 503, "SSO não configurado no PDV (SSO_CLIENT_SECRET).");
   const res = await fetch(`${CENTRAL_URL}${path}`, {
@@ -61,6 +63,12 @@ export function loginUrl(path = "/") {
   return url.toString();
 }
 
+/** Página de bloqueio: por plano (convite ao upgrade), por assinatura vencida ou por falta de permissão. */
+export function blockedPath(session: CentralSession) {
+  const reason = session.access.blocked?.[0]?.reason;
+  return reason ? `/sem-permissao?motivo=${reason === "plan" ? "plano" : "assinatura"}` : "/sem-permissao";
+}
+
 /**
  * Para layouts e páginas protegidas (Server Components). Sessão ausente, vencida ou encerrada → login central.
  * Sem permissão → /sem-permissao. Servidor central fora do ar → página de erro (nunca um laço de redirecionamentos).
@@ -69,6 +77,6 @@ export async function requirePdvSession(): Promise<CentralSession> {
   const path = (await headers()).get("x-pdv-path") || "/";
   const session = await introspect((await cookies()).get(SSO_COOKIE)?.value);
   if (!session) redirect(loginUrl(path));
-  if (!session.access.allowed) redirect("/sem-permissao");
+  if (!session.access.allowed) redirect(blockedPath(session));
   return session;
 }

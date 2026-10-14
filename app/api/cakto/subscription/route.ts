@@ -1,191 +1,88 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { cancelCaktoSubscription, changeCaktoPaymentMethod, getCaktoSubscription } from "@/lib/cakto/client";
 import { isCaktoConfigured } from "@/lib/cakto/config";
-import { PLANS } from "@/lib/cakto/plans";
 import { getRestaurantSubscriptionWithHistory, updateRestaurantSubscription } from "@/lib/cakto/server-db";
+import { PLAN_CATALOG, PLAN_ORDER, normalizeStatus } from "@/lib/billing/plans";
+import { authenticate } from "@/lib/billing/http";
+import { BillingError, memberAccess, requireManager } from "@/lib/billing/server";
 
-/**
- * Consulta a assinatura atual e o histórico de pagamentos de um restaurante.
- */
+const fail = (error: unknown, fallback: string) => {
+  if (error instanceof BillingError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+  console.error("[Cakto Subscription]", (error as Error)?.message);
+  return NextResponse.json({ error: fallback }, { status: 500 });
+};
+
+/** Assinatura atual e histórico de pagamentos (equipe do estabelecimento). */
 export async function GET(request: NextRequest) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!token) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
   try {
-    let decodedUser: { uid: string };
-    try {
-      decodedUser = await adminAuth().verifyIdToken(token);
-    } catch {
-      return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
-    }
+    const caller = await authenticate(request);
+    const restaurantId = request.nextUrl.searchParams.get("restaurantId") || "";
+    if (!restaurantId) return NextResponse.json({ error: "restaurantId é obrigatório." }, { status: 400 });
+    if (!(await memberAccess(restaurantId, caller.uid))) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
 
-    const { searchParams } = new URL(request.url);
-    const restaurantId = searchParams.get("restaurantId");
-
-    if (!restaurantId) {
-      return NextResponse.json({ error: "restaurantId é obrigatório." }, { status: 400 });
-    }
-
-    // Valida permissão do usuário
-    const db = adminDb();
-    const restDoc = await db.collection("restaurantes").doc(restaurantId).get();
-    if (!restDoc.exists) {
-      return NextResponse.json({ error: "Estabelecimento não encontrado." }, { status: 404 });
-    }
-
-    const data = restDoc.data();
-    const isOwner = data?.ownerId === decodedUser.uid;
-    if (!isOwner) {
-      const member = await db.collection("restaurantes").doc(restaurantId).collection("membros").doc(decodedUser.uid).get();
-      if (!member.exists) {
-        return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
-      }
-    }
-
-    // Busca dados no Firestore
     const { subscription, payments } = await getRestaurantSubscriptionWithHistory(restaurantId);
-
-    // Se houver uma assinatura na Cakto e o sistema estiver configurado, sincroniza estado se necessário
-    let syncedSubscription = subscription;
+    let synced = subscription;
+    // Sincroniza a situação com o gateway quando há divergência (falha silenciosa: vale o que está no banco).
     if (subscription?.caktoSubscriptionId && isCaktoConfigured()) {
       try {
         const remote = await getCaktoSubscription(subscription.caktoSubscriptionId);
-        if (remote && remote.status !== subscription.status) {
-          await updateRestaurantSubscription(restaurantId, {
-            status: remote.status as any,
-            nextPaymentDate: remote.next_payment_date || subscription.nextPaymentDate,
-          });
-          syncedSubscription = {
-            ...subscription,
-            status: remote.status as any,
-            nextPaymentDate: remote.next_payment_date || subscription.nextPaymentDate,
-          };
+        const remoteStatus = normalizeStatus(remote?.status);
+        if (remote && remoteStatus && remoteStatus !== normalizeStatus(subscription.status)) {
+          await updateRestaurantSubscription(restaurantId, { status: remoteStatus, nextPaymentDate: remote.next_payment_date || subscription.nextPaymentDate }, { kind: "system" }, "Sincronização com o gateway");
+          synced = { ...subscription, status: remoteStatus, nextPaymentDate: remote.next_payment_date || subscription.nextPaymentDate };
         }
       } catch (syncErr) {
-        // Falha suave de sincronização em tempo real (mantém os dados locais do banco)
-        console.warn("[Cakto Sync Warning] Não foi possível sincronizar com a API remota:", syncErr);
+        console.warn("[Cakto Sync] Não foi possível sincronizar com a API remota:", (syncErr as Error)?.message);
       }
     }
-
-    return NextResponse.json({
-      subscription: syncedSubscription,
-      payments,
-      plans: PLANS,
-    });
-  } catch (error: any) {
-    console.error("[Cakto Subscription GET Error]:", error);
-    return NextResponse.json({ error: "Falha ao consultar assinatura." }, { status: 500 });
+    return NextResponse.json({ subscription: synced, payments, plans: PLAN_ORDER.map((id) => PLAN_CATALOG[id]) });
+  } catch (error) {
+    return fail(error, "Falha ao consultar assinatura.");
   }
 }
 
-/**
- * Ações de gerenciamento: Cancelamento e Alteração de método de pagamento.
- */
+/** Cancelamento e forma de pagamento (responsável pela cobrança do estabelecimento). */
 export async function POST(request: NextRequest) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!token) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
   try {
-    let decodedUser: { uid: string };
-    try {
-      decodedUser = await adminAuth().verifyIdToken(token);
-    } catch {
-      return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
-    }
+    const caller = await authenticate(request);
+    const body = (await request.json().catch(() => ({}))) as { action?: string; restaurantId?: string; paymentMethod?: string };
+    const restaurantId = body.restaurantId || "";
+    if (!restaurantId) return NextResponse.json({ error: "restaurantId é obrigatório." }, { status: 400 });
+    const { snap } = await requireManager(restaurantId, caller.uid, "billing");
+    const subscription = snap.get("subscription");
+    if (!subscription?.planId) return NextResponse.json({ error: "Nenhuma assinatura ativa encontrada." }, { status: 404 });
+    const actor = { kind: "owner" as const, uid: caller.uid, email: caller.email };
 
-    const body = await request.json();
-    const { action, restaurantId, paymentMethod } = body as {
-      action: "cancel" | "change_payment_method";
-      restaurantId: string;
-      paymentMethod?: "credit_card" | "pix" | "pix_auto";
-    };
-
-    if (!restaurantId) {
-      return NextResponse.json({ error: "restaurantId é obrigatório." }, { status: 400 });
-    }
-
-    // Validação de permissão do proprietário
-    const db = adminDb();
-    const restDoc = await db.collection("restaurantes").doc(restaurantId).get();
-    if (!restDoc.exists) {
-      return NextResponse.json({ error: "Estabelecimento não encontrado." }, { status: 404 });
-    }
-
-    const restData = restDoc.data();
-    if (restData?.ownerId !== decodedUser.uid) {
-      return NextResponse.json({ error: "Apenas o proprietário pode alterar a assinatura." }, { status: 403 });
-    }
-
-    const subscription = restData?.subscription;
-    if (!subscription) {
-      return NextResponse.json({ error: "Nenhuma assinatura ativa encontrada." }, { status: 404 });
-    }
-
-    // ─── Ação: CANCELAR ASSINATURA ───
-    if (action === "cancel") {
-      const caktoSubId = subscription.caktoSubscriptionId;
-      if (caktoSubId && isCaktoConfigured()) {
+    if (body.action === "cancel") {
+      if (subscription.caktoSubscriptionId && isCaktoConfigured()) {
         try {
-          await cancelCaktoSubscription(caktoSubId);
-        } catch (apiErr: any) {
-          console.error("[Cakto Cancel Error]:", apiErr);
-          // Se a API retornar erro de que já está cancelada, prossegue com a atualização local
+          await cancelCaktoSubscription(subscription.caktoSubscriptionId);
+        } catch (apiErr) {
+          // Já cancelada no gateway: segue com o registro local.
+          console.error("[Cakto Cancel]", (apiErr as Error)?.message);
         }
       }
-
-      const now = new Date().toISOString();
-      await updateRestaurantSubscription(restaurantId, {
-        status: "canceled",
-        canceledAt: now,
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: "Assinatura cancelada com sucesso. As cobranças automáticas foram interrompidas.",
-      });
+      await updateRestaurantSubscription(restaurantId, { status: "canceled", canceledAt: new Date().toISOString(), cancelAtPeriodEnd: true, scheduledChange: null }, actor, "Cancelamento pelo responsável");
+      return NextResponse.json({ success: true, message: "Assinatura cancelada. Não haverá novas cobranças; o plano vale até o fim do período pago." });
     }
 
-    // ─── Ação: ALTERAR MÉTODO DE PAGAMENTO ───
-    if (action === "change_payment_method") {
-      if (!paymentMethod || !["credit_card", "pix", "pix_auto"].includes(paymentMethod)) {
-        return NextResponse.json(
-          { error: "Método de pagamento inválido. Escolha 'credit_card', 'pix' ou 'pix_auto'." },
-          { status: 400 },
-        );
+    if (body.action === "change_payment_method") {
+      const method = body.paymentMethod;
+      if (method !== "credit_card" && method !== "pix" && method !== "pix_auto") {
+        return NextResponse.json({ error: "Método de pagamento inválido. Escolha 'credit_card', 'pix' ou 'pix_auto'." }, { status: 400 });
       }
-
-      const caktoSubId = subscription.caktoSubscriptionId;
-      if (caktoSubId && isCaktoConfigured()) {
-        await changeCaktoPaymentMethod(caktoSubId, paymentMethod);
-      }
-
-      await updateRestaurantSubscription(restaurantId, {
-        paymentMethod,
-        paymentMethodName:
-          paymentMethod === "credit_card"
-            ? "Cartão de Crédito"
-            : paymentMethod === "pix_auto"
-              ? "Pix Automático"
-              : "Pix",
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: "Método de pagamento atualizado com sucesso para as próximas cobranças.",
-      });
+      if (subscription.caktoSubscriptionId && isCaktoConfigured()) await changeCaktoPaymentMethod(subscription.caktoSubscriptionId, method);
+      await updateRestaurantSubscription(
+        restaurantId,
+        { paymentMethod: method, paymentMethodName: method === "credit_card" ? "Cartão de Crédito" : method === "pix_auto" ? "Pix Automático" : "Pix" },
+        actor,
+        "Forma de pagamento alterada",
+      );
+      return NextResponse.json({ success: true, message: "Método de pagamento atualizado com sucesso para as próximas cobranças." });
     }
 
     return NextResponse.json({ error: "Ação não reconhecida." }, { status: 400 });
-  } catch (error: any) {
-    console.error("[Cakto Subscription Action Error]:", error);
-    return NextResponse.json(
-      { error: error.message || "Falha ao processar solicitação de assinatura." },
-      { status: 500 },
-    );
+  } catch (error) {
+    return fail(error, "Falha ao processar solicitação de assinatura.");
   }
 }

@@ -10,7 +10,10 @@
     "test:e2e": "node scripts/e2e-emulators.mjs",
     "test:sso": "node scripts/e2e-sso.mjs",
     "test:reels": "node scripts/e2e-reels.mjs",
-    "seo:landing": "node scripts/seo-landing.mjs"
+    "test:billing": "node scripts/test-billing.mjs",
+    "test:plans": "node scripts/e2e-plans.mjs",
+    "seo:landing": "node scripts/seo-landing.mjs",
+    "migrate:plans": "node scripts/migrate-plans.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

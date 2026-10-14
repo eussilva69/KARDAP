@@ -7,7 +7,7 @@
 - O restaurante cria a conta, informa o nome do estabelecimento, envia logo e capa e cadastra os pratos com preço, descrição, foto e vídeo.
 - O Kardap gera um QR Code para cada mesa; o display de mesa sai pronto para imprimir em folha A4.
 - O cliente escaneia o QR Code, navega pelas categorias, busca pratos e assiste aos vídeos.
-- Pelo cardápio, o cliente chama o garçom (e, no plano Pro, pede a conta); o chamado aparece no painel do restaurante na hora, com a mesa identificada e alerta sonoro.
+- Pelo cardápio, o cliente chama o garçom (e, a partir do plano Pro, pede a conta); o chamado aparece no painel do restaurante na hora, com a mesa identificada e alerta sonoro.
 - Alterações de pratos, preços, logo, capa e cores aparecem imediatamente no cardápio aberto nas mesas.
 
 ## Recursos
@@ -16,12 +16,15 @@
 - Busca de pratos e organização por categorias.
 - Identidade visual do restaurante: logo, capa e cores, com ajuste automático de contraste para leitura no celular.
 - Avaliações no Google integradas ao cardápio.
-- Relatórios de chamados e horários de pico (plano Pro).
+- PDV completo (pedidos, comandas, caixa, estoque, financeiro, entregas e relatórios) a partir do plano Pro.
 
 ## Planos e preços (em reais)
 
-- Essencial: R$ 49,00 por mês ou R$ 470,00 por ano. Até 30 mesas.
-- Pro: R$ 99,00 por mês ou R$ 950,00 por ano. Mesas e produtos ilimitados, pedido de conta pelo cardápio, relatórios, personalização avançada e suporte prioritário via WhatsApp.
+- KARDAP Start: R$ 49,90 por mês. Cardápio digital em vídeo estilo Reels, até 8 mesas com QR Code, produtos e categorias ilimitados. Sem PDV.
+- KARDAP Pro: R$ 129,90 por mês. Tudo do Start, mesas ilimitadas, PDV completo e até 150 pedidos próprios por mês.
+- KARDAP Business: R$ 199,90 por mês. Tudo do Pro, até 500 pedidos próprios por mês, promoções, integrações com marketplaces e suporte prioritário.
+- KARDAP Enterprise: sob consulta. Limites e integrações conforme contrato, múltiplas unidades.
+- Pedidos de iFood, 99Food e outros marketplaces não contam no limite de pedidos próprios.
 - Teste grátis de 15 dias, sem cartão de crédito.
 
 ## Páginas principais

@@ -60,6 +60,43 @@ Copiar deste kit:
 6. Variáveis: `.env.example` deste kit. O `SSO_CLIENT_SECRET` é o mesmo valor de `SSO_CLIENT_SECRET_PDV` no KARDAP.
 7. Requisitos: Next.js 14 ou 15 (App Router), `firebase` 10+, alias `@/*` na raiz, HTTPS.
 
+## Planos e pedidos (docs/PLANOS.md no KARDAP)
+
+O servidor central decide quem usa o PDV, quanto da franquia de pedidos foi usada e a origem de cada pedido.
+
+**Acesso ao PDV.** `/api/sso/introspect` só libera com papel **e** plano: Pro, Business, Enterprise ou o teste do Pro.
+Quem está no Start vê `/sem-permissao?motivo=plano` (convite ao upgrade); quem está com a assinatura vencida vê
+`?motivo=assinatura`. Nada a fazer além de copiar os arquivos deste kit.
+
+**Arquivos novos.**
+
+| Arquivo | Origem | Função |
+| --- | --- | --- |
+| `lib/kardap/billing.ts` | este kit | `getEntitlements`, `confirmOrder` e `recordMarketplaceOrder` (servidor) |
+| `lib/billing/plans.ts` | repositório do KARDAP, sem alterar | Opcional: as mesmas regras para montar menus e avisos no PDV |
+
+**Pedidos próprios** (PDV, mesa, delivery, retirada, equipe):
+
+- grave o rascunho como sempre, com `status: "rascunho"`;
+- na **confirmação**, chame `confirmOrder({ restaurantId, source: "kardap_pdv", orderId })` no servidor, numa Route
+  Handler ou Server Action;
+- se voltar `{ error: "quota_exceeded" }`, mostre "Você utilizou X de Y pedidos neste mês. Seu limite de pedidos
+  próprios foi atingido…" com "Fazer upgrade" (`https://kardapp.online/dashboard/plano#planos`) e "Ver planos";
+- o restante do PDV continua: caixa, estoque, relatórios e pedidos existentes;
+- reenviar o mesmo `orderId` não consome de novo.
+
+**Pedidos de marketplace** (iFood, 99Food, outros): no webhook ou na rotina da integração, chame
+`recordMarketplaceOrder({ restaurantId, provider: "ifood", externalOrderId, order })`. Eles nunca consomem nem são
+bloqueados pela franquia.
+
+**Menus e telas.** Use `getEntitlements(restaurantId)`: `entitlements.features` (`cashRegister`, `inventory`,
+`financialManagement`, `deliveryManagement`, `reports`, `promotions`, `marketplaceIntegrations`…) e
+`member.permissions`. Quem tem só a permissão `pdv` não recebe finanças, relatórios, configurações nem assinatura.
+O servidor central confere de novo em cada operação.
+
+**Antes de publicar as regras do Firestore do KARDAP**, o PDV precisa confirmar pedidos só por `confirmOrder`. As regras
+recusam pedido confirmado, ou com `origin`/`quota`, gravado direto pelo navegador.
+
 ## Erros comuns
 
 | Sintoma | Causa |

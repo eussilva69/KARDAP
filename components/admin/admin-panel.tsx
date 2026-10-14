@@ -7,7 +7,8 @@ import { ArrowLeft, Copy, ExternalLink, LogOut, RotateCw, Search, ShieldAlert, S
 import { getFirebaseAuth } from "@/lib/auth";
 import { friendlyError } from "@/lib/async";
 import { brl, plural } from "@/lib/format";
-import { PLANS } from "@/lib/cakto/plans";
+import { PLAN_CATALOG } from "@/lib/billing/plans";
+import { BillingOpsPanel, SubscriptionAdminCard } from "./billing-admin";
 import { accountState, effectiveSubscription, monthlyCents, planLabel, toDate, trialDaysLeft, type AccountState } from "@/lib/cakto/access";
 import {
   canExtendTrial,
@@ -260,7 +261,7 @@ function AdminApp({ path, identity, notify }: { path: string; identity: AdminIde
             ) : section === "/admin/restaurantes" ? (
               <RestaurantsPage rows={rows} />
             ) : section === "/admin/planos" ? (
-              <PlansAdminPage rows={rows} />
+              <PlansAdminPage rows={rows} notify={notify} />
             ) : (
               <OverviewPage rows={rows} loading={loading} onRefresh={load} />
             )}
@@ -743,6 +744,16 @@ export function RestaurantDetailPage({
         </Card>
       </div>
 
+      <SubscriptionAdminCard
+        key={JSON.stringify(row.subscription || null)}
+        restaurant={row}
+        notify={notify}
+        onDone={async () => {
+          const fresh = await refresh();
+          if (fresh) getRestaurantDetail(fresh).then(setDetail);
+        }}
+      />
+
       <div className="kd-split">
         <Card aria-labelledby="adm-team">
           <CardHead id="adm-team" kicker="Equipe" title="Pessoas com acesso" />
@@ -874,7 +885,7 @@ export function RestaurantDetailPage({
 
 /* ───────────────────────── Planos ───────────────────────── */
 
-export function PlansAdminPage({ rows }: { rows: Row[] }) {
+export function PlansAdminPage({ rows, notify }: { rows: Row[]; notify: Notify }) {
   const paying = rows.filter((r) => r.state === "active" || r.state === "late");
   const trials = rows.filter((r) => r.state === "trial").length;
   const endedWithoutPlan = rows.filter((r) => r.state === "trial_ended").length;
@@ -884,20 +895,18 @@ export function PlansAdminPage({ rows }: { rows: Row[] }) {
       <PageHeader
         kicker="Administração"
         title="Planos"
-        description="Preços, recursos e assinantes de cada plano. Os planos são definidos em lib/cakto/plans.ts; mudar um preço exige atualizar também a oferta na Cakto."
+        description="Preços, limites e assinantes de cada plano. O catálogo fica em lib/billing/plans.ts; mudar um preço exige atualizar também a oferta na Cakto (CAKTO_OFFER_*)."
       />
-      <div className="kd-plans">
+      <div className="kd-plans kd-plans--4">
         {PLAN_ORDER.map((id) => {
-          const plan = PLANS[id];
+          const plan = PLAN_CATALOG[id];
           const subscribers = paying.filter((r) => r.planId === id);
           const revenue = subscribers.reduce((sum, r) => sum + r.mrr, 0);
           return (
             <Card as="article" key={id} className="kd-plan-admin" aria-label={`Plano ${plan.name}`}>
               <header className="kd-plan-head">
                 <h2 className="kd-plan-name">{plan.name}</h2>
-                <span className="kd-muted kd-num">
-                  {plan.prices.monthly.display} por mês · {plan.prices.annual.display} por ano
-                </span>
+                <span className="kd-muted kd-num">{plan.priceInCents === null ? "Sob consulta" : `${brl(plan.priceInCents)} por mês`}</span>
               </header>
               <dl className="kd-usage">
                 <div>
@@ -908,16 +917,17 @@ export function PlansAdminPage({ rows }: { rows: Row[] }) {
                   <dt>Receita mensal</dt>
                   <dd className="kd-num">{brl(revenue)}</dd>
                 </div>
-                <div>
-                  <dt>Anuais</dt>
-                  <dd className="kd-num">{subscribers.filter((r) => r.subscription?.cycle === "annual").length}</dd>
-                </div>
               </dl>
-              <p className="kd-hint">{plan.maxTables ? `Até ${plan.maxTables} mesas.` : "Mesas ilimitadas."} {plan.description}</p>
+              <p className="kd-hint">
+                {plan.limits.maxTables === null ? "Mesas ilimitadas" : `Até ${plan.limits.maxTables} mesas`} ·{" "}
+                {plan.limits.maxNativeOrdersPerMonth === null ? "pedidos ilimitados" : plan.limits.maxNativeOrdersPerMonth === 0 ? "sem pedidos próprios" : `${plan.limits.maxNativeOrdersPerMonth} pedidos próprios/mês`}
+                {plan.features.pdvAccess ? " · PDV" : ""}
+              </p>
             </Card>
           );
         })}
       </div>
+      <BillingOpsPanel notify={notify} />
       <Card aria-labelledby="adm-funnel">
         <CardHead id="adm-funnel" kicker="Teste grátis" title="Quem ainda não assinou" />
         <dl className="kd-usage">

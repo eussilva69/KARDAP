@@ -1,312 +1,274 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CAKTO_CONFIG, isWebhookConfigured } from "@/lib/cakto/config";
-import { verifyCaktoWebhookSignature } from "@/lib/cakto/client";
+import { CAKTO_CONFIG, isCaktoConfigured, isWebhookConfigured, unsignedWebhooksAllowed } from "@/lib/cakto/config";
+import { cancelCaktoSubscription, verifyCaktoWebhookSignature } from "@/lib/cakto/client";
+import { planForOffer } from "@/lib/cakto/plans";
 import {
   addPaymentRecord,
-  checkAndMarkWebhookEvent,
+  claimWebhookEvent,
+  finishWebhookEvent,
   getCheckoutSession,
   updateRestaurantSubscription,
+  webhookEventKey,
+  type CheckoutSessionRecord,
 } from "@/lib/cakto/server-db";
-import { CaktoWebhookPayload, PaymentRecord } from "@/lib/cakto/types";
+import { CaktoWebhookPayload, PaymentRecord, RestaurantSubscription } from "@/lib/cakto/types";
+import { recordSyncFailure } from "@/lib/billing/server";
+import { CATALOG_VERSION } from "@/lib/billing/plans";
 import { adminDb } from "@/lib/firebase-admin";
 
+const IGNORED = new Set(["checkout_abandonment", "pix_gerado", "boleto_gerado", "refund_requested"]);
+
+/**
+ * Webhook da Cakto (docs/PLANOS.md, "Cobrança"). Regras:
+ * - sem assinatura válida (HMAC ou segredo), nada é processado; sem CAKTO_WEBHOOK_SECRET configurado, também não;
+ * - o plano só é ativado quando a oferta paga é a esperada para o plano escolhido no checkout;
+ * - cada evento é processado uma vez (reentregas respondem 200 sem efeito); se o processamento falhar, a próxima
+ *   entrega da Cakto tenta de novo;
+ * - eventos de uma assinatura que já foi substituída (upgrade) não mexem na assinatura atual.
+ */
 export async function POST(request: NextRequest) {
-  let rawBodyText = "";
+  const rawBuffer = Buffer.from(await request.arrayBuffer());
+  const rawBodyText = rawBuffer.toString("utf-8");
+  let payload: CaktoWebhookPayload;
   try {
-    // 1. Obtém o corpo cru da requisição para validação estrita HMAC-SHA256
-    const arrayBuffer = await request.arrayBuffer();
-    const rawBuffer = Buffer.from(arrayBuffer);
-    rawBodyText = rawBuffer.toString("utf-8");
+    payload = JSON.parse(rawBodyText);
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
-    // 2. Extrai cabeçalhos de autenticação enviados pela Cakto
-    const timestamp = request.headers.get("x-cakto-timestamp");
-    const signature = request.headers.get("x-cakto-signature");
-
-    let payload: CaktoWebhookPayload;
-    try {
-      payload = JSON.parse(rawBodyText);
-    } catch {
-      console.error("[Cakto Webhook] JSON inválido recebido.");
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  if (isWebhookConfigured()) {
+    const valid = verifyCaktoWebhookSignature({
+      rawBody: rawBuffer,
+      timestamp: request.headers.get("x-cakto-timestamp"),
+      signature: request.headers.get("x-cakto-signature"),
+      bodySecret: payload.secret,
+      secret: CAKTO_CONFIG.webhookSecret,
+    });
+    if (!valid) {
+      console.warn("[Cakto Webhook] Assinatura inválida: evento recusado.");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+  } else if (!unsignedWebhooksAllowed()) {
+    console.error("[Cakto Webhook] CAKTO_WEBHOOK_SECRET não configurado: evento recusado (nenhuma assinatura é ativada sem confirmação autêntica).");
+    return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
+  }
 
-    // 3. Validação de segurança e autenticidade da requisição
-    // Se CAKTO_WEBHOOK_SECRET estiver configurado, valida a assinatura HMAC
-    if (isWebhookConfigured()) {
-      const isValid = verifyCaktoWebhookSignature({
-        rawBody: rawBuffer,
-        timestamp,
-        signature,
-        bodySecret: payload.secret,
-        secret: CAKTO_CONFIG.webhookSecret,
-      });
+  const { event, data } = payload;
+  if (!event || !data) return NextResponse.json({ error: "Missing event or data" }, { status: 400 });
+  if (IGNORED.has(event)) return NextResponse.json({ received: true, ignored: event }, { status: 200 });
 
-      if (!isValid) {
-        console.warn("[Cakto Webhook] Assinatura HMAC-SHA256 inválida ou segredo incorreto.");
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-    } else {
-      console.warn(
-        "[Cakto Webhook] AVISO: CAKTO_WEBHOOK_SECRET não configurado. Aceitando entrega em modo de homologação.",
-      );
-    }
+  const key = webhookEventKey(event, data.id, rawBodyText);
+  if ((await claimWebhookEvent(key, event, payload)) === "duplicate") {
+    return NextResponse.json({ received: true, duplicate: true }, { status: 200 });
+  }
 
-    const { event, data } = payload;
-    if (!event || !data) {
-      return NextResponse.json({ error: "Missing event or data" }, { status: 400 });
-    }
+  try {
+    const outcome = await processEvent(payload, key);
+    await finishWebhookEvent(key, outcome);
+    return NextResponse.json({ received: true, event, ...outcome }, { status: 200 });
+  } catch (error) {
+    console.error("[Cakto Webhook] Falha ao processar:", (error as Error)?.message);
+    await finishWebhookEvent(key, { status: "failed", note: String((error as Error)?.message || "erro").slice(0, 200) }).catch(() => undefined);
+    // 500: a Cakto reenvia e o evento é processado de novo.
+    return NextResponse.json({ error: "Internal server error processing webhook" }, { status: 500 });
+  }
+}
 
-    // Ignora eventos que não requerem processamento transacional (ex: abandono de checkout)
-    if (event === "checkout_abandonment") {
-      return NextResponse.json({ received: true, ignored: "checkout_abandonment" }, { status: 200 });
-    }
+type Outcome = { status: "done" | "ignored"; restaurantId?: string | null; note?: string };
 
-    // 4. Idempotência: deduplica pelo ID único do pedido ou evento
-    const eventUniqueId = data.id || `${event}_${Date.now()}`;
-    const isDuplicate = await checkAndMarkWebhookEvent(eventUniqueId, event, payload);
+async function findRestaurantBySubscription(subscriptionId: string | undefined) {
+  if (!subscriptionId) return null;
+  const snap = await adminDb().collection("restaurantes").where("subscription.caktoSubscriptionId", "==", subscriptionId).limit(1).get();
+  return snap.empty ? null : snap.docs[0].id;
+}
 
-    if (isDuplicate) {
-      console.info(`[Cakto Webhook] Evento ${eventUniqueId} já processado anteriormente. Ignorando.`);
-      return NextResponse.json({ received: true, duplicate: true }, { status: 200 });
-    }
+async function findRestaurantByEmail(email: string | undefined) {
+  if (!email) return null;
+  const normalized = email.toLowerCase().trim();
+  const db = adminDb();
+  const users = await db.collection("usuarios").where("email", "==", normalized).limit(1).get();
+  const ids = users.empty ? null : (users.docs[0].get("restaurantIds") as string[] | undefined);
+  if (ids?.length) return ids[0];
+  const owned = await db.collection("restaurantes").where("ownerEmail", "==", normalized).limit(1).get();
+  return owned.empty ? null : owned.docs[0].id;
+}
 
-    // 5. Localiza o restaurante correspondente
-    let restaurantId: string | null = null;
-    let planIdFromSession: "essencial" | "pro" | null = null;
-    let cycleFromSession: "monthly" | "annual" = "monthly";
+async function processEvent(payload: CaktoWebhookPayload, key: string): Promise<Outcome> {
+  const { event, data } = payload;
+  const db = adminDb();
+  const nowIso = new Date().toISOString();
+  const amount = typeof data.amount === "number" ? data.amount : Number(data.amount || 0);
+  const amountFormatted = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amount);
+  const session: CheckoutSessionRecord | null = data.callback ? await getCheckoutSession(data.callback) : null;
+  const providerSubscriptionId = data.subscription?.id || undefined;
 
-    // Método primário: identificação via token de callback (?callback=uuid)
-    if (data.callback) {
-      const session = await getCheckoutSession(data.callback);
+  const restaurantId = session?.restaurantId || (await findRestaurantBySubscription(providerSubscriptionId)) || (await findRestaurantByEmail(data.customer?.email));
+  if (!restaurantId) {
+    await recordSyncFailure("webhook_restaurant_not_found", { event, orderId: data.id || null, eventKey: key });
+    return { status: "ignored", note: "restaurant_not_found" };
+  }
+  const restaurant = await db.collection("restaurantes").doc(restaurantId).get();
+  if (!restaurant.exists) return { status: "ignored", note: "restaurant_missing" };
+  const current = (restaurant.get("subscription") as Partial<RestaurantSubscription> | undefined) || null;
+  // Evento de uma assinatura que não é a atual (ex.: a antiga, depois de um upgrade): não altera o plano.
+  const belongsToCurrent = !providerSubscriptionId || !current?.caktoSubscriptionId || current.caktoSubscriptionId === providerSubscriptionId;
+
+  const payment = (status: PaymentRecord["status"], extra: Partial<PaymentRecord> = {}): PaymentRecord => ({
+    id: data.id || `pay_${Date.now()}`,
+    orderId: data.id || "",
+    refId: data.refId || null,
+    amount,
+    amountFormatted,
+    status,
+    paymentMethod: data.paymentMethod || "unknown",
+    paymentMethodName: data.paymentMethodName || null,
+    cardBrand: data.card?.brand || null,
+    cardLastDigits: data.card?.lastDigits || null,
+    paidAt: status === "paid" ? data.paidAt || nowIso : null,
+    createdAt: data.createdAt || nowIso,
+    checkoutUrl: data.checkoutUrl || null,
+    ...extra,
+  });
+
+  switch (event) {
+    case "purchase_approved": {
+      const offerId = data.offer?.id || "";
+      let planId: string | null = null;
+      let legacy = false;
       if (session) {
-        restaurantId = session.restaurantId;
-        planIdFromSession = session.planId;
-        cycleFromSession = session.cycle;
-      }
-    }
-
-    // Método secundário: busca por e-mail do cliente caso o callback não tenha vindo
-    if (!restaurantId && data.customer?.email) {
-      const db = adminDb();
-      const userSnap = await db
-        .collection("usuarios")
-        .where("email", "==", data.customer.email.toLowerCase().trim())
-        .limit(1)
-        .get();
-
-      if (!userSnap.empty) {
-        const userDoc = userSnap.docs[0];
-        const restaurantIds = userDoc.data()?.restaurantIds as string[] | undefined;
-        if (restaurantIds?.length) {
-          restaurantId = restaurantIds[0];
+        if (!offerId || offerId !== session.expectedOfferId) {
+          await recordSyncFailure("offer_mismatch", { restaurantId, event, orderId: data.id || null, expectedOfferId: session.expectedOfferId, receivedOfferId: offerId || null, planId: session.planId, eventKey: key });
+          await addPaymentRecord(restaurantId, payment("paid"));
+          return { status: "ignored", restaurantId, note: "offer_mismatch" };
         }
-      }
-
-      // Se ainda não encontrou, busca no restaurante pelo ownerId
-      if (!restaurantId) {
-        const restSnap = await db
-          .collection("restaurantes")
-          .where("ownerEmail", "==", data.customer.email.toLowerCase().trim())
-          .limit(1)
-          .get();
-
-        if (!restSnap.empty) {
-          restaurantId = restSnap.docs[0].id;
+        planId = session.planId;
+      } else {
+        const mapped = planForOffer(offerId);
+        if (!mapped) {
+          await recordSyncFailure("unknown_offer", { restaurantId, event, orderId: data.id || null, receivedOfferId: offerId || null, eventKey: key });
+          await addPaymentRecord(restaurantId, payment("paid"));
+          return { status: "ignored", restaurantId, note: "unknown_offer" };
         }
+        planId = mapped.planId;
+        legacy = mapped.legacy;
       }
-    }
-
-    // Método terciário: busca por ID da assinatura já registrada previamente
-    if (!restaurantId && data.subscription?.id) {
-      const db = adminDb();
-      const restSnap = await db
-        .collection("restaurantes")
-        .where("subscription.caktoSubscriptionId", "==", data.subscription.id)
-        .limit(1)
-        .get();
-
-      if (!restSnap.empty) {
-        restaurantId = restSnap.docs[0].id;
-      }
-    }
-
-    if (!restaurantId) {
-      console.warn(
-        `[Cakto Webhook] Não foi possível vincular o evento ${event} (Pedido: ${data.id}) a nenhum restaurante cadastrado.`,
-      );
-      // Retorna 200 para evitar que a Cakto reenvie indefinidamente um evento órfão
-      return NextResponse.json({ received: true, warning: "Restaurant not found" }, { status: 200 });
-    }
-
-    // 6. Roteamento e processamento por tipo de evento
-    const nowIso = new Date().toISOString();
-    const amountVal = typeof data.amount === "number" ? data.amount : Number(data.amount || 0);
-    const amountFormatted = new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(amountVal);
-
-    switch (event) {
-      // ─── Pagamento Aprovado (Primeira compra ou renovação) ───
-      case "purchase_approved": {
-        // Calcula término do período
-        const periodDays = cycleFromSession === "annual" ? 365 : 30;
-        const periodEnd = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString();
-
-        await updateRestaurantSubscription(restaurantId, {
+      const periodEnd = data.subscription?.next_payment_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await updateRestaurantSubscription(
+        restaurantId,
+        {
+          planId: planId as RestaurantSubscription["planId"],
+          planVersion: legacy ? 1 : CATALOG_VERSION,
           status: "active",
-          planId: planIdFromSession || "essencial",
-          cycle: cycleFromSession,
-          priceCents: Math.round(amountVal * 100),
-          caktoSubscriptionId: data.subscription?.id || null,
+          cycle: legacy ? current?.cycle || "monthly" : "monthly",
+          priceCents: Math.round(amount * 100),
+          caktoSubscriptionId: providerSubscriptionId || null,
           caktoOrderId: data.id || null,
-          caktoOfferId: data.offer?.id || null,
+          caktoOfferId: offerId || null,
           paymentMethod: data.paymentMethod || null,
           paymentMethodName: data.paymentMethodName || null,
           cardBrand: data.card?.brand || null,
           cardLastDigits: data.card?.lastDigits || null,
           currentPeriodStart: data.paidAt || nowIso,
-          currentPeriodEnd: data.subscription?.next_payment_date || periodEnd,
-          nextPaymentDate: data.subscription?.next_payment_date || periodEnd,
+          currentPeriodEnd: periodEnd,
+          nextPaymentDate: periodEnd,
+          trialEndsAt: null,
           canceledAt: null,
           lateSince: null,
-        });
+          cancelAtPeriodEnd: false,
+          scheduledChange: null,
+        },
+        { kind: "webhook" },
+        `Pagamento aprovado (${session?.kind || "compra direta"}): plano ${planId}`,
+        `cakto-${key}`,
+      );
+      await addPaymentRecord(restaurantId, payment("paid"));
 
-        // Adiciona ao histórico de pagamentos
-        const paymentRecord: PaymentRecord = {
-          id: data.id || `pay_${Date.now()}`,
-          orderId: data.id || "",
-          refId: data.refId || null,
-          amount: amountVal,
-          amountFormatted,
-          status: "paid",
-          paymentMethod: data.paymentMethod || "unknown",
-          paymentMethodName: data.paymentMethodName || null,
-          cardBrand: data.card?.brand || null,
-          cardLastDigits: data.card?.lastDigits || null,
-          paidAt: data.paidAt || nowIso,
-          createdAt: data.createdAt || nowIso,
-          checkoutUrl: data.checkoutUrl || null,
-        };
-
-        await addPaymentRecord(restaurantId, paymentRecord);
-        console.info(`[Cakto Webhook] Assinatura ativada com sucesso para o restaurante ${restaurantId}.`);
-        break;
-      }
-
-      // ─── Assinatura Criada ou Renovada ───
-      case "subscription_created":
-      case "subscription_renewed": {
-        await updateRestaurantSubscription(restaurantId, {
-          status: "active",
-          caktoSubscriptionId: data.subscription?.id || null,
-          nextPaymentDate: data.subscription?.next_payment_date || null,
-          currentPeriodEnd: data.subscription?.next_payment_date || null,
-          lateSince: null,
-        });
-
-        if (event === "subscription_renewed") {
-          await addPaymentRecord(restaurantId, {
-            id: data.id || `ren_${Date.now()}`,
-            orderId: data.id || "",
-            refId: data.refId || null,
-            amount: amountVal,
-            amountFormatted,
-            status: "paid",
-            paymentMethod: data.paymentMethod || "unknown",
-            paymentMethodName: data.paymentMethodName || null,
-            cardBrand: data.card?.brand || null,
-            cardLastDigits: data.card?.lastDigits || null,
-            paidAt: data.paidAt || nowIso,
-            createdAt: nowIso,
-          });
+      // Troca de plano: a assinatura anterior no gateway para de cobrar.
+      const previous = session?.previousProviderSubscriptionId;
+      if (previous && previous !== providerSubscriptionId) {
+        try {
+          if (!isCaktoConfigured()) throw new Error("Cakto não configurada");
+          await cancelCaktoSubscription(previous);
+        } catch (error) {
+          await recordSyncFailure("cancel_previous_subscription", { restaurantId, previousSubscriptionId: previous, newSubscriptionId: providerSubscriptionId || null, message: String((error as Error)?.message || "").slice(0, 200) });
         }
-        break;
       }
-
-      // ─── Falha na Renovação Recorrente / Atraso ───
-      case "subscription_renewal_refused":
-      case "subscription_late": {
-        await updateRestaurantSubscription(restaurantId, {
-          status: "late",
-          lateSince: nowIso,
-        });
-        console.warn(`[Cakto Webhook] Renovação falhou / atrasada para o restaurante ${restaurantId}.`);
-        break;
-      }
-
-      // ─── Atraso Regularizado / Recuperado ───
-      case "subscription_late_recovered":
-      case "subscription_resumed": {
-        await updateRestaurantSubscription(restaurantId, {
-          status: "active",
-          lateSince: null,
-        });
-        console.info(`[Cakto Webhook] Assinatura regularizada para o restaurante ${restaurantId}.`);
-        break;
-      }
-
-      // ─── Assinatura Cancelada ───
-      case "subscription_canceled": {
-        await updateRestaurantSubscription(restaurantId, {
-          status: "canceled",
-          canceledAt: data.canceledAt || nowIso,
-        });
-        console.info(`[Cakto Webhook] Assinatura cancelada para o restaurante ${restaurantId}.`);
-        break;
-      }
-
-      // ─── Reembolso ou Chargeback ───
-      case "refund":
-      case "chargeback": {
-        if (data.id) {
-          await addPaymentRecord(restaurantId, {
-            id: `refund_${data.id}`,
-            orderId: data.id,
-            refId: data.refId || null,
-            amount: amountVal,
-            amountFormatted: `-${amountFormatted}`,
-            status: "refunded",
-            paymentMethod: data.paymentMethod || "unknown",
-            paidAt: nowIso,
-            createdAt: nowIso,
-          });
-        }
-        await updateRestaurantSubscription(restaurantId, {
-          status: "inactive",
-        });
-        break;
-      }
-
-      // ─── Pagamento Recusado ───
-      case "purchase_refused": {
-        if (data.id) {
-          await addPaymentRecord(restaurantId, {
-            id: data.id,
-            orderId: data.id,
-            refId: data.refId || null,
-            amount: amountVal,
-            amountFormatted,
-            status: "refused",
-            paymentMethod: data.paymentMethod || "unknown",
-            createdAt: nowIso,
-          });
-        }
-        break;
-      }
-
-      default:
-        console.info(`[Cakto Webhook] Evento ${event} recebido sem ação necessária.`);
-        break;
+      return { status: "done", restaurantId };
     }
 
-    return NextResponse.json({ received: true, event }, { status: 200 });
-  } catch (error: any) {
-    console.error("[Cakto Webhook Processing Error]:", error);
-    // Retorna 500 para acionar retentativa da Cakto em caso de falha crítica interna
-    return NextResponse.json(
-      { error: "Internal server error processing webhook" },
-      { status: 500 },
-    );
+    case "subscription_created":
+    case "subscription_renewed": {
+      // Assinatura nova de um checkout: só vale se a oferta for a esperada para o plano escolhido.
+      if (session && data.offer?.id && data.offer.id !== session.expectedOfferId) {
+        await recordSyncFailure("offer_mismatch", { restaurantId, event, expectedOfferId: session.expectedOfferId, receivedOfferId: data.offer.id, eventKey: key });
+        return { status: "ignored", restaurantId, note: "offer_mismatch" };
+      }
+      // Sem plano registrado e sem checkout correspondente: quem define o plano é a compra aprovada.
+      if (!current?.planId && !session) return { status: "ignored", restaurantId, note: "waiting_purchase" };
+      if (!belongsToCurrent && !(event === "subscription_created" && session)) {
+        await recordSyncFailure("event_for_replaced_subscription", { restaurantId, event, subscriptionId: providerSubscriptionId || null, currentSubscriptionId: current?.caktoSubscriptionId || null, orderId: data.id || null });
+        if (event === "subscription_renewed") await addPaymentRecord(restaurantId, payment("paid"));
+        return { status: "ignored", restaurantId, note: "replaced_subscription" };
+      }
+      const next = data.subscription?.next_payment_date || null;
+      await updateRestaurantSubscription(
+        restaurantId,
+        {
+          status: "active",
+          caktoSubscriptionId: providerSubscriptionId || current?.caktoSubscriptionId || null,
+          ...(next ? { nextPaymentDate: next, currentPeriodEnd: next } : {}),
+          ...(event === "subscription_renewed" ? { currentPeriodStart: data.paidAt || nowIso } : {}),
+          lateSince: null,
+        },
+        { kind: "webhook" },
+        event === "subscription_renewed" ? "Renovação aprovada" : "Assinatura criada no gateway",
+        `cakto-${key}`,
+      );
+      if (event === "subscription_renewed") await addPaymentRecord(restaurantId, payment("paid"));
+      return { status: "done", restaurantId };
+    }
+
+    case "subscription_renewal_refused":
+    case "subscription_late": {
+      if (!belongsToCurrent) return { status: "ignored", restaurantId, note: "replaced_subscription" };
+      await updateRestaurantSubscription(restaurantId, { status: "past_due", lateSince: current?.lateSince || nowIso }, { kind: "webhook" }, "Cobrança recusada ou em atraso", `cakto-${key}`);
+      return { status: "done", restaurantId };
+    }
+
+    case "subscription_late_recovered":
+    case "subscription_resumed": {
+      if (!belongsToCurrent) return { status: "ignored", restaurantId, note: "replaced_subscription" };
+      await updateRestaurantSubscription(restaurantId, { status: "active", lateSince: null }, { kind: "webhook" }, "Pagamento regularizado", `cakto-${key}`);
+      return { status: "done", restaurantId };
+    }
+
+    case "subscription_canceled":
+    case "subscription_paused": {
+      // O cancelamento da assinatura ANTIGA (depois de um upgrade) chega aqui e não pode encerrar a nova.
+      if (!belongsToCurrent) return { status: "ignored", restaurantId, note: "replaced_subscription" };
+      await updateRestaurantSubscription(restaurantId, { status: "canceled", canceledAt: data.canceledAt || nowIso, cancelAtPeriodEnd: true }, { kind: "webhook" }, "Assinatura cancelada no gateway", `cakto-${key}`);
+      return { status: "done", restaurantId };
+    }
+
+    case "refund":
+    case "chargeback": {
+      if (data.id) await addPaymentRecord(restaurantId, payment("refunded", { id: `refund_${data.id}`, amountFormatted: `-${amountFormatted}`, paidAt: nowIso }));
+      // Só encerra o acesso quando o estorno é do pagamento da assinatura atual.
+      const currentOrder = !data.id || !current?.caktoOrderId || current.caktoOrderId === data.id;
+      if (belongsToCurrent && currentOrder) {
+        await updateRestaurantSubscription(restaurantId, { status: "expired" }, { kind: "webhook" }, event === "refund" ? "Pagamento estornado" : "Chargeback", `cakto-${key}`);
+      } else {
+        await recordSyncFailure("refund_of_other_payment", { restaurantId, event, orderId: data.id || null });
+      }
+      return { status: "done", restaurantId };
+    }
+
+    case "purchase_refused": {
+      if (data.id) await addPaymentRecord(restaurantId, payment("refused", { createdAt: nowIso }));
+      return { status: "done", restaurantId };
+    }
+
+    default:
+      return { status: "ignored", restaurantId, note: `event_${event}` };
   }
 }

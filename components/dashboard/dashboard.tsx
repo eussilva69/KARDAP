@@ -53,6 +53,7 @@ import {
   deleteRestaurantCategory,
   deleteRestaurantProduct,
   deleteRestaurantTable,
+  getRestaurantId,
   newProductId,
   publicMenuPath,
   renameRestaurantTable,
@@ -69,7 +70,7 @@ import { brl, elapsed, greeting, initial, plural, productCents, stagger } from "
 import { useDialog, useNow, useRootPalette } from "@/lib/hooks";
 import { isDefaultPalette, paletteVars, type PaletteColors } from "@/lib/palette";
 import { PalettePicker } from "./palette-picker";
-import { accountState, canAccessFeature, effectiveSubscription, planLabel, tableLimit, toDate, trialDaysLeft, type SubscriptionSummary } from "@/lib/cakto/access";
+import { accountState, canAccessFeature, effectiveSubscription, planLabel, toDate, trialDaysLeft, type SubscriptionSummary } from "@/lib/cakto/access";
 import {
   Badge,
   Button,
@@ -94,7 +95,9 @@ import { KardapLogo } from "@/components/brand/logo";
 import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
 import { MenuHero } from "@/components/menu/menu-hero";
 import { DishRow } from "@/components/menu/dish-row";
-import { SubscriptionPage } from "./subscription-page";
+import { MyPlanPage } from "@/components/billing/my-plan-page";
+import { usePlanEntitlements, usePlanUsage } from "@/components/billing/hooks";
+import { PDVAccessButton, PlanLimitWarning, PlanUsageCard, MY_PLAN_PATH } from "@/components/billing/widgets";
 import type { AccountInfo, Brand, Call, CallStatus, DashboardProps, Notify, RestaurantSettings } from "./types";
 
 export type { Brand, DashboardProps, DataLoaded, LoadErrors, Notify, RestaurantSettings } from "./types";
@@ -226,7 +229,7 @@ function ProLock({ feature, plan }: { feature: string; plan: SubscriptionSummary
       icon={<Star size={18} aria-hidden />}
       title={`${feature} faz parte do plano Pro`}
       action={
-        <ButtonLink href="/dashboard/assinatura" size="sm" variant="secondary">
+        <ButtonLink href="/dashboard/plano" size="sm" variant="secondary">
           Ver planos
         </ButtonLink>
       }
@@ -302,7 +305,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { label: "Avaliações", href: "/dashboard/avaliacoes", icon: Star },
       { label: "Relatórios", href: "/dashboard/relatorios", icon: BarChart3 },
       { label: "Personalização", href: "/dashboard/personalizacao", icon: Palette },
-      { label: "Assinatura", href: "/dashboard/assinatura", icon: CreditCard },
+      { label: "Meu plano", href: "/dashboard/plano", icon: CreditCard },
       { label: "Configurações", href: "/dashboard/configuracoes", icon: Settings2 },
     ],
   },
@@ -323,6 +326,7 @@ export default function Dashboard(props: DashboardProps) {
   const { path, brand, restaurantName, notify, calls, settings, loaded, onRetry, account } = props;
   const plan = usePlan(account);
   const status = planStatus(plan);
+  const entitlements = usePlanEntitlements(account);
   const [drawer, setDrawer] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const sideRef = useRef<HTMLElement>(null);
@@ -428,7 +432,8 @@ export default function Dashboard(props: DashboardProps) {
           ))}
         </nav>
         <div className="kd-side-foot">
-          <Link href="/dashboard/assinatura" className={`kd-side-plan ${status.urgent ? "is-urgent" : ""}`}>
+          <PDVAccessButton entitlements={entitlements} className="kd-side-pdv" />
+          <Link href="/dashboard/plano" className={`kd-side-plan ${status.urgent ? "is-urgent" : ""}`}>
             <b>{status.title}</b>
             <small>{status.detail}</small>
           </Link>
@@ -465,6 +470,7 @@ export default function Dashboard(props: DashboardProps) {
                 {waiting === 1 ? "1 mesa chamando" : `${waiting} mesas chamando`}
               </Link>
             )}
+            <PDVAccessButton entitlements={entitlements} size="sm" />
             <ButtonLink href={publicMenuPath()} external size="sm" icon={<ExternalLink size={15} />}>
               Cardápio
             </ButtonLink>
@@ -569,8 +575,9 @@ function DashboardRoutes(props: DashboardProps) {
       return <BrandPage {...props} />;
     case "/dashboard/configuracoes":
       return <SettingsPage {...props} />;
+    case "/dashboard/plano":
     case "/dashboard/assinatura":
-      return <SubscriptionPage notify={props.notify} account={props.account} />;
+      return <MyPlanPage notify={props.notify} account={props.account} tablesUsed={props.tables.length} />;
     default:
       return (
         <EmptyState
@@ -666,6 +673,8 @@ function Overview(props: DashboardProps) {
   const { calls, advanceCall, notify, restaurantName, foods, categories, tables, brand, loaded, loadErrors, onRetry, account } = props;
   const advance = useAdvanceCall(advanceCall, notify);
   const status = planStatus(usePlan(account));
+  const entitlements = usePlanEntitlements(account);
+  const usage = usePlanUsage(getRestaurantId(), entitlements);
   const ready = loaded.products && loaded.categories && loaded.tables;
   const steps = [
     { done: categories.length > 0, label: "Crie a primeira categoria", hint: "Entradas, pratos, bebidas…", href: "/dashboard/categorias" },
@@ -711,7 +720,7 @@ function Overview(props: DashboardProps) {
           icon={<CreditCard size={18} aria-hidden />}
           title={status.title}
           action={
-            <ButtonLink href="/dashboard/assinatura" size="sm" variant="secondary">
+            <ButtonLink href="/dashboard/plano" size="sm" variant="secondary">
               {status.state === "late" ? "Ver assinatura" : "Ver planos"}
             </ButtonLink>
           }
@@ -719,6 +728,22 @@ function Overview(props: DashboardProps) {
           {status.detail}.
         </Callout>
       )}
+
+      <PlanLimitWarning usage={usage} limit={entitlements.limits.maxNativeOrdersPerMonth} />
+
+      <Card className="kd-plan-summary k-enter" aria-labelledby="kd-plan-summary-title">
+        <CardHead
+          id="kd-plan-summary-title"
+          kicker="Meu plano"
+          title={entitlements.planName}
+          action={
+            <ButtonLink href={MY_PLAN_PATH} size="sm" variant="secondary">
+              Ver detalhes
+            </ButtonLink>
+          }
+        />
+        {usage.loading ? <Skeleton rows={1} height={44} label="Carregando consumo" /> : <PlanUsageCard compact entitlements={entitlements} usage={usage} tablesUsed={tables.length} />}
+      </Card>
 
       {ready && done < steps.length && (
         <Card className="kd-setup k-enter" aria-labelledby="kd-setup-title">
@@ -1943,18 +1968,18 @@ function ProductForm({
 
 function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, pendingTables, restaurantName, account }: DashboardProps) {
   const [creating, setCreating] = useState(false);
-  const limit = tableLimit(usePlan(account));
+  const entitlements = usePlanEntitlements(account);
+  const limit = entitlements.limits.maxTables;
   const atLimit = limit !== null && tables.length >= limit;
+  const limitMessage = limit === 8 ? "Você atingiu o limite de oito mesas do seu plano. Faça upgrade para cadastrar mesas ilimitadas." : `Você atingiu o limite de ${limit} mesas do seu plano. Faça upgrade para cadastrar mais mesas.`;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
 
   const create = async () => {
+    const upgrade = { label: "Fazer upgrade", onAction: () => (window.location.href = `${MY_PLAN_PATH}#planos`) };
     if (atLimit) {
-      notify(`Seu plano permite até ${limit} mesas. No Pro, as mesas são ilimitadas.`, "error", {
-        label: "Ver planos",
-        onAction: () => (window.location.href = "/dashboard/assinatura"),
-      });
+      notify(limitMessage, "error", upgrade);
       return;
     }
     setCreating(true);
@@ -1962,7 +1987,9 @@ function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, 
       const table = await createRestaurantTable();
       notify(`${table.name} criada com QR Code próprio`);
     } catch (error) {
-      reportError(error, notify, "Não foi possível criar a mesa. Tente de novo.");
+      // O servidor confere o limite de novo (outra aba ou aparelho pode ter criado mesas ao mesmo tempo).
+      if ((error as { code?: string })?.code === "table_limit") notify((error as Error).message, "error", upgrade);
+      else reportError(error, notify, "Não foi possível criar a mesa. Tente de novo.");
     } finally {
       setCreating(false);
     }
@@ -1971,7 +1998,7 @@ function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, 
   return (
     <div className="kd-stack">
       <PageHeader
-        kicker={loaded.tables ? (limit === null ? plural(tables.length, "mesa cadastrada", "mesas cadastradas") : `${tables.length} de ${limit} mesas do plano`) : undefined}
+        kicker={loaded.tables ? (limit === null ? plural(tables.length, "mesa cadastrada", "mesas cadastradas") : `Mesas utilizadas: ${tables.length} de ${limit}`) : undefined}
         title="Mesas"
         description="Cada mesa tem um QR Code único: os chamados chegam com o nome da mesa."
         actions={
@@ -1990,14 +2017,14 @@ function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, 
       {loaded.tables && atLimit && (
         <Callout
           tone="info"
-          title={`Você chegou ao limite de ${limit} mesas do seu plano`}
+          title={`Você atingiu o limite de ${limit} mesas do seu plano`}
           action={
-            <ButtonLink href="/dashboard/assinatura" size="sm" variant="secondary">
-              Ver planos
+            <ButtonLink href={`${MY_PLAN_PATH}#planos`} size="sm" variant="secondary">
+              Fazer upgrade
             </ButtonLink>
           }
         >
-          No Pro, as mesas são ilimitadas. Você ainda pode renomear ou excluir as mesas atuais.
+          {tables.length > (limit ?? 0) ? `Seu plano permite ${limit} mesas e você tem ${tables.length}: as atuais continuam funcionando, mas novas mesas ficam bloqueadas. ` : ""}A partir do Pro, as mesas e QR Codes são ilimitados. Você ainda pode renomear ou excluir as mesas atuais.
         </Callout>
       )}
       {loadErrors.tables ? (
@@ -2597,7 +2624,7 @@ function SettingsPage({ settings, setSettings, notify, account, onSaved }: Dashb
                 description={
                   o.key === "bill" && !billAllowed ? (
                     <>
-                      Recurso do plano Pro: no seu plano atual o botão não aparece no cardápio. <Link href="/dashboard/assinatura">Ver planos</Link>
+                      Recurso do plano Pro: no seu plano atual o botão não aparece no cardápio. <Link href="/dashboard/plano">Ver planos</Link>
                     </>
                   ) : (
                     o.description

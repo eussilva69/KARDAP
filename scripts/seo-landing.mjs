@@ -77,7 +77,7 @@ const PAGES = {
   "para-restaurantes": {
     title: "Cardápio digital para restaurantes, bares e cafés | Kardap",
     description:
-      "Para restaurantes, bares, cafés e lanchonetes: cardápio com vídeo, QR Code por mesa e chamados de garçom em tempo real. Planos a partir de R$ 49 por mês.",
+      "Para restaurantes, bares, cafés e lanchonetes: cardápio com vídeo, QR Code por mesa e chamados de garçom em tempo real. Planos a partir de R$ 49,90 por mês.",
     index: true,
   },
   "central-ajuda": {
@@ -131,7 +131,7 @@ const FAQ = [
   ],
   [
     "Quanto custa o Kardap?",
-    "São dois planos. Essencial: R$ 49,00 por mês ou R$ 470,00 por ano, com até 30 mesas. Pro: R$ 99,00 por mês ou R$ 950,00 por ano, com mesas e produtos ilimitados, pedido de conta pelo cardápio, relatórios de chamados e personalização avançada.",
+    "São quatro planos mensais. Start: R$ 49,90, com cardápio digital em vídeo estilo Reels e até 8 mesas com QR Code. Pro: R$ 129,90, com mesas ilimitadas, PDV completo (pedidos, comandas, caixa, estoque, financeiro e entregas) e até 150 pedidos próprios por mês. Business: R$ 199,90, com até 500 pedidos próprios por mês, promoções e integrações com marketplaces. Enterprise: sob consulta, para redes e franquias. Pedidos de iFood e outros marketplaces não contam no limite.",
   ],
   ["Tem teste grátis?", "Sim. Ao criar a conta, você testa o Kardap por 15 dias sem cadastrar cartão de crédito."],
   [
@@ -140,14 +140,14 @@ const FAQ = [
   ],
   [
     "Como o cliente chama o garçom?",
-    "Pelo próprio cardápio aberto no celular. O chamado aparece no painel do restaurante na hora, com a identificação da mesa e alerta sonoro. No plano Pro, o cliente também pode pedir a conta pelo cardápio.",
+    "Pelo próprio cardápio aberto no celular. O chamado aparece no painel do restaurante na hora, com a identificação da mesa e alerta sonoro. A partir do plano Pro, o cliente também pode pedir a conta pelo cardápio.",
   ],
-  ["Quantas mesas posso cadastrar?", "Até 30 mesas no plano Essencial. No plano Pro, mesas ilimitadas."],
+  ["Quantas mesas posso cadastrar?", "Até 8 mesas no plano Start. Nos planos Pro, Business e Enterprise, mesas e QR Codes ilimitados."],
   [
     "Como começo a usar?",
     "Crie a conta, informe o nome do estabelecimento, envie o logo e a capa, cadastre os pratos e imprima os QR Codes das mesas. O display de mesa sai pronto para imprimir em folha A4.",
   ],
-  ["Posso usar a identidade visual do meu restaurante?", "Sim. Você aplica o logo, a capa e as cores do restaurante no cardápio. A personalização avançada faz parte do plano Pro."],
+  ["Posso usar a identidade visual do meu restaurante?", "Sim. Em todos os planos você aplica o logo, a capa e as cores do restaurante no cardápio."],
   ["Como falo com o suporte?", "Pelo WhatsApp (11) 93213-8691."],
 ];
 
@@ -242,14 +242,15 @@ function jsonLd(slug, page) {
           "QR Code individual por mesa",
           "Chamados das mesas em tempo real com alerta sonoro",
           "Avaliações no Google integradas ao cardápio",
-          "Pedido de conta pelo cardápio (plano Pro)",
-          "Relatórios de chamados e horários de pico (plano Pro)",
+          "Cardápio digital em vídeo estilo Reels",
+          "PDV completo com pedidos, caixa, estoque e entregas (a partir do plano Pro)",
+          "Pedido de conta pelo cardápio (a partir do plano Pro)",
+          "Relatórios de vendas (a partir do plano Pro)",
         ],
         offers: [
-          { "@type": "Offer", name: "Plano Essencial (mensal)", price: "49.00", priceCurrency: "BRL", url: `${SITE}/planos`, availability: "https://schema.org/InStock" },
-          { "@type": "Offer", name: "Plano Essencial (anual)", price: "470.00", priceCurrency: "BRL", url: `${SITE}/planos`, availability: "https://schema.org/InStock" },
-          { "@type": "Offer", name: "Plano Pro (mensal)", price: "99.00", priceCurrency: "BRL", url: `${SITE}/planos`, availability: "https://schema.org/InStock" },
-          { "@type": "Offer", name: "Plano Pro (anual)", price: "950.00", priceCurrency: "BRL", url: `${SITE}/planos`, availability: "https://schema.org/InStock" },
+          { "@type": "Offer", name: "KARDAP Start (mensal)", price: "49.90", priceCurrency: "BRL", url: `${SITE}/planos`, availability: "https://schema.org/InStock" },
+          { "@type": "Offer", name: "KARDAP Pro (mensal)", price: "129.90", priceCurrency: "BRL", url: `${SITE}/planos`, availability: "https://schema.org/InStock" },
+          { "@type": "Offer", name: "KARDAP Business (mensal)", price: "199.90", priceCurrency: "BRL", url: `${SITE}/planos`, availability: "https://schema.org/InStock" },
         ],
       },
     );

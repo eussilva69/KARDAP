@@ -31,7 +31,10 @@ export type AdminLogEntry = {
   adminEmail: string;
   restaurantId: string;
   restaurantName: string;
-  action: "extend_trial" | "suspend" | "reactivate";
+  action: "extend_trial" | "suspend" | "reactivate" | "set_subscription" | "reconcile_usage" | "resolve_failure";
+  reason?: string;
+  before?: unknown;
+  after?: unknown;
   detail: string;
   createdAt: string;
 };
@@ -151,38 +154,25 @@ async function log(admin: AdminIdentity, restaurant: AdminRestaurant, action: Ad
 /** Assinaturas pagas em andamento não recebem extensão de teste. */
 export function canExtendTrial(restaurant: AdminRestaurant) {
   const status = restaurant.subscription?.status;
-  return status !== "active" && status !== "late";
+  return status !== "active" && status !== "late" && status !== "past_due";
+}
+
+/** Ações de assinatura passam pelo servidor, que confere o administrador e registra antes/depois e motivo. */
+export async function adminSubscriptionAction(body: Record<string, unknown>) {
+  const { getFirebaseAuth } = await import("./auth");
+  const token = await getFirebaseAuth().currentUser?.getIdToken();
+  if (!token) throw new Error("Sua sessão expirou. Entre de novo.");
+  const res = await withTimeout(fetch("/api/admin/assinaturas", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }), 20000);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.message === "string" ? data.message : "Não foi possível concluir a alteração.");
+  return data;
 }
 
 /** Estende o teste (Pro) contando a partir do fim atual ou de hoje, o que vier depois. */
-export async function extendTrial(restaurant: AdminRestaurant, days: number, admin: AdminIdentity) {
+export async function extendTrial(restaurant: AdminRestaurant, days: number, _admin: AdminIdentity, reason = `Extensão do teste em ${days} dias pelo painel de administração`) {
   if (!canExtendTrial(restaurant)) throw new Error("Este restaurante tem uma assinatura paga em andamento.");
-  const current = effectiveSubscription(restaurant.subscription, restaurant.rawCreatedAt);
-  const currentEnd = current?.status === "trial" ? toDate(current.trialEndsAt)?.getTime() || 0 : 0;
-  const trialEndsAt = new Date(Math.max(Date.now(), currentEnd) + days * DAY).toISOString();
-  const now = new Date().toISOString();
-  const ref = doc(getDb(), "restaurantes", restaurant.id);
-  if (restaurant.subscription?.planId) {
-    await withWriteTimeout(
-      updateDoc(ref, {
-        "subscription.planId": "pro",
-        "subscription.planName": "Pro",
-        "subscription.status": "trial",
-        "subscription.trialEndsAt": trialEndsAt,
-        "subscription.updatedAt": now,
-        updatedAt: now,
-      }),
-    );
-  } else {
-    await withWriteTimeout(
-      updateDoc(ref, {
-        subscription: { planId: "pro", planName: "Pro", status: "trial", cycle: "monthly", priceCents: 0, trialEndsAt, createdAt: now, updatedAt: now },
-        updatedAt: now,
-      }),
-    );
-  }
-  await log(admin, restaurant, "extend_trial", `Teste estendido em ${days} dias, até ${new Date(trialEndsAt).toLocaleDateString("pt-BR")}`);
-  return trialEndsAt;
+  const data = await adminSubscriptionAction({ restaurantId: restaurant.id, action: "extend_trial", days, reason });
+  return String(data.trialEndsAt);
 }
 
 export async function setSuspended(restaurant: AdminRestaurant, suspended: boolean, reason: string, admin: AdminIdentity) {

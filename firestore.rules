@@ -89,6 +89,30 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ───── Planos e cobrança (docs/PLANOS.md) ─────
+    // Catálogo publicado pelo servidor (cópia do catálogo do código, para consulta).
+    match /planos/{planId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Checkout, eventos do webhook, falhas de sincronização e propostas Enterprise: só o servidor grava.
+    match /cakto_checkout_sessions/{token} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /cakto_webhook_events/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /falhasSincronizacao/{failureId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /propostasEnterprise/{proposalId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // ───── Clientes do cardápio (Reels, docs/REELS.md) ─────
     // Conta de cliente: serve só para guardar pratos salvos. Cada pessoa lê e grava apenas o que é dela;
     // a identidade anônima (de quem só curtiu) não grava aqui.
@@ -249,9 +273,46 @@ service cloud.firestore {
         allow write: if isMember(restaurantId) || isAdmin();
       }
 
+      // Mesas: criadas só pelo servidor (POST /api/restaurants/{id}/mesas), que confere o limite do plano na mesma
+      // transação. A equipe renomeia, muda a situação e exclui; número e QR Code não mudam pelo navegador.
       match /mesas/{tableId} {
         allow read: if true;
-        allow write: if isMember(restaurantId) || isAdmin();
+        allow create: if isAdmin();
+        allow update: if isAdmin() || (isMember(restaurantId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'status', 'capacity', 'updatedAt']));
+        allow delete: if isMember(restaurantId) || isAdmin();
+      }
+
+      // Pedidos (docs/PLANOS.md). Rascunhos podem ser gravados pela equipe; a confirmação de pedido próprio (que
+      // consome a franquia) e os pedidos de marketplace passam pelo servidor, que grava a origem e o consumo.
+      // Origem, consumo e confirmação nunca mudam pelo navegador.
+      function orderProtectedFields() {
+        return ['origin', 'quota', 'confirmedAt', 'confirmedBy', 'establishmentId', 'isNativeOrder', 'source'];
+      }
+      match /pedidos/{orderId} {
+        allow read: if isMember(restaurantId) || isAdmin();
+        allow create: if isMember(restaurantId)
+          && request.resource.data.get('status', '') == 'rascunho'
+          && !request.resource.data.keys().hasAny(orderProtectedFields());
+        allow update: if isAdmin() || (isMember(restaurantId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(orderProtectedFields())
+          // Rascunho só vira pedido pelo servidor (confirmação).
+          && (resource.data.get('status', '') != 'rascunho' || request.resource.data.get('status', '') == 'rascunho'));
+        allow delete: if isAdmin() || (isMember(restaurantId) && resource.data.get('status', '') == 'rascunho');
+      }
+
+      // Consumo mensal (uso/{AAAA-MM}) e trilhas de auditoria: só o servidor grava.
+      match /uso/{periodId} {
+        allow read: if isMember(restaurantId) || isAdmin();
+        allow write: if false;
+      }
+      match /eventosUso/{eventId} {
+        allow read: if isMember(restaurantId) || isAdmin();
+        allow write: if false;
+      }
+      match /eventosAssinatura/{eventId} {
+        allow read: if isMember(restaurantId) || isAdmin();
+        allow write: if false;
       }
 
       match /chamados/{chamadoId} {

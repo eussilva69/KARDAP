@@ -23,7 +23,7 @@ const ROUTES: Record<string, RouteMeta> = {
   planos: {
     title: "Planos e preços do cardápio digital",
     description:
-      "Compare os planos do Kardap: Essencial por R$ 49 por mês, com até 30 mesas, e Pro por R$ 99 por mês, com mesas ilimitadas, pedido de conta e relatórios. 15 dias grátis, sem cartão.",
+      "Compare os planos do KARDAP: Start por R$ 49,90/mês (cardápio em vídeo e até 8 mesas), Pro por R$ 129,90 (PDV e 150 pedidos próprios), Business por R$ 199,90 (500 pedidos) e Enterprise sob consulta. 15 dias grátis.",
     index: true,
   },
   privacidade: { title: "Política de Privacidade", description: "Como o Kardap coleta, usa e protege os dados de restaurantes e dos clientes que acessam o cardápio digital.", index: true },

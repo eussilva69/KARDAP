@@ -155,7 +155,7 @@ Fotos de produto, logo e capa são redimensionadas e convertidas para WebP no na
 
 ## Testes
 
-Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel, cardápio público em tempo real, imagens, regras e isolamento entre estabelecimentos; login único com o PDV; Reels) contra os emuladores do Firebase: [docs/TESTES.md](docs/TESTES.md).
+Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel, cardápio público em tempo real, imagens, regras e isolamento entre estabelecimentos; login único com o PDV; Reels; planos e limites) contra os emuladores do Firebase: [docs/TESTES.md](docs/TESTES.md).
 
 ## SEO e indexação
 
@@ -168,6 +168,18 @@ O KARDAP é o servidor central de autenticação do ecossistema: o login em `kar
 ## Vídeos de produto
 
 O vídeo vai do painel direto para o Firebase Storage; um worker no Cloud Run (FFmpeg) comprime para MP4 H.264 até 720p, gera a capa WebP e publica no produto. O painel acompanha o envio e a otimização em tempo real, e o cardápio toca só a versão otimizada. Arquitetura, implantação no Google Cloud, permissões, custos e testes: [docs/VIDEOS.md](docs/VIDEOS.md).
+
+## Planos e assinaturas
+
+Start (R$ 49,90), Pro (R$ 129,90), Business (R$ 199,90) e Enterprise (sob consulta), com cobrança mensal pela Cakto.
+
+- Limites (mesas, pedidos próprios por mês, PDV) e recursos são decididos no servidor, a partir de um catálogo único
+  (`lib/billing/plans.ts`).
+- Pedidos de iFood e outros marketplaces nunca contam no limite.
+- O mesmo servidor libera ou não o PDV pelo login único.
+- O painel tem "Meu plano" (consumo do mês, renovação da franquia, cobrança, troca de plano) e o botão "Acessar PDV".
+
+Estrutura de dados, APIs, fluxos, regras, migração e configuração: [docs/PLANOS.md](docs/PLANOS.md).
 
 ## Reels do cardápio
 

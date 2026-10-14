@@ -123,3 +123,42 @@ BROWSER_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" node
 | U16–U19 | Link `?reel=` abre no prato e mantém a mesa; "voltar" fecha o feed; feed de todos os pratos; som pelo alto-falante; cartão final |
 | U20 | Nenhum erro de JavaScript |
 | G1 | Visitante anônimo que abre `/dashboard` vê o login, sem configuração inicial nem restaurante criado |
+
+## Planos, assinaturas e limites
+
+`npm run test:billing` testa as regras puras de `lib/billing/plans.ts` direto no Node 24 (sem emuladores):
+
+- preços e limites;
+- situações (teste, carência, cancelada, expirada, suspensa);
+- Enterprise personalizado;
+- planos anteriores;
+- avisos de 70/90/100%;
+- virada do mês no fuso de São Paulo;
+- origens dos pedidos;
+- papéis.
+
+`scripts/e2e-plans.mjs` (`npm run test:plans`):
+
+1. limpa os emuladores e cria estabelecimentos em cada plano (Start, Pro, Business, Enterprise com e sem limite
+   contratado, teste, Essencial antigo), um caixa com a permissão `pdv`, um intruso e um administrador;
+2. sobe o app na porta 3100 com uma oferta de teste por plano, o segredo do webhook e o segredo do PDV (ou usa o que já
+   estiver no ar com as mesmas variáveis);
+3. testa as APIs, as regras e as telas.
+
+Requisitos: emuladores rodando. Leva cerca de 4 minutos. Detalhes em [PLANOS.md](PLANOS.md).
+
+| Cenário | O que verifica |
+| --- | --- |
+| M1–M4 | Start cria 8 mesas e a 9ª é recusada com a mensagem do plano; 5 criações simultâneas com 6 mesas param em 8; gravar mesa direto no Firestore é recusado; Business ilimitado |
+| P1–P2 | Start não confirma pedido próprio; Pro confirma o 149º e o 150º e recusa o 151º (`402 quota_exceeded`), sem gravar o pedido |
+| P3–P5 | iFood e 99Food entram com a franquia esgotada e não consomem; reenvio cai no mesmo pedido; pedido repetido não consome; origem `ifood` na confirmação e marketplace sem segredo são recusados |
+| P6–P7 | 20 confirmações simultâneas com 10 de franquia restante param exatamente em 150, com 10 eventos de uso; 5 requisições simultâneas com a mesma chave consomem uma vez |
+| P8–P9 | Business: 500º sim, 501º não; Enterprise respeita o limite do contrato (1000) e o ilimitado |
+| P10 | Caixa confirma pedido, mas não cria mesa nem mexe na assinatura; quem não é da equipe é barrado |
+| P11 | Consumo do mês anterior não conta no atual |
+| A1–A2 | Pelo servidor central do SSO: Start não acessa o PDV (motivo "plano"); Pro, teste e caixa acessam; Essencial antigo mantém 30 mesas e a carência |
+| C1–C6 | Checkout: upgrade sim; downgrade direto, Enterprise e o mesmo plano não; caixa não contrata. Webhook: assinatura inválida recusada; upgrade Pro → Business preserva o consumo (140/500); evento repetido sem duplicar eventos nem pagamentos; cancelamento da assinatura antiga não encerra a nova; pagar a oferta do Start com o checkout do Business não ativa o Business |
+| D1–D2 | Downgrade agendado mantém o Business até o fim do período; depois, mesas e pedidos preservados e só novas criações acima do limite bloqueadas |
+| AD1–AD3 | Administração só para administradores, com motivo obrigatório e `adminLog` com antes e depois; reconciliação aponta e corrige; proposta Enterprise registrada e robô ignorado |
+| R1–R2 | Regras: dono não altera plano, contador nem origem, e não confirma rascunho direto; um estabelecimento não lê o consumo nem os pedidos de outro |
+| U1–U4 | Preços (4 planos, Business "Mais popular", Enterprise "Sob consulta", contato com vendas, celular sem rolagem lateral); Start com "Acessar PDV" travado e "Desbloqueie o PDV do KARDAP"; "Mesas utilizadas: 8 de 8"; Meu plano em 150/150 com aviso de 100%, renovação da franquia, PDV liberado e botões por plano |

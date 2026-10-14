@@ -85,7 +85,11 @@ export function PdvAuthProvider({ children, auth: provided, fallback = null }: {
       const res = await fetch("/api/auth/status", { credentials: "same-origin", cache: "no-store" }).catch(() => null);
       if (!alive || !res) return;
       if (res.status === 401) return end();
-      if (res.status === 403) return window.location.replace("/sem-permissao");
+      if (res.status === 403) {
+        // Plano mudou com o PDV aberto (downgrade, assinatura vencida) ou a permissão foi retirada.
+        const reason = (await res.json().catch(() => ({}))).reason;
+        return window.location.replace(reason === "plan" ? "/sem-permissao?motivo=plano" : reason === "subscription" ? "/sem-permissao?motivo=assinatura" : "/sem-permissao");
+      }
       const data = await res.json().catch(() => ({}));
       // Outra conta entrou neste navegador: esta aba não continua com a anterior.
       if (res.ok && data.uid && auth.currentUser && data.uid !== auth.currentUser.uid) end();

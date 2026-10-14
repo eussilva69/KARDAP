@@ -164,38 +164,38 @@ export function watchPublicTable(
   );
 }
 
+/**
+ * Mesas são criadas pelo servidor (POST /api/restaurants/{id}/mesas): o limite do plano é conferido na mesma
+ * transação que grava a mesa, então não dá para passar do limite com cliques simultâneos nem gravando direto.
+ */
+async function createTablesOnServer(body: { name?: string; quantity?: number }): Promise<RestaurantTable[]> {
+  const { getFirebaseAuth } = await import("./auth");
+  const token = await getFirebaseAuth().currentUser?.getIdToken();
+  if (!token) throw new Error("Sua sessão expirou. Entre de novo para continuar.");
+  const restaurantId = getRestaurantId();
+  const res = await withTimeout(
+    fetch(`/api/restaurants/${encodeURIComponent(restaurantId)}/mesas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    }),
+    20000,
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(typeof data.message === "string" ? data.message : "Não foi possível criar a mesa. Tente de novo."), { code: data.error, details: data });
+  return (data.tables || []).map((t: { id: string; number: number; name: string; qrToken: string }) => ({ ...t, restaurantId, capacity: 4, status: "livre" as const }));
+}
+
 export async function createInitialTables(quantity: number) {
   if (!Number.isInteger(quantity) || quantity < 0 || quantity > 200) {
     throw new Error("Informe entre 0 e 200 mesas.");
   }
   if (quantity === 0) return [] as RestaurantTable[];
-  const tables = collection(restaurantRef(), "mesas");
-  const existing = await withTimeout(getDocs(tables));
-  const existingByNumber = new Map(existing.docs.map((item) => [Number(item.data().number), item.data() as RestaurantTable]));
-  const batch = writeBatch(getDb());
-  const created: RestaurantTable[] = [];
-  for (let number = 1; number <= quantity; number += 1) {
-    if (existingByNumber.has(number)) continue;
-    const id = `mesa-${String(number).padStart(3, "0")}`;
-    const table: RestaurantTable = { id, restaurantId: getRestaurantId(), number, name: `Mesa ${String(number).padStart(2, "0")}`, capacity: 4, status: "livre", qrToken: crypto.randomUUID() };
-    batch.set(doc(tables, id), { ...table, createdAt: new Date().toISOString() });
-    created.push(table);
-  }
-  if (created.length) await withWriteTimeout(batch.commit(), 20000);
-  return created;
+  return createTablesOnServer({ quantity });
 }
 
 export async function createRestaurantTable(name?: string) {
-  const tables = collection(restaurantRef(), "mesas");
-  const existing = await withTimeout(getDocs(tables));
-  const number = existing.docs.reduce((highest, item) => Math.max(highest, Number(item.data().number) || 0), 0) + 1;
-  const tableName = name?.trim() || `Mesa ${String(number).padStart(2, "0")}`;
-  if (existing.docs.some((item) => String(item.data().name).toLowerCase() === tableName.toLowerCase())) {
-    throw new Error("Essa mesa já existe.");
-  }
-  const id = `mesa-${String(number).padStart(3, "0")}`;
-  const table: RestaurantTable = { id, restaurantId: getRestaurantId(), number, name: tableName, capacity: 4, status: "livre", qrToken: crypto.randomUUID() };
-  await withWriteTimeout(setDoc(doc(tables, id), { ...table, createdAt: new Date().toISOString() }));
+  const [table] = await createTablesOnServer({ name: name?.trim() || undefined });
   return table;
 }
 

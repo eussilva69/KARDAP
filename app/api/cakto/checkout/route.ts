@@ -1,131 +1,100 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { CAKTO_CONFIG } from "@/lib/cakto/config";
-import { getOfferIdForPlan, getPlanPriceCents, PLANS } from "@/lib/cakto/plans";
-import { createCheckoutSession } from "@/lib/cakto/server-db";
-import { BillingCycle, PlanId } from "@/lib/cakto/types";
+import { getOfferIdForPlan, getPlanPriceCents, isCheckoutPlan } from "@/lib/cakto/plans";
+import { createCheckoutSession, type CheckoutKind } from "@/lib/cakto/server-db";
+import { PLAN_CATALOG, planRank, toDate } from "@/lib/billing/plans";
+import { authenticate } from "@/lib/billing/http";
+import { BillingError, requireManager } from "@/lib/billing/server";
 
+const DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Abre o checkout da Cakto para um plano. O tipo da contratação é decidido aqui, com a assinatura atual:
+ * - nova assinatura ou reativação: qualquer plano com checkout;
+ * - upgrade: liberado na hora; quando o pagamento for confirmado, a assinatura anterior é cancelada no gateway;
+ * - downgrade com a assinatura em dia: é agendado em Meu Plano (POST /api/billing/change-plan); o checkout do plano
+ *   menor abre a partir de 1 dia antes da data agendada.
+ * O Enterprise não tem checkout (proposta comercial).
+ */
 export async function POST(request: NextRequest) {
-  // 1. Autenticação do usuário autenticado no Firebase
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace(/^Bearer\s+/i, "");
-
-  if (!token) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
   try {
-    let decodedUser: { uid: string; email?: string; name?: string };
-    try {
-      decodedUser = await adminAuth().verifyIdToken(token);
-    } catch {
-      return NextResponse.json(
-        { error: "Sessão inválida ou expirada. Faça login novamente." },
-        { status: 401 },
-      );
+    const caller = await authenticate(request);
+    const body = (await request.json().catch(() => ({}))) as { planId?: unknown; restaurantId?: unknown };
+    const restaurantId = typeof body.restaurantId === "string" ? body.restaurantId : "";
+    if (!restaurantId) return NextResponse.json({ error: "Identificador do estabelecimento é obrigatório." }, { status: 400 });
+    if (body.planId === "enterprise") {
+      return NextResponse.json({ error: "O Enterprise é contratado com o nosso time comercial. Use “Falar com vendas”.", code: "sales_only" }, { status: 400 });
+    }
+    if (!isCheckoutPlan(body.planId)) return NextResponse.json({ error: "Plano inválido." }, { status: 400 });
+    const planId = body.planId;
+
+    const { snap, entitlements } = await requireManager(restaurantId, caller.uid, "billing");
+    const offerId = getOfferIdForPlan(planId);
+    if (!offerId) {
+      return NextResponse.json({ error: `A contratação online do ${PLAN_CATALOG[planId].name} ainda não está disponível. Fale com o suporte.`, code: "offer_not_configured" }, { status: 503 });
     }
 
-    // 2. Leitura e validação dos parâmetros da requisição
-    const body = await request.json();
-    const { planId, cycle, restaurantId } = body as {
-      planId?: PlanId;
-      cycle?: BillingCycle;
-      restaurantId?: string;
-    };
-
-    if (!restaurantId || typeof restaurantId !== "string") {
-      return NextResponse.json(
-        { error: "Identificador do estabelecimento é obrigatório." },
-        { status: 400 },
-      );
-    }
-
-    if (planId !== "essencial" && planId !== "pro") {
-      return NextResponse.json(
-        { error: "Plano inválido. Escolha 'essencial' ou 'pro'." },
-        { status: 400 },
-      );
-    }
-
-    const billingCycle: BillingCycle = cycle === "annual" ? "annual" : "monthly";
-
-    // 3. Validação de permissão do usuário no restaurante
-    const db = adminDb();
-    const restaurantDoc = await db.collection("restaurantes").doc(restaurantId).get();
-
-    if (!restaurantDoc.exists) {
-      return NextResponse.json({ error: "Estabelecimento não encontrado." }, { status: 404 });
-    }
-
-    const restaurantData = restaurantDoc.data();
-    const isOwner = restaurantData?.ownerId === decodedUser.uid;
-
-    if (!isOwner) {
-      // Verifica na subcoleção de membros
-      const memberDoc = await db
-        .collection("restaurantes")
-        .doc(restaurantId)
-        .collection("membros")
-        .doc(decodedUser.uid)
-        .get();
-
-      if (!memberDoc.exists) {
-        return NextResponse.json(
-          { error: "Você não tem permissão para gerenciar a assinatura deste restaurante." },
-          { status: 403 },
-        );
+    // Tipo da contratação, conforme o plano que vale agora.
+    const stored = snap.get("subscription") || null;
+    const paying = Boolean(stored?.planId) && entitlements.valid && !entitlements.implicitTrial && entitlements.status !== "trialing";
+    let kind: CheckoutKind = "new";
+    if (paying) {
+      const current = entitlements.planId;
+      if (current === planId) {
+        // Reativação do mesmo plano só perto do fim do período pago (evita pagar duas vezes o mesmo mês).
+        const until = toDate(entitlements.accessUntil);
+        const canceling = entitlements.status === "canceled" || entitlements.cancelAtPeriodEnd;
+        if (!canceling || (until && until.getTime() - Date.now() > DAY)) {
+          return NextResponse.json({ error: "Este já é o seu plano atual.", code: "same_plan" }, { status: 409 });
+        }
+        kind = "renew";
+      } else if (planRank(planId) > planRank(current)) {
+        kind = "upgrade";
+      } else {
+        const scheduled = entitlements.scheduledChange;
+        const effective = toDate(scheduled?.effectiveAt);
+        if (!scheduled || scheduled.planId !== planId || (effective && effective.getTime() - Date.now() > DAY)) {
+          return NextResponse.json(
+            { error: "A mudança para um plano menor é agendada para o fim do período pago, em Meu Plano.", code: "downgrade_must_be_scheduled" },
+            { status: 409 },
+          );
+        }
+        kind = "downgrade";
       }
     }
 
-    // 4. Determina o valor do plano e o ID da oferta correspondente na Cakto
-    const priceCents = getPlanPriceCents(planId, billingCycle);
-    const offerId = getOfferIdForPlan(planId, billingCycle);
-    const planConfig = PLANS[planId];
-
-    // 5. Gera um token opaco único para correlacionar o comprador (callback pós-pagamento)
-    // O token é transmitido na URL como ?callback=<token>
     const sessionToken = crypto.randomUUID();
-
     await createCheckoutSession({
       token: sessionToken,
       restaurantId,
-      userId: decodedUser.uid,
+      userId: caller.uid,
       planId,
-      cycle: billingCycle,
-      userEmail: decodedUser.email,
+      cycle: "monthly",
+      expectedOfferId: offerId,
+      priceCents: getPlanPriceCents(planId),
+      kind,
+      previousPlanId: stored?.planId || null,
+      previousProviderSubscriptionId: kind === "upgrade" ? stored?.caktoSubscriptionId || null : null,
+      userEmail: caller.email || undefined,
     });
 
-    // 6. Monta a URL de contratação do checkout oficial da Cakto
-    const checkoutParams = new URLSearchParams();
-    checkoutParams.set("callback", sessionToken);
-
-    if (decodedUser.email) {
-      checkoutParams.set("email", decodedUser.email);
-    }
-    if (decodedUser.name || restaurantData?.name) {
-      checkoutParams.set("name", decodedUser.name || restaurantData?.name || "");
-    }
-
-    const checkoutUrl = `${CAKTO_CONFIG.payBaseUrl}/${encodeURIComponent(offerId)}?${checkoutParams.toString()}`;
+    const params = new URLSearchParams({ callback: sessionToken });
+    if (caller.email) params.set("email", caller.email);
+    const name = snap.get("name");
+    if (typeof name === "string" && name) params.set("name", name);
+    const checkoutUrl = `${CAKTO_CONFIG.payBaseUrl}/${encodeURIComponent(offerId)}?${params.toString()}`;
 
     return NextResponse.json({
       success: true,
       checkoutUrl,
       sessionToken,
-      plan: {
-        id: planId,
-        name: planConfig.name,
-        cycle: billingCycle,
-        priceCents,
-        displayPrice: billingCycle === "annual" ? planConfig.prices.annual.display : planConfig.prices.monthly.display,
-      },
+      kind,
+      plan: { id: planId, name: PLAN_CATALOG[planId].name, priceCents: getPlanPriceCents(planId) },
     });
-  } catch (error: any) {
-    console.error("[Cakto Checkout Initiation Error]:", error);
-    return NextResponse.json(
-      { error: "Ocorreu um erro interno ao iniciar a contratação. Tente novamente." },
-      { status: 500 },
-    );
+  } catch (error) {
+    if (error instanceof BillingError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    console.error("[Cakto Checkout] erro:", (error as Error)?.message);
+    return NextResponse.json({ error: "Ocorreu um erro interno ao iniciar a contratação. Tente novamente." }, { status: 500 });
   }
 }

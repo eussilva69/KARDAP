@@ -210,7 +210,7 @@ Estes termos constituem um contrato vinculante entre o Usuário e a plataforma K
           num: "04",
           heading: "4. Período de Teste Grátis (15 Dias) e Assinaturas",
           body: `• **Período de Teste Gratuito (Trial)**: Novos usuários têm direito a 15 (quinze) dias de teste gratuito com acesso total às funcionalidades da plataforma. **Não é necessário cadastrar cartão de crédito para iniciar o teste.**
-• **Planos de Assinatura**: Após o término do trial, para continuar utilizando o Serviço, o Usuário deverá optar por um dos planos disponíveis (Essencial ou Pro).
+• **Planos de Assinatura**: Após o término do trial, para continuar utilizando o Serviço, o Usuário deverá optar por um dos planos disponíveis (Start, Pro, Business ou Enterprise), conforme descritos na página de planos.
 • **Faturamento Recorrente**: As assinaturas são renovadas automaticamente no período contratado (mensal ou anual).
 • **Política de Cancelamento**: O cancelamento pode ser feito a qualquer momento diretamente pelo painel. O acesso ao sistema continuará disponível até o último dia do ciclo já pago, sem cobrança de taxas adicionais ou multas rescisórias.`,
         },
