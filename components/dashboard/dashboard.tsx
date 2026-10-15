@@ -99,6 +99,7 @@ import { DishRow } from "@/components/menu/dish-row";
 import { MyPlanPage } from "@/components/billing/my-plan-page";
 import { usePlanEntitlements, usePlanUsage } from "@/components/billing/hooks";
 import { PDVAccessButton, PlanLimitWarning, PlanUsageCard, MY_PLAN_PATH } from "@/components/billing/widgets";
+import { SubscriptionGate } from "@/components/billing/renewal-gate";
 import type { AccountInfo, Brand, Call, CallStatus, DashboardProps, Notify, RestaurantSettings } from "./types";
 
 export type { Brand, DashboardProps, DataLoaded, LoadErrors, Notify, RestaurantSettings } from "./types";
@@ -326,6 +327,7 @@ const TABS: NavItem[] = [
 
 export default function Dashboard(props: DashboardProps) {
   const { path, brand, restaurantName, notify, calls, settings, loaded, onRetry, account } = props;
+  const router = useRouter();
   const plan = usePlan(account);
   const status = planStatus(plan);
   const entitlements = usePlanEntitlements(account);
@@ -533,9 +535,11 @@ export default function Dashboard(props: DashboardProps) {
               </Callout>
             </div>
           )}
-          <div key={path} className="kd-page">
-            <DashboardRoutes {...props} />
-          </div>
+          <SubscriptionGate path={path} entitlements={entitlements} router={router} onSignOut={logout} signingOut={signingOut}>
+            <div key={path} className="kd-page">
+              <DashboardRoutes {...props} />
+            </div>
+          </SubscriptionGate>
         </main>
       </div>
 

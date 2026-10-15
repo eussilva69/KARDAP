@@ -873,6 +873,66 @@ textarea.kd-input { min-height: 96px; resize: vertical; }
   .kd-modal-guard { margin: 0 var(--k-s5) var(--k-s4); }
 }
 
+/* ─────────────── Bloqueio de renovação (não dispensável) ─────────────── */
+
+.kd-renewal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 110; /* acima de .kd-modal (100), abaixo do toast (120): um erro ao sair da conta precisa continuar visível */
+  display: grid;
+  place-items: center;
+  padding: var(--k-s4);
+}
+.kd-renewal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(14 25 18 / 0.6);
+  animation: k-fade var(--k-dur-3) var(--k-ease-out) both;
+}
+.kd-renewal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s4);
+  width: 100%;
+  max-width: 460px;
+  max-height: min(88vh, 720px);
+  max-height: min(88dvh, 720px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--k-s6);
+  background: var(--k-surface);
+  border-radius: var(--k-r-lg);
+  box-shadow: var(--k-shadow-float);
+  animation: k-pop var(--k-dur-3) var(--k-ease-out) both;
+}
+.kd-renewal:focus { outline: none; }
+.kd-renewal .kd-lead { margin: 0; color: var(--k-text-2); font-size: var(--k-fs-base); line-height: 1.55; }
+.kd-renewal-facts {
+  display: grid;
+  gap: var(--k-s3);
+  margin: 0;
+  padding: var(--k-s4);
+  border-radius: var(--k-r-md);
+  background: var(--k-cloche-soft);
+  border: 1px solid var(--k-cloche-line);
+}
+.kd-renewal-facts > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--k-s3); }
+.kd-renewal-facts dt { margin: 0; color: var(--k-muted); font-size: var(--k-fs-md); }
+.kd-renewal-facts dd { margin: 0; font-weight: 650; text-align: right; }
+.kd-renewal-actions { display: flex; flex-direction: column; gap: var(--k-s2); }
+
+@media (max-width: 639px) {
+  .kd-renewal-layer { place-items: end stretch; padding: 0; }
+  .kd-renewal {
+    max-width: none;
+    max-height: 92vh;
+    max-height: 92dvh;
+    border-radius: var(--k-r-lg) var(--k-r-lg) 0 0;
+    animation: k-sheet var(--k-dur-4) var(--k-ease-out) both;
+  }
+}
+
 /* ─────────────── Notificação ─────────────── */
 
 .kd-toaster {

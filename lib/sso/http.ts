@@ -17,11 +17,19 @@ export class SsoError extends Error {
 }
 
 /** Registro de erro sem dados sensíveis: só o código e a primeira linha da mensagem (nunca tokens ou cookies). */
+const redact = (text: string) => text.replace(/[A-Za-z0-9_-]{40,}/g, "[…]");
+
+/**
+ * Registra um erro inesperado (500) nos logs do servidor. A primeira linha resume o erro (grep rápido); a segunda,
+ * quando existe, traz a pilha de chamadas inteira (sem segredos: tokens e chaves longas já saem redigidos) —
+ * no Netlify, em Logs → Functions, é a pilha que diz a linha exata que falhou.
+ */
 export function logSsoError(scope: string, error: unknown) {
-  const e = error as { code?: unknown; message?: unknown };
+  const e = error as { code?: unknown; message?: unknown; stack?: unknown };
   const code = typeof e?.code === "string" ? e.code : "";
-  const message = typeof e?.message === "string" ? e.message.split("\n")[0].replace(/[A-Za-z0-9_-]{40,}/g, "[…]").slice(0, 200) : "";
+  const message = typeof e?.message === "string" ? redact(e.message.split("\n")[0]).slice(0, 300) : "";
   console.error(`[sso] ${scope}: ${code || "erro"}${message ? ` — ${message}` : ""}`);
+  if (typeof e?.stack === "string") console.error(redact(e.stack).slice(0, 4000));
 }
 
 /** Domínio do cookie: .kardapp.online em produção (vale para os subdomínios). Outros ambientes: SSO_COOKIE_DOMAIN. */
