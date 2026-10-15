@@ -55,8 +55,20 @@ export function errorResponse(req: NextRequest, scope: string, error: unknown) {
     body = { error: "busy", message: "Muitos pedidos ao mesmo tempo. Tente de novo em instantes." };
   } else {
     logSsoError(`billing ${scope}`, error);
+    // Diagnóstico sem segredos: o código interno do Firebase/Firestore (ex.: "auth/invalid-credential",
+    // "UNAUTHENTICATED", "16"), para quem não tem acesso aos logs da função identificar a causa pela resposta.
+    const detail = diagnosticCode(error);
+    if (detail) body = { ...body, detail };
   }
   return json(req, body, status);
+}
+
+/** Código interno curto do erro, só para diagnóstico. Nunca inclui mensagem, pilha, token ou chave. */
+function diagnosticCode(error: unknown): string | undefined {
+  const e = error as { code?: unknown; errorInfo?: { code?: unknown } } | null;
+  const raw = typeof e?.code === "string" || typeof e?.code === "number" ? String(e!.code) : typeof e?.errorInfo?.code === "string" ? String(e!.errorInfo!.code) : "";
+  // Só aceita códigos curtos no formato esperado (letras/dígitos, "/", "-", "_", "."), para nunca vazar texto livre.
+  return raw && raw.length <= 80 && /^[A-Za-z0-9/_.\-]+$/.test(raw) ? raw : undefined;
 }
 
 export function json(req: NextRequest, body: unknown, status = 200) {

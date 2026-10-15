@@ -136,7 +136,15 @@ export function withCors(req: NextRequest, res: NextResponse) {
 
 /** Resposta de erro padrão: { error, message } com o status do SsoError; erros inesperados viram 500 genérico. */
 export function errorBody(scope: string, error: unknown) {
-  if (!(error instanceof SsoError)) logSsoError(scope, error);
-  const e = error instanceof SsoError ? error : new SsoError("server_error", 500, "Não foi possível concluir agora. Tente de novo.");
-  return { status: e.status, body: { error: e.code, message: e.message } };
+  if (error instanceof SsoError) return { status: error.status, body: { error: error.code, message: error.message } as Record<string, unknown> };
+  logSsoError(scope, error);
+  const e = new SsoError("server_error", 500, "Não foi possível concluir agora. Tente de novo.");
+  // Diagnóstico sem segredos: código interno curto do Firebase/Firestore (ex.: "auth/invalid-credential") —
+  // para identificar a causa pela resposta quando não há acesso aos logs da função.
+  const inner = error as { code?: unknown; errorInfo?: { code?: unknown } } | null;
+  const raw = typeof inner?.code === "string" || typeof inner?.code === "number" ? String(inner!.code) : typeof inner?.errorInfo?.code === "string" ? String(inner!.errorInfo!.code) : "";
+  const detail = raw && raw.length <= 80 && /^[A-Za-z0-9/_.\-]+$/.test(raw) ? raw : undefined;
+  const body: Record<string, unknown> = { error: e.code, message: e.message };
+  if (detail) body.detail = detail;
+  return { status: e.status, body };
 }
