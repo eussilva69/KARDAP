@@ -9,6 +9,7 @@ import { friendlyError } from "@/lib/async";
 import { brl, plural } from "@/lib/format";
 import { PLAN_CATALOG } from "@/lib/billing/plans";
 import { BillingOpsPanel, SubscriptionAdminCard } from "./billing-admin";
+import { PlanCatalogEditor } from "./plan-editor";
 import { accountState, effectiveSubscription, monthlyCents, planLabel, toDate, trialDaysLeft, type AccountState } from "@/lib/cakto/access";
 import {
   canExtendTrial,
@@ -895,8 +896,9 @@ export function PlansAdminPage({ rows, notify }: { rows: Row[]; notify: Notify }
       <PageHeader
         kicker="Administração"
         title="Planos"
-        description="Preços, limites e assinantes de cada plano. O catálogo fica em lib/billing/plans.ts; mudar um preço exige atualizar também a oferta na Cakto (CAKTO_OFFER_*)."
+        description="Preços, limites e assinantes de cada plano. Preço, nome, descrição e destaque podem ser alterados no editor abaixo (sem deploy); limites e funcionalidades seguem o catálogo em lib/billing/plans.ts. Trocar o preço exige atualizar também a oferta na Cakto (CAKTO_OFFER_*)."
       />
+      <PlanCatalogEditor notify={notify} />
       <div className="kd-plans kd-plans--4">
         {PLAN_ORDER.map((id) => {
           const plan = PLAN_CATALOG[id];

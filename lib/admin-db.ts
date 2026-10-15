@@ -31,7 +31,7 @@ export type AdminLogEntry = {
   adminEmail: string;
   restaurantId: string;
   restaurantName: string;
-  action: "extend_trial" | "suspend" | "reactivate" | "set_subscription" | "reconcile_usage" | "resolve_failure";
+  action: "extend_trial" | "suspend" | "reactivate" | "set_subscription" | "reconcile_usage" | "resolve_failure" | "catalog_update";
   reason?: string;
   before?: unknown;
   after?: unknown;

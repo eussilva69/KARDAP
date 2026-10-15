@@ -95,6 +95,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    // Overrides do catálogo cadastrados pelo painel administrativo (/admin/planos). Qualquer um lê (preço público);
+    // só o servidor (Admin SDK, via /api/admin/planos) grava, para a validação e a auditoria passarem sempre por lá.
+    match /catalogoPlanos/{planId} {
+      allow read: if true;
+      allow write: if false;
+    }
     // Checkout, eventos do webhook, falhas de sincronização e propostas Enterprise: só o servidor grava.
     match /cakto_checkout_sessions/{token} {
       allow read: if isAdmin();
