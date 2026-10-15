@@ -10,6 +10,7 @@ import { brl, plural } from "@/lib/format";
 import { PLAN_CATALOG } from "@/lib/billing/plans";
 import { BillingOpsPanel, SubscriptionAdminCard } from "./billing-admin";
 import { PlanCatalogEditor } from "./plan-editor";
+import { AdminDashboardV2 } from "./admin-dashboard-v2";
 import { accountState, effectiveSubscription, monthlyCents, planLabel, toDate, trialDaysLeft, type AccountState } from "@/lib/cakto/access";
 import {
   canExtendTrial,
@@ -264,7 +265,7 @@ function AdminApp({ path, identity, notify }: { path: string; identity: AdminIde
             ) : section === "/admin/planos" ? (
               <PlansAdminPage rows={rows} notify={notify} />
             ) : (
-              <OverviewPage rows={rows} loading={loading} onRefresh={load} />
+              <AdminDashboardV2 rows={rows} loading={loading} onRefresh={load} />
             )}
           </div>
         )}
