@@ -698,20 +698,18 @@ function Overview(props: DashboardProps) {
   const entitlements = usePlanEntitlements(account);
   const usage = usePlanUsage(getRestaurantId(), entitlements);
   // Escolheu um plano no cadastro, mas o teste grátis não chegou a ser ativado (instabilidade na conclusão).
+  // Reativa em segundo plano, sem alarmar: o painel não exibe aviso. Se o servidor seguir indisponível, o teste
+  // automático calculado a partir de `createdAt` cobre o acesso até o restaurante tentar de novo numa próxima
+  // abertura. A chamada é idempotente, então repetir não estende o prazo nem troca o plano.
   const pendingTrial = Boolean(account.onboardingSelectedPlanId) && !account.subscription?.planId;
-  const [activatingTrial, setActivatingTrial] = useState(false);
-  const retryTrial = async () => {
-    if (!account.onboardingSelectedPlanId) return;
-    setActivatingTrial(true);
-    try {
-      await activateTrial(account.onboardingSelectedPlanId);
-      notify("Teste grátis ativado!");
-    } catch (err) {
-      notify(friendlyError(err, "Ainda não foi possível ativar o teste grátis. Tente de novo em instantes."), "error");
-    } finally {
-      setActivatingTrial(false);
-    }
-  };
+  const retriedTrial = useRef(false);
+  useEffect(() => {
+    if (!pendingTrial || retriedTrial.current || !account.onboardingSelectedPlanId) return;
+    retriedTrial.current = true;
+    activateTrial(account.onboardingSelectedPlanId).catch(() => {
+      // Silencioso de propósito: nada aparece para o restaurante enquanto o acesso continua coberto.
+    });
+  }, [pendingTrial, account.onboardingSelectedPlanId]);
   const ready = loaded.products && loaded.categories && loaded.tables;
   const steps = [
     { done: categories.length > 0, label: "Crie a primeira categoria", hint: "Entradas, pratos, bebidas…", href: "/dashboard/categorias" },
@@ -751,34 +749,19 @@ function Overview(props: DashboardProps) {
         }
       />
 
-      {pendingTrial ? (
+      {!pendingTrial && status.urgent && (
         <Callout
-          tone="warn"
+          tone={status.state === "late" ? "danger" : "warn"}
           icon={<CreditCard size={18} aria-hidden />}
-          title={`Teste grátis do ${planLabel(account.onboardingSelectedPlanId)} pendente`}
+          title={status.title}
           action={
-            <Button size="sm" variant="secondary" loading={activatingTrial} onClick={retryTrial}>
-              {activatingTrial ? "Ativando…" : "Ativar agora"}
-            </Button>
+            <ButtonLink href="/dashboard/plano" size="sm" variant="secondary">
+              {status.state === "late" ? "Ver assinatura" : "Ver planos"}
+            </ButtonLink>
           }
         >
-          Não conseguimos ativar seu teste grátis de 30 dias na conclusão do cadastro. Toque em “Ativar agora” para tentar de novo.
+          {status.detail}.
         </Callout>
-      ) : (
-        status.urgent && (
-          <Callout
-            tone={status.state === "late" ? "danger" : "warn"}
-            icon={<CreditCard size={18} aria-hidden />}
-            title={status.title}
-            action={
-              <ButtonLink href="/dashboard/plano" size="sm" variant="secondary">
-                {status.state === "late" ? "Ver assinatura" : "Ver planos"}
-              </ButtonLink>
-            }
-          >
-            {status.detail}.
-          </Callout>
-        )
       )}
 
       <PlanLimitWarning usage={usage} limit={entitlements.limits.maxNativeOrdersPerMonth} />
