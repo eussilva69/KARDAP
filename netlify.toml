@@ -1,2 +1,5 @@
 [build.environment]
   NODE_VERSION = "22"
+  # Runtime das Netlify Functions (não só do build): firebase-admin 14 precisa de Node 22+ para carregar;
+  # sem isso o bundle das rotas /api/billing/* e /api/sso/* crasha no cold start e cai no _error do Next.js.
+  AWS_LAMBDA_JS_RUNTIME = "nodejs22.x"
