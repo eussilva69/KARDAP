@@ -29,7 +29,7 @@ const PAGES = {
     path: "/",
     title: "Cardápio digital com vídeo e QR Code por mesa | Kardap",
     description:
-      "Crie o cardápio digital do seu restaurante com fotos e vídeos dos pratos, QR Code por mesa e chamados de garçom em tempo real. Teste grátis por 15 dias, sem cartão.",
+      "Crie o cardápio digital do seu restaurante com fotos e vídeos dos pratos, QR Code por mesa e chamados de garçom em tempo real. Escolha um plano e teste grátis por 30 dias, sem cartão.",
     index: true,
   },
   "cardapio-video": {
@@ -133,7 +133,7 @@ const FAQ = [
     "Quanto custa o Kardap?",
     "São quatro planos mensais. Start: R$ 49,90, com cardápio digital em vídeo estilo Reels e até 8 mesas com QR Code. Pro: R$ 129,90, com mesas ilimitadas, PDV completo (pedidos, comandas, caixa, estoque, financeiro e entregas) e até 150 pedidos próprios por mês. Business: R$ 199,90, com até 500 pedidos próprios por mês, promoções e integrações com marketplaces. Enterprise: sob consulta, para redes e franquias. Pedidos de iFood e outros marketplaces não contam no limite.",
   ],
-  ["Tem teste grátis?", "Sim. Ao criar a conta, você testa o Kardap por 15 dias sem cadastrar cartão de crédito."],
+  ["Tem teste grátis?", "Sim. No cadastro, você escolhe o plano (Start, Pro ou Business) e testa o Kardap por 30 dias, sem cadastrar cartão de crédito."],
   [
     "Posso colocar vídeos dos pratos?",
     "Sim. Você envia um vídeo curto para cada prato e o Kardap converte o arquivo para um formato leve, de até 720p, e gera a imagem de capa, para o vídeo abrir rápido no celular do cliente.",

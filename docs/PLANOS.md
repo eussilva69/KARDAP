@@ -18,8 +18,11 @@ Tudo que limita uma operação é decidido no servidor do KARDAP (`kardapp.onlin
   recursos.
   - `null` significa ilimitado; `0` significa indisponível.
   - O script de migração publica uma cópia em `planos/{id}`, só para consulta.
-- **Teste grátis:** toda conta nova tem 15 dias do **Pro**, contados da criação e sem cartão, como prometem os Termos. O
-  teste inclui o PDV e a franquia de 150 pedidos.
+- **Teste grátis:** no cadastro, a pessoa escolhe qual plano quer testar (Start, Pro ou Business) e usa esse plano por
+  30 dias, sem cartão. Ver "Cadastro e teste grátis" abaixo.
+- **Teste implícito (contas sem assinatura nenhuma):** um estabelecimento sem `subscription` gravada — por exemplo, se a
+  ativação do teste escolhido falhar e nunca for repetida — cai no teste automático de 15 dias do **Pro** contado da
+  criação, como prometem os Termos. É uma rede de segurança, não o caminho normal.
 - **Sem assinatura válida** (teste encerrado, vencida, suspensa):
   - o cardápio continua no ar e nenhum dado é apagado;
   - os recursos voltam ao básico do Start;
@@ -28,6 +31,69 @@ Tudo que limita uma operação é decidido no servidor do KARDAP (`kardapp.onlin
   - **Essencial** vira **Start** e mantém as 30 mesas contratadas (via `customLimits`).
   - O **Pro antigo** vira o Pro atual: ganha o PDV e a franquia de 150 pedidos.
   - O preço pago continua o que está gravado na assinatura.
+
+## Cadastro e teste grátis
+
+O onboarding (`components/site/onboarding.tsx`, `/onboarding`) tem 6 etapas. A primeira é a escolha do plano:
+
+1. **Seu plano** — cartões com os 3 planos de autoatendimento (Start, Pro, Business; o Enterprise só aparece como link
+   para `/planos`, "sob consulta"), com nome, preço real do catálogo e os principais recursos. O Pro vem pré-selecionado
+   (mesma expectativa do teste automático anterior); dá para trocar com um toque. Fica salvo no rascunho do navegador
+   (cookie) e, a partir do primeiro "Continuar", em `restaurantes/{id}.onboarding.selectedPlanId`.
+2. **Seu estabelecimento** (nome, endereço do cardápio, tipo, contato).
+3. **Marca** (logo e capa, opcional).
+4. **Avaliações** (link do Google, opcional).
+5. **Mesas** (quantidade inicial).
+6. **Revisão e "Concluir e abrir o painel"**.
+
+### Quando o teste começa
+
+**Só depois que a etapa 6 grava `onboarding.completed = true` com sucesso.** Se a pessoa sair no meio do caminho, ou se
+essa gravação falhar, nenhuma assinatura é criada e nenhum teste começa — ela retoma de onde parou da próxima vez
+(persistência abaixo).
+
+Na conclusão, em sequência:
+
+1. reserva o endereço do cardápio (`reserveMenuSlug`);
+2. cria as mesas iniciais (`POST /api/restaurants/{id}/mesas`) — **não bloqueia a conclusão**: se falhar depois de
+   tentar de novo sozinho, o restaurante é criado do mesmo jeito e um aviso oferece criar as mesas depois, em Mesas;
+3. grava `onboarding.completed = true` — se isto falhar, o processo para aqui, com erro na tela, e nada do resto
+   acontece;
+4. ativa o teste do plano escolhido (`POST /api/billing/activate-trial`, `activateSelfServiceTrial` em
+   `lib/billing/server.ts`) — também não bloqueia a conclusão: se falhar, o painel mostra um aviso fixo ("Teste grátis
+   pendente", com botão "Ativar agora") até dar certo, além de um aviso único assim que o painel abre.
+
+Essa separação (a existência do restaurante nunca depende de mesas ou do teste darem certo na hora) é deliberada: uma
+instabilidade passageira no servidor não pode impedir alguém de terminar o cadastro.
+
+### Elegibilidade e segurança (tudo no servidor)
+
+- A data de início e o prazo de 30 dias são calculados no servidor (`new Date(Date.now() + 30 dias)`); o corpo da
+  requisição só leva o `planId` escolhido — nenhuma data vem do navegador.
+- **Um teste por estabelecimento:** `activateSelfServiceTrial` grava `restaurantes/{id}.trialActivatedAt` na mesma
+  transação que cria a assinatura, e esse campo nunca é apagado (mesmo depois de a assinatura mudar de plano, vencer
+  ou ser cancelada). Se já estiver preenchido, ou se já existir qualquer `subscription.planId`, a chamada é um
+  no-op idempotente: devolve `activated: false` com os dados atuais, sem mexer no prazo nem no plano.
+- **Um teste por conta:** a mesma transação também grava `usuarios/{uid}.trialActivatedAt` e
+  `usuarios/{uid}.trialRestaurantId`. Um segundo estabelecimento criado pela mesma conta (`uid`) é recusado com
+  `409 trial_already_used` — fechando o caminho de "excluir e criar de novo para reiniciar o teste".
+- **Uma conta, um estabelecimento:** `POST /api/restaurants` também ficou idempotente — se o `uid` já é dono de um
+  estabelecimento, devolve o mesmo `restaurantId` em vez de criar outro (duplo clique, nova tentativa depois de uma
+  resposta perdida, ou uma tentativa deliberada de burlar o passo anterior).
+- Só o dono aciona (`restaurant.get("ownerId") === uid`); o Enterprise não é um plano de teste automático
+  (`isSelfServiceTrialPlan`).
+
+### Persistência e recuperação
+
+As respostas de cada etapa (incluindo `selectedPlanId`) são salvas em `restaurantes/{id}` a cada "Continuar", além do
+rascunho em cookie no navegador (sobrevive a fechar a aba ou trocar de aparelho, desde que volte autenticado). Reabrir
+`/onboarding` retoma na etapa salva, com os campos preenchidos; nada é recriado.
+
+### Resiliência contra instabilidade de rede
+
+As chamadas ao servidor feitas durante a conclusão (criar mesas, ativar o teste) tentam de novo sozinhas até duas
+vezes, com espera crescente, antes de desistir — cobre o caso comum de a função do servidor ainda estar "fria" logo
+depois do cadastro. Um erro definitivo do servidor (limite do plano, sessão expirada, dado inválido) não é repetido.
 
 ## Regra dos pedidos próprios
 
@@ -142,6 +208,8 @@ nunca é aceita.
 | Rota | Quem | O que faz |
 | --- | --- | --- |
 | `GET /api/billing/entitlements?restaurantId=` (ou `POST`) | equipe | Plano, situação, limites, recursos, uso do mês, mesas, papel, acesso ao PDV |
+| `POST /api/billing/activate-trial` `{ restaurantId, planId }` | dono do estabelecimento | Ativa o teste grátis de 30 dias do plano escolhido; idempotente, `409 trial_already_used` se a conta já testou |
+| `POST /api/restaurants` `{ name }` | qualquer conta (não anônima) | Cria o estabelecimento no cadastro; idempotente por `uid` (devolve o existente) |
 | `POST /api/restaurants/{id}/mesas` `{ name? \| quantity? }` | dono, `*`, `configuracoes` | Cria mesas respeitando o limite (`403 table_limit`) |
 | `POST /api/pedidos/confirmar` `{ restaurantId, source, orderId \| idempotencyKey, order? }` | equipe com pedidos | Confirma pedido próprio: `201`; repetido: `200 duplicate`; franquia esgotada: `402 quota_exceeded { used, limit }` |
 | `POST /api/pedidos/externos` `{ restaurantId, provider, externalOrderId, order? }` | servidor do PDV (Basic) | Pedido de marketplace: nunca consome nem é bloqueado |
@@ -296,3 +364,4 @@ antigos são suposições cobertas pelo mapeamento acima. Rode a simulação em 
 - `npm run test:billing`: regras puras (planos, situações, Enterprise, planos antigos, avisos 70/90/100, virada do mês
   em São Paulo, origens, papéis).
 - `npm run test:plans`: ponta a ponta com os emuladores. Ver [TESTES.md](TESTES.md).
+- `npm run test:onboarding`: cadastro, escolha de plano e teste grátis de 30 dias, ponta a ponta. Ver [TESTES.md](TESTES.md).

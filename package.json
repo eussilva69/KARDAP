@@ -12,6 +12,7 @@
     "test:reels": "node scripts/e2e-reels.mjs",
     "test:billing": "node scripts/test-billing.mjs",
     "test:plans": "node scripts/e2e-plans.mjs",
+    "test:onboarding": "node scripts/e2e-onboarding.mjs",
     "seo:landing": "node scripts/seo-landing.mjs",
     "migrate:plans": "node scripts/migrate-plans.mjs"
   },

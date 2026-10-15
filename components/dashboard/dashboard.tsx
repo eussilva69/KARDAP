@@ -47,6 +47,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  activateTrial,
   createRestaurantCategory,
   createRestaurantProduct,
   createRestaurantTable,
@@ -191,13 +192,14 @@ const shortDate = (value: unknown) => toDate(value)?.toLocaleDateString("pt-BR",
 function planStatus(plan: SubscriptionSummary | null) {
   const state = accountState(plan);
   const days = trialDaysLeft(plan);
+  const name = planLabel(plan?.planId);
   switch (state) {
     case "trial":
-      return { state, title: "Teste grátis do Pro", detail: days === 0 ? "Termina hoje" : `Faltam ${plural(days || 0, "dia", "dias")}`, urgent: (days ?? 99) <= 3 };
+      return { state, title: `Teste grátis do ${name}`, detail: days === 0 ? "Termina hoje" : `Faltam ${plural(days || 0, "dia", "dias")}`, urgent: (days ?? 99) <= 3 };
     case "trial_ended":
-      return { state, title: "Teste encerrado", detail: "Escolha um plano para continuar com o Pro", urgent: true };
+      return { state, title: "Teste encerrado", detail: `O teste do ${name} terminou. Escolha um plano para continuar`, urgent: true };
     case "active":
-      return { state, title: `Plano ${planLabel(plan?.planId)}`, detail: "Assinatura ativa", urgent: false };
+      return { state, title: `Plano ${name}`, detail: "Assinatura ativa", urgent: false };
     case "late":
       return { state, title: "Pagamento pendente", detail: "Regularize para não perder recursos", urgent: true };
     case "canceled":
@@ -211,14 +213,14 @@ function planStatus(plan: SubscriptionSummary | null) {
 function lockReason(plan: SubscriptionSummary | null) {
   switch (accountState(plan)) {
     case "active":
-      return `Seu plano atual é o ${planLabel(plan?.planId)}. Mude para o Pro para liberar.`;
+      return `Seu plano atual é o ${planLabel(plan?.planId)}. Mude para o Pro ou superior para liberar.`;
     case "late":
       return "O pagamento da assinatura está pendente. Regularize para voltar a usar.";
     case "canceled":
     case "expired":
-      return "A assinatura foi encerrada. Assine o Pro para voltar a usar.";
+      return "A assinatura foi encerrada. Assine o Pro ou um plano superior para voltar a usar.";
     default:
-      return "O teste grátis do Pro terminou. Assine o Pro para voltar a usar.";
+      return "Seu teste grátis terminou. Assine o Pro ou um plano superior para voltar a usar.";
   }
 }
 
@@ -336,6 +338,22 @@ export default function Dashboard(props: DashboardProps) {
   useEffect(() => {
     document.title = `${waiting ? `(${waiting}) ` : ""}${title} · Kardap`;
   }, [title, waiting]);
+
+  // Aviso de algo que não deu certo ao concluir a configuração inicial (mesas ou teste grátis): aparece uma vez,
+  // na primeira tela do painel depois do onboarding, e nunca mais (sessionStorage, não bloqueia nada).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("kardap-onboarding-notice");
+      if (!raw) return;
+      sessionStorage.removeItem("kardap-onboarding-notice");
+      const notice = JSON.parse(raw) as { message?: string; label?: string; href?: string };
+      if (notice.message) notify(notice.message, "error", notice.label && notice.href ? { label: notice.label, onAction: () => (window.location.href = notice.href!) } : undefined);
+    } catch {
+      /* sem sessionStorage ou JSON inválido: ignora */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => setDrawer(false), [path]);
   useDialog(sideRef, () => setDrawer(false), drawer);
   useRootPalette(brand.palette, brand.palette?.panel === true);
@@ -675,6 +693,21 @@ function Overview(props: DashboardProps) {
   const status = planStatus(usePlan(account));
   const entitlements = usePlanEntitlements(account);
   const usage = usePlanUsage(getRestaurantId(), entitlements);
+  // Escolheu um plano no cadastro, mas o teste grátis não chegou a ser ativado (instabilidade na conclusão).
+  const pendingTrial = Boolean(account.onboardingSelectedPlanId) && !account.subscription?.planId;
+  const [activatingTrial, setActivatingTrial] = useState(false);
+  const retryTrial = async () => {
+    if (!account.onboardingSelectedPlanId) return;
+    setActivatingTrial(true);
+    try {
+      await activateTrial(account.onboardingSelectedPlanId);
+      notify("Teste grátis ativado!");
+    } catch (err) {
+      notify(friendlyError(err, "Ainda não foi possível ativar o teste grátis. Tente de novo em instantes."), "error");
+    } finally {
+      setActivatingTrial(false);
+    }
+  };
   const ready = loaded.products && loaded.categories && loaded.tables;
   const steps = [
     { done: categories.length > 0, label: "Crie a primeira categoria", hint: "Entradas, pratos, bebidas…", href: "/dashboard/categorias" },
@@ -714,19 +747,34 @@ function Overview(props: DashboardProps) {
         }
       />
 
-      {status.urgent && (
+      {pendingTrial ? (
         <Callout
-          tone={status.state === "late" ? "danger" : "warn"}
+          tone="warn"
           icon={<CreditCard size={18} aria-hidden />}
-          title={status.title}
+          title={`Teste grátis do ${planLabel(account.onboardingSelectedPlanId)} pendente`}
           action={
-            <ButtonLink href="/dashboard/plano" size="sm" variant="secondary">
-              {status.state === "late" ? "Ver assinatura" : "Ver planos"}
-            </ButtonLink>
+            <Button size="sm" variant="secondary" loading={activatingTrial} onClick={retryTrial}>
+              {activatingTrial ? "Ativando…" : "Ativar agora"}
+            </Button>
           }
         >
-          {status.detail}.
+          Não conseguimos ativar seu teste grátis de 30 dias na conclusão do cadastro. Toque em “Ativar agora” para tentar de novo.
         </Callout>
+      ) : (
+        status.urgent && (
+          <Callout
+            tone={status.state === "late" ? "danger" : "warn"}
+            icon={<CreditCard size={18} aria-hidden />}
+            title={status.title}
+            action={
+              <ButtonLink href="/dashboard/plano" size="sm" variant="secondary">
+                {status.state === "late" ? "Ver assinatura" : "Ver planos"}
+              </ButtonLink>
+            }
+          >
+            {status.detail}.
+          </Callout>
+        )
       )}
 
       <PlanLimitWarning usage={usage} limit={entitlements.limits.maxNativeOrdersPerMonth} />

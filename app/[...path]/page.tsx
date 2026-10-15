@@ -14,7 +14,7 @@ import App from "@/components/app";
 type RouteMeta = { title: string; description?: string; index: boolean };
 const ROUTES: Record<string, RouteMeta> = {
   login: { title: "Entrar", description: "Acesse o painel do Kardap para gerenciar o cardápio digital, as mesas e os chamados do seu restaurante.", index: false },
-  "criar-conta": { title: "Criar conta", description: "Crie a conta do seu restaurante no Kardap e teste o cardápio digital com vídeo por 15 dias, sem cartão de crédito.", index: false },
+  "criar-conta": { title: "Criar conta", description: "Crie a conta do seu restaurante no Kardap, escolha um plano e teste o cardápio digital com vídeo por 30 dias, sem cartão de crédito.", index: false },
   onboarding: { title: "Configurar restaurante", index: false },
   dashboard: { title: "Painel", index: false },
   admin: { title: "Administração", index: false },
@@ -23,7 +23,7 @@ const ROUTES: Record<string, RouteMeta> = {
   planos: {
     title: "Planos e preços do cardápio digital",
     description:
-      "Compare os planos do KARDAP: Start por R$ 49,90/mês (cardápio em vídeo e até 8 mesas), Pro por R$ 129,90 (PDV e 150 pedidos próprios), Business por R$ 199,90 (500 pedidos) e Enterprise sob consulta. 15 dias grátis.",
+      "Compare os planos do KARDAP: Start por R$ 49,90/mês (cardápio em vídeo e até 8 mesas), Pro por R$ 129,90 (PDV e 150 pedidos próprios), Business por R$ 199,90 (500 pedidos) e Enterprise sob consulta. 30 dias grátis no plano escolhido.",
     index: true,
   },
   privacidade: { title: "Política de Privacidade", description: "Como o Kardap coleta, usa e protege os dados de restaurantes e dos clientes que acessam o cardápio digital.", index: true },

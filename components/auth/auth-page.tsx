@@ -387,7 +387,7 @@ export default function AuthPage({ register, onLogin }: { register: boolean; onL
               <h1 className="kd-h1">{isRegister ? "Criar sua conta" : destination ? `Entrar para abrir ${destination}` : "Entrar no painel"}</h1>
               <p className="kd-auth-sub">
                 {isRegister
-                  ? "15 dias para testar, sem cartão de crédito. Logo depois você configura o restaurante."
+                  ? "Escolha um plano e teste grátis por 30 dias, sem cartão de crédito."
                   : destination
                     ? "Use a mesma conta do painel KARDAP. Depois do login você volta automaticamente."
                     : "Mesas, chamados e cardápio do seu restaurante em um só lugar."}

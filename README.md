@@ -155,7 +155,7 @@ Fotos de produto, logo e capa são redimensionadas e convertidas para WebP no na
 
 ## Testes
 
-Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel, cardápio público em tempo real, imagens, regras e isolamento entre estabelecimentos; login único com o PDV; Reels; planos e limites) contra os emuladores do Firebase: [docs/TESTES.md](docs/TESTES.md).
+Worker de vídeo: `cd services/video-worker && npm test`. Ponta a ponta (painel, cardápio público em tempo real, imagens, regras e isolamento entre estabelecimentos; login único com o PDV; Reels; planos e limites; cadastro e teste grátis) contra os emuladores do Firebase: [docs/TESTES.md](docs/TESTES.md).
 
 ## SEO e indexação
 
@@ -173,6 +173,8 @@ O vídeo vai do painel direto para o Firebase Storage; um worker no Cloud Run (F
 
 Start (R$ 49,90), Pro (R$ 129,90), Business (R$ 199,90) e Enterprise (sob consulta), com cobrança mensal pela Cakto.
 
+- No cadastro, a pessoa escolhe qual plano quer testar e usa ele por 30 dias, sem cartão; o teste só começa depois que
+  a configuração inicial do restaurante é concluída com sucesso.
 - Limites (mesas, pedidos próprios por mês, PDV) e recursos são decididos no servidor, a partir de um catálogo único
   (`lib/billing/plans.ts`).
 - Pedidos de iFood e outros marketplaces nunca contam no limite.

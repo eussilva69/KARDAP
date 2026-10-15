@@ -2,18 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, ImagePlus, LoaderCircle } from "lucide-react";
-import { createInitialTables, ensureRestaurant, reserveMenuSlug, saveRestaurant } from "@/lib/restaurant-db";
+import { activateTrial, createInitialTables, ensureRestaurant, reserveMenuSlug, saveRestaurant } from "@/lib/restaurant-db";
 import { scheduleImageCleanup, uploadImage, type UploadStage } from "@/lib/storage";
 import { IMAGE_ACCEPT, IMAGE_HINT } from "@/lib/image-optimization";
 import { getFirebaseAuth } from "@/lib/auth";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { friendlyError, isQueued } from "@/lib/async";
-import { initial, plural } from "@/lib/format";
+import { initial, plural, brl } from "@/lib/format";
+import { PLAN_CATALOG, PLAN_ORDER, isSelfServiceTrialPlan, shortPlanName, type PlanId } from "@/lib/billing/plans";
 import { KardapLogo } from "@/components/brand/logo";
 import { Button, Callout, SelectField, TextField } from "@/components/ui/primitives";
 
-const STEPS = ["Seu estabelecimento", "Marca", "Avaliações", "Mesas", "Revisão"] as const;
+const STEPS = ["Seu plano", "Seu estabelecimento", "Marca", "Avaliações", "Mesas", "Revisão"] as const;
 const KINDS = ["Restaurante", "Hamburgueria", "Pizzaria", "Bar", "Cafeteria", "Lanchonete", "Delivery", "Outro"];
+/** Planos que dá para testar sozinho no cadastro; o Enterprise é por proposta comercial (/planos). */
+const PICKABLE_PLANS = PLAN_ORDER.filter((id) => !PLAN_CATALOG[id].salesOnly);
+const DEFAULT_PLAN: PlanId = isSelfServiceTrialPlan("pro") ? "pro" : PICKABLE_PLANS[0];
 
 const slugify = (value: string) =>
   value
@@ -24,9 +28,25 @@ const slugify = (value: string) =>
     .replace(/^-|-$/g, "")
     .slice(0, 54);
 
-/** Configuração inicial do restaurante: 5 etapas curtas, com rascunho guardado neste aparelho. */
+/** Guarda, para a primeira tela do painel, um aviso sobre algo que não deu certo na conclusão (não bloqueante). */
+function queueDashboardNotice(message: string, label?: string, href?: string) {
+  try {
+    sessionStorage.setItem("kardap-onboarding-notice", JSON.stringify({ message, label, href }));
+  } catch {
+    /* sem sessionStorage (modo privado): o aviso simplesmente não aparece, sem quebrar o fluxo */
+  }
+}
+
+/**
+ * Configuração inicial: escolha do plano para testar grátis por 30 dias + 5 etapas sobre o estabelecimento,
+ * com rascunho guardado neste aparelho (e, a partir da primeira etapa salva, também no documento do restaurante).
+ *
+ * O teste grátis só é ativado DEPOIS que a etapa final grava `onboarding.completed = true` com sucesso: se a
+ * pessoa sair no meio do caminho, ou se a conclusão falhar, nenhum teste é iniciado (docs/PLANOS.md).
+ */
 export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(1);
+  const [planId, setPlanId] = useState<PlanId>(DEFAULT_PLAN);
   const [name, setName] = useState("");
   const [kind, setKind] = useState("Restaurante");
   const [phone, setPhone] = useState("");
@@ -54,6 +74,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const suggestedSlug = slugify(name);
   const slug = menuSlug || suggestedSlug;
   const draftCookieName = `kardap-onboarding-draft-${typeof window === "undefined" ? "new" : localStorage.getItem("kardap-restaurant-owner") || "new"}`;
+  const totalSteps = STEPS.length;
 
   useEffect(() => {
     document.title = "Configurar restaurante · Kardap";
@@ -65,6 +86,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       try {
         const draft = JSON.parse(decodeURIComponent(value));
         setStep(Number(draft.step) || 1);
+        if (isSelfServiceTrialPlan(draft.planId)) setPlanId(draft.planId);
         setName(draft.name || "");
         setKind(draft.kind || "Restaurante");
         setPhone(draft.phone || "");
@@ -85,9 +107,9 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   useEffect(() => {
     if (!draftReady) return;
-    const draft = encodeURIComponent(JSON.stringify({ step, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount }));
+    const draft = encodeURIComponent(JSON.stringify({ step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount }));
     document.cookie = `${draftCookieName}=${draft}; Max-Age=${60 * 60 * 24 * 30}; Path=/; SameSite=Lax`;
-  }, [draftReady, draftCookieName, step, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount]);
+  }, [draftReady, draftCookieName, step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount]);
 
   const provision = () => {
     const user = isFirebaseConfigured ? getFirebaseAuth().currentUser : null;
@@ -102,15 +124,15 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   useEffect(provision, []);
 
   const validateStep = () => {
-    if (step === 1 && name.trim().length < 2) return "Informe o nome do estabelecimento.";
-    if (step === 3 && review.trim()) {
+    if (step === 2 && name.trim().length < 2) return "Informe o nome do estabelecimento.";
+    if (step === 4 && review.trim()) {
       try {
         if (!/^https?:$/.test(new URL(review.trim()).protocol)) throw new Error();
       } catch {
         return "Cole o link completo, começando com https://, ou pule esta etapa.";
       }
     }
-    if (step === 4 && (tableCount.trim() === "" || !Number.isInteger(Number(tableCount)) || Number(tableCount) < 0 || Number(tableCount) > 200))
+    if (step === 5 && (tableCount.trim() === "" || !Number.isInteger(Number(tableCount)) || Number(tableCount) < 0 || Number(tableCount) > 200))
       return "Informe de 0 a 200 mesas. Use 0 se você só atende por delivery.";
     return "";
   };
@@ -126,6 +148,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
     setError("");
     setStage("Salvando…");
     try {
+      const onboardingPayload = { completed: false, currentStep: nextStep, updatedAt: new Date().toISOString(), selectedPlanId: planId };
       const payload = {
         name: name.trim(),
         establishmentType: kind,
@@ -133,7 +156,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         businessEmail: email,
         brand: { logo, cover, logoSmall, coverSmall },
         setup: { tableCount: Number(tableCount) || 0 },
-        onboarding: { completed: false, currentStep: nextStep, updatedAt: new Date().toISOString() },
+        onboarding: onboardingPayload,
         ...(review.trim() && !skip ? { settings: { googleReviewUrl: review.trim() } } : {}),
       };
       try {
@@ -146,12 +169,38 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       if (completed) {
         setStage("Reservando o endereço do cardápio…");
         const reserved = await reserveMenuSlug(menuSlug || name.trim());
+
+        // Mesas e teste grátis não bloqueiam a conclusão: uma instabilidade momentânea aqui não pode impedir que
+        // o restaurante seja aberto. Quem falhar fica pendente, com um aviso claro e uma forma de resolver depois
+        // (Mesas e Meu plano, no painel) — o que importa de verdade (o restaurante existir e abrir) não depende disso.
         setStage("Criando as mesas…");
-        await createInitialTables(Number(tableCount) || 0);
+        let tablesFailed = false;
+        try {
+          await createInitialTables(Number(tableCount) || 0);
+        } catch {
+          tablesFailed = true;
+        }
+
         setStage("Finalizando…");
-        await saveRestaurant({ slug: reserved, onboarding: { ...payload.onboarding, completed: true, completedAt: new Date().toISOString() } });
+        await saveRestaurant({ slug: reserved, onboarding: { ...onboardingPayload, completed: true, completedAt: new Date().toISOString() } });
+
+        setStage("Ativando seu teste grátis…");
+        let trialFailed = false;
+        try {
+          await activateTrial(planId);
+        } catch {
+          trialFailed = true;
+        }
+
         localStorage.setItem("kardap-restaurant-slug", reserved);
         document.cookie = `${draftCookieName}=; Max-Age=0; Path=/; SameSite=Lax`;
+        if (tablesFailed && trialFailed) {
+          queueDashboardNotice("Seu cardápio foi criado! Não conseguimos criar as mesas iniciais nem ativar o teste grátis agora.", "Ver meu plano", "/dashboard/plano");
+        } else if (tablesFailed) {
+          queueDashboardNotice("Seu cardápio foi criado! Não conseguimos criar as mesas iniciais agora — crie-as quando quiser.", "Criar mesas", "/dashboard/mesas");
+        } else if (trialFailed) {
+          queueDashboardNotice(`Seu cardápio foi criado! O teste grátis do ${shortPlanName(planId)} ainda não foi ativado — tente de novo em Meu plano.`, "Ativar teste", "/dashboard/plano");
+        }
         onComplete();
         setStage("Abrindo o painel…");
         location.href = "/dashboard";
@@ -203,7 +252,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         : `Enviando imagem… ${uploadPct}%`
       : saving
         ? stage || "Salvando…"
-        : step === 5
+        : step === totalSteps
           ? "Concluir e abrir o painel"
           : "Continuar";
 
@@ -213,19 +262,72 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         <div className="kd-onb-bar-inner">
           <KardapLogo width={104} />
           <p className="kd-onb-count">
-            Etapa <b className="kd-num">{step}</b> de 5 · {STEPS[step - 1]}
+            Etapa <b className="kd-num">{step}</b> de {totalSteps} · {STEPS[step - 1]}
           </p>
         </div>
-        <div className="kd-onb-progress" role="progressbar" aria-label="Progresso da configuração" aria-valuemin={1} aria-valuemax={5} aria-valuenow={step}>
-          <i style={{ width: `${step * 20}%` }} />
+        <div className="kd-onb-progress" role="progressbar" aria-label="Progresso da configuração" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={step}>
+          <i style={{ width: `${(step / totalSteps) * 100}%` }} />
         </div>
       </header>
 
-      <main className="kd-onb-main">
+      <main className={`kd-onb-main ${step === 1 ? "is-wide" : ""}`}>
         <div key={step} className="kd-onb-step k-enter">
           {step === 1 && (
             <>
               <p className="kd-overline">Bem-vindo ao Kardap</p>
+              <h1 className="kd-h1">Qual plano você quer testar?</h1>
+              <p className="kd-lead">30 dias grátis, sem cartão de crédito. Dá para mudar de plano quando quiser, no painel.</p>
+              <div className="kd-onb-plans" role="radiogroup" aria-label="Escolha o plano para testar grátis">
+                {PICKABLE_PLANS.map((id) => {
+                  const plan = PLAN_CATALOG[id];
+                  const selected = planId === id;
+                  return (
+                    <button
+                      type="button"
+                      key={id}
+                      className={`kd-onb-plan ${selected ? "is-selected" : ""} ${plan.popular ? "is-popular" : ""}`}
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setPlanId(id)}
+                      data-autofocus={id === DEFAULT_PLAN || undefined}
+                    >
+                      {plan.popular && <span className="kd-onb-plan-ribbon">Mais popular</span>}
+                      <span className="kd-onb-plan-name">{shortPlanName(id)}</span>
+                      <span className="kd-onb-plan-price kd-num">
+                        <b>{brl(plan.priceInCents || 0)}</b>
+                        <small>por mês, após o teste</small>
+                      </span>
+                      <ul className="kd-onb-plan-features">
+                        {plan.highlights.slice(0, 4).map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                      <span className="kd-onb-plan-pick">
+                        {selected ? (
+                          <>
+                            <Check size={15} strokeWidth={2.8} aria-hidden /> Selecionado
+                          </>
+                        ) : (
+                          "Testar grátis por 30 dias"
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="kd-onb-plan-note">
+                Rede com várias unidades ou volume maior de pedidos?{" "}
+                <a href="/planos" target="_blank" rel="noopener noreferrer">
+                  Veja o Enterprise
+                </a>
+                , sob consulta.
+              </p>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <p className="kd-overline">{shortPlanName(planId)} · 30 dias grátis</p>
               <h1 className="kd-h1">Como se chama o seu estabelecimento?</h1>
               <p className="kd-lead">O nome aparece no topo do cardápio. O resto você pode completar depois no painel.</p>
               <div className="kd-form">
@@ -277,7 +379,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             </>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <>
               <p className="kd-overline">Marca</p>
               <h1 className="kd-h1">Deixe o cardápio com a cara da casa</h1>
@@ -305,7 +407,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             </>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <>
               <p className="kd-overline">Avaliações</p>
               <h1 className="kd-h1">Quer receber avaliações no Google?</h1>
@@ -333,7 +435,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             </>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <>
               <p className="kd-overline">O salão</p>
               <h1 className="kd-h1">Quantas mesas o salão tem?</h1>
@@ -358,12 +460,18 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             </>
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <>
               <p className="kd-overline">Revisão</p>
               <h1 className="kd-h1">Tudo pronto para publicar</h1>
-              <p className="kd-lead">Confira o resumo. Ao concluir, reservamos o endereço do cardápio e criamos as mesas com QR Code.</p>
+              <p className="kd-lead">Confira o resumo. Ao concluir, reservamos o endereço do cardápio, criamos as mesas com QR Code e ativamos seu teste grátis de 30 dias.</p>
               <dl className="kd-onb-summary">
+                <div>
+                  <dt>Plano em teste</dt>
+                  <dd>
+                    {shortPlanName(planId)} · 30 dias grátis · depois {brl(PLAN_CATALOG[planId].priceInCents || 0)}/mês
+                  </dd>
+                </div>
                 <div>
                   <dt>Estabelecimento</dt>
                   <dd>
@@ -422,17 +530,17 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
             <span />
           )}
           <div className="kd-onb-actions-main">
-            {(step === 2 || step === 3) && (
+            {(step === 3 || step === 4) && (
               <Button variant="link" onClick={() => saveStep(step + 1, false, true)} disabled={busy}>
                 Pular por agora
               </Button>
             )}
             <Button
               size="lg"
-              onClick={() => saveStep(Math.min(5, step + 1), step === 5)}
+              onClick={() => saveStep(Math.min(totalSteps, step + 1), step === totalSteps)}
               loading={busy}
               disabled={Boolean(provisionError)}
-              iconEnd={step === 5 ? <Check size={18} aria-hidden /> : <ArrowRight size={18} aria-hidden />}
+              iconEnd={step === totalSteps ? <Check size={18} aria-hidden /> : <ArrowRight size={18} aria-hidden />}
             >
               {primaryLabel}
             </Button>

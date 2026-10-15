@@ -49,7 +49,7 @@ service cloud.firestore {
     // Campos que o painel do restaurante não pode alterar.
     function touchesProtectedFields() {
       return request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['ownerId', 'subscription', 'status', 'suspendedAt', 'suspendedReason']);
+        .hasAny(['ownerId', 'subscription', 'trialActivatedAt', 'trialPlanId', 'status', 'suspendedAt', 'suspendedReason']);
     }
 
     // ───── Administração do sistema ─────

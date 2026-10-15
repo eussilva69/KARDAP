@@ -162,3 +162,31 @@ Requisitos: emuladores rodando. Leva cerca de 4 minutos. Detalhes em [PLANOS.md]
 | AD1–AD3 | Administração só para administradores, com motivo obrigatório e `adminLog` com antes e depois; reconciliação aponta e corrige; proposta Enterprise registrada e robô ignorado |
 | R1–R2 | Regras: dono não altera plano, contador nem origem, e não confirma rascunho direto; um estabelecimento não lê o consumo nem os pedidos de outro |
 | U1–U4 | Preços (4 planos, Business "Mais popular", Enterprise "Sob consulta", contato com vendas, celular sem rolagem lateral); Start com "Acessar PDV" travado e "Desbloqueie o PDV do KARDAP"; "Mesas utilizadas: 8 de 8"; Meu plano em 150/150 com aviso de 100%, renovação da franquia, PDV liberado e botões por plano |
+
+## Cadastro, escolha de plano e teste grátis de 30 dias
+
+`scripts/e2e-onboarding.mjs` (`npm run test:onboarding`) cobre o cadastro ponta a ponta: criar conta, escolher o plano
+na primeira etapa do onboarding, preencher o restante e concluir, com o teste de 30 dias ativado no plano escolhido.
+Também cobre resiliência (rede instável, clique duplo), controle de acesso pelo plano durante o teste, expiração e
+tentativas de obter um segundo teste. Requisitos: emuladores rodando. Leva cerca de 3 minutos. Detalhes do fluxo em
+[PLANOS.md](PLANOS.md), seção "Cadastro e teste grátis".
+
+```bash
+BROWSER_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" node scripts/e2e-onboarding.mjs ./onboarding-capturas
+```
+
+| Cenário | O que verifica |
+| --- | --- |
+| U1 | A primeira etapa mostra os 3 planos reais (Start, Pro, Business), com preço do catálogo, o Business com "Mais popular" e o Pro pré-selecionado |
+| U2 | Escolher o Business, preencher as demais etapas e concluir: restaurante criado, `subscription` com `planId: "business"`, `status: "trialing"` e prazo de ~30 dias, mesas criadas, evento `trial_activated` registrado |
+| U3 | Abandonar no meio (depois de escolher o plano e preencher o nome) e voltar: retoma na etapa salva com os dados preenchidos, sem criar um segundo restaurante |
+| U4 | Nome do estabelecimento vazio e quantidade de mesas fora de 0–200 são barrados na tela, com mensagem clara, sem avançar |
+| U5 | Rede fica offline por alguns segundos bem no momento de concluir: a nova tentativa automática supera a instabilidade e o cadastro é concluído mesmo assim |
+| U6 | Clicar 5 vezes seguidas em "Concluir" cria só as mesas pedidas (uma vez) e ativa o teste uma única vez |
+| U7 | Quem escolheu o Start não acessa o PDV durante o teste — travado na tela (cadeado) e no servidor (`pdvAccess: false`, pedido próprio recusado) |
+| U8 | Durante o teste, a barra lateral e Meu Plano mostram o nome real do plano escolhido (não "Pro" fixo) e os dias restantes |
+| U9 | Teste expirado: `entitlements.valid === false`, `reason: "trial_ended"`, PDV bloqueado, acesso cai para o básico — mas mesas e dados continuam intactos |
+| U10 | Depois de expirado, o checkout para contratar o plano continua disponível |
+| U11 | Login de quem já tem conta e já concluiu o onboarding vai direto ao painel, sem passar pela escolha de plano de novo |
+| U12 | A mesma conta não consegue outro teste: `POST /api/restaurants` de novo devolve o mesmo estabelecimento; ativar o teste de novo no mesmo estabelecimento é idempotente (não estende nem troca o plano); um estabelecimento novo criado manualmente para o mesmo uid é recusado (`409 trial_already_used`); outra pessoa, em outro estabelecimento, consegue o próprio teste normalmente |
+| U13 | Nenhum erro de JavaScript acumulado nas telas visitadas |

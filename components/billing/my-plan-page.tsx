@@ -5,7 +5,7 @@ import { ArrowRight, CalendarClock, CalendarDays, Check, CreditCard, Minus, QrCo
 import { friendlyError } from "@/lib/async";
 import { getRestaurantId } from "@/lib/restaurant-db";
 import { brl, plural } from "@/lib/format";
-import { PLAN_CATALOG, PLAN_ORDER, TRIAL_DAYS, planRank, shortPlanName, toDate, type FeatureKey, type PlanId } from "@/lib/billing/plans";
+import { PLAN_CATALOG, PLAN_ORDER, planRank, shortPlanName, toDate, type FeatureKey, type PlanId } from "@/lib/billing/plans";
 import type { PaymentRecord, RestaurantSubscription } from "@/lib/cakto/types";
 import { CurrentPlanBadge, PlanCard, PlanComparison } from "@/components/plans/plan-cards";
 import { Badge, Button, Callout, Card, CardHead, ConfirmDialog, EmptyState, Modal, PageHeader, RadioCard, Skeleton, type BadgeTone } from "@/components/ui";
@@ -203,7 +203,7 @@ export function MyPlanPage({ notify, account, tablesUsed }: { notify: Notify; ac
       const days = entitlements.trialEndsAt ? Math.max(0, Math.ceil((Date.parse(entitlements.trialEndsAt) - Date.now()) / DAY)) : null;
       return entitlements.valid
         ? `Teste grátis do ${shortPlanName(entitlements.planId)} até ${longDate(entitlements.trialEndsAt)}${days !== null ? ` (${days === 0 ? "termina hoje" : `faltam ${plural(days, "dia", "dias")}`})` : ""}.`
-        : `O teste de ${TRIAL_DAYS} dias terminou em ${longDate(entitlements.trialEndsAt)}. Escolha um plano para continuar.`;
+        : `O teste do ${shortPlanName(entitlements.planId)} terminou em ${longDate(entitlements.trialEndsAt)}. Escolha um plano para continuar.`;
     }
     if (entitlements.reason === "suspended") return "Estabelecimento suspenso pela administração do KARDAP. Fale com o suporte.";
     if (entitlements.status === "past_due") return entitlements.valid ? `A última cobrança não foi aprovada. Regularize até ${longDate(entitlements.accessUntil)} para não perder recursos.` : "O pagamento está pendente e a carência terminou. Regularize para voltar a usar os recursos do plano.";

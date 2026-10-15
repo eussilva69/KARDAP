@@ -160,11 +160,11 @@ Dados exigidos por obrigações legais, fiscais ou regulatórias serão mantidos
       title: "Termos de Uso da Plataforma",
       subtitle:
         "Condições jurídicas, direitos e obrigações para a utilização da solução de cardápio digital Kardap por estabelecimentos comerciais.",
-      updated: "Versão 1.2 · Atualizada em 09 de outubro de 2026",
+      updated: "Versão 1.3 · Atualizada em 14 de outubro de 2026",
       summary: [
         {
-          title: "15 Dias de Teste Grátis",
-          desc: "Experimente a plataforma sem cartão de crédito e sem compromisso inicial.",
+          title: "30 Dias de Teste Grátis",
+          desc: "Escolha um plano no cadastro e experimente sem cartão de crédito e sem compromisso inicial.",
         },
         {
           title: "Sem Fidelidade Forçada",
@@ -208,10 +208,11 @@ Estes termos constituem um contrato vinculante entre o Usuário e a plataforma K
         {
           id: "planos-teste",
           num: "04",
-          heading: "4. Período de Teste Grátis (15 Dias) e Assinaturas",
-          body: `• **Período de Teste Gratuito (Trial)**: Novos usuários têm direito a 15 (quinze) dias de teste gratuito com acesso total às funcionalidades da plataforma. **Não é necessário cadastrar cartão de crédito para iniciar o teste.**
-• **Planos de Assinatura**: Após o término do trial, para continuar utilizando o Serviço, o Usuário deverá optar por um dos planos disponíveis (Start, Pro, Business ou Enterprise), conforme descritos na página de planos.
-• **Faturamento Recorrente**: As assinaturas são renovadas automaticamente no período contratado (mensal ou anual).
+          heading: "4. Período de Teste Grátis (30 Dias) e Assinaturas",
+          body: `• **Escolha do Plano**: No cadastro, o Usuário escolhe qual plano (Start, Pro ou Business) deseja experimentar. O teste é ativado somente após a conclusão da configuração inicial do estabelecimento.
+• **Período de Teste Gratuito (Trial)**: Novos estabelecimentos têm direito a 30 (trinta) dias de teste gratuito com os recursos e limites do plano escolhido. **Não é necessário cadastrar cartão de crédito para iniciar o teste.** Cada estabelecimento tem direito a um único período de teste.
+• **Planos de Assinatura**: Após o término do trial, para continuar utilizando o Serviço, o Usuário deverá contratar um dos planos disponíveis (Start, Pro, Business ou Enterprise, este sob consulta comercial), conforme descritos na página de planos.
+• **Faturamento Recorrente**: As assinaturas são renovadas automaticamente a cada mês.
 • **Política de Cancelamento**: O cancelamento pode ser feito a qualquer momento diretamente pelo painel. O acesso ao sistema continuará disponível até o último dia do ciclo já pago, sem cobrança de taxas adicionais ou multas rescisórias.`,
         },
         {

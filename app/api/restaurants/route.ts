@@ -19,6 +19,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Nome do restaurante inválido" }, { status: 400 });
     }
     const db = adminDb();
+    // Idempotente: uma conta tem um único restaurante. Reenviar a mesma requisição (duplo clique, nova tentativa
+    // depois de uma resposta perdida) ou um pedido repetido não cria um segundo — e ninguém reabre o teste grátis
+    // criando outro estabelecimento na mesma conta.
+    const owned = await db.collection("restaurantes").where("ownerId", "==", decoded.uid).limit(1).get();
+    if (!owned.empty) return NextResponse.json({ restaurantId: owned.docs[0].id }, { status: 200 });
     const restaurant = db.collection("restaurantes").doc();
     const now = FieldValue.serverTimestamp();
     await db.runTransaction(async (tx) => {

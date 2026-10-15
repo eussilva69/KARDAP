@@ -1,4 +1,4 @@
-import { TRIAL_DAYS } from "@/lib/billing/plans";
+import { SELF_SERVICE_TRIAL_DAYS } from "@/lib/billing/plans";
 
 /**
  * Dúvidas frequentes da página de planos, respondidas com o que está nos Termos de Uso e no fluxo de assinatura.
@@ -7,7 +7,7 @@ import { TRIAL_DAYS } from "@/lib/billing/plans";
 export const PLANS_FAQ = [
   {
     q: "Como funciona o teste grátis?",
-    a: `Ao criar a conta, o restaurante usa o plano Pro por ${TRIAL_DAYS} dias, sem cartão de crédito. Depois você escolhe o plano no painel, em Meu plano.`,
+    a: `No cadastro, você escolhe o plano que quer testar (Start, Pro ou Business) e usa ele por ${SELF_SERVICE_TRIAL_DAYS} dias, sem cartão de crédito. Dá para trocar de plano quando quiser, em Meu plano.`,
   },
   {
     q: "O que conta como pedido próprio?",

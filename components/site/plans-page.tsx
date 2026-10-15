@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { PLAN_CATALOG, PLAN_ORDER, TRIAL_DAYS, planRank, type Entitlements, type PlanId } from "@/lib/billing/plans";
+import { PLAN_CATALOG, PLAN_ORDER, SELF_SERVICE_TRIAL_DAYS, planRank, type Entitlements, type PlanId } from "@/lib/billing/plans";
 import { PlanCard, PlanComparison } from "@/components/plans/plan-cards";
 import { EnterpriseContact, MY_PLAN_PATH } from "@/components/billing/widgets";
 import { PLANS_FAQ } from "@/lib/plans-faq";
@@ -94,7 +94,7 @@ export default function PlansPage({ session }: { session: boolean }) {
               </Link>
             ) : (
               <Link href="/criar-conta" className="kd-btn kd-btn--primary kd-btn--lg">
-                <span>Começar {TRIAL_DAYS} dias grátis</span>
+                <span>Começar {SELF_SERVICE_TRIAL_DAYS} dias grátis</span>
                 <ArrowRight size={18} aria-hidden />
               </Link>
             )}
@@ -113,7 +113,7 @@ export default function PlansPage({ session }: { session: boolean }) {
           </div>
           <p className="kd-plans-note">
             Valores mensais. Pedidos próprios são os criados no KARDAP (PDV, mesa, delivery, retirada e equipe); cada pedido confirmado conta uma vez. A
-            franquia renova no dia 1º de cada mês.{!session && ` Toda conta nova começa com ${TRIAL_DAYS} dias grátis do Pro.`}
+            franquia renova no dia 1º de cada mês.{!session && ` Toda conta nova escolhe um plano e testa grátis por ${SELF_SERVICE_TRIAL_DAYS} dias.`}
           </p>
         </section>
 

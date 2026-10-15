@@ -84,7 +84,7 @@ async function signOutHere() {
 
 type PublicRestaurant = { id: string; name: string; brand: Brand; settings: RestaurantSettings; billAllowed: boolean; suspended: boolean };
 const emptyPublicRestaurant: PublicRestaurant = { id: "", name: "", brand: defaultBrand, settings: defaultSettings, billAllowed: false, suspended: false };
-const emptyAccount: AccountInfo = { subscription: null, createdAt: null, suspended: false, suspendedReason: "" };
+const emptyAccount: AccountInfo = { subscription: null, createdAt: null, suspended: false, suspendedReason: "", onboardingSelectedPlanId: null };
 
 export default function App() {
   const path = usePathname();
@@ -316,11 +316,13 @@ export default function App() {
             lastRemoteState.current.tables = JSON.stringify(data.tables);
             setTables(data.tables as string[]);
           }
+          const onboardingData = data.onboarding as { selectedPlanId?: string } | undefined;
           setAccount({
             subscription: (data.subscription as AccountInfo["subscription"]) || null,
             createdAt: data.createdAt ?? null,
             suspended: data.status === "suspended",
             suspendedReason: typeof data.suspendedReason === "string" ? data.suspendedReason : "",
+            onboardingSelectedPlanId: typeof onboardingData?.selectedPlanId === "string" ? onboardingData.selectedPlanId : null,
           });
         }
         setRestaurantLoaded(true);

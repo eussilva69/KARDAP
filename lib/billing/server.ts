@@ -11,9 +11,14 @@ import { createHash, randomUUID } from "node:crypto";
 import { FieldValue, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import {
+  CATALOG_VERSION,
+  PLAN_CATALOG,
   isExternalSource,
   isNativeSource,
+  isPlanId,
+  isSelfServiceTrialPlan,
   orderQuota,
+  SELF_SERVICE_TRIAL_DAYS,
   resolveEntitlements,
   roleAllows,
   shortPlanName,
@@ -23,6 +28,7 @@ import {
   type FeatureKey,
   type MemberAccess,
   type NativeOrderSource,
+  type PlanId,
   type StoredSubscription,
 } from "./plans";
 
@@ -397,6 +403,73 @@ function withoutCard(subscription: StoredSubscription): StoredSubscription {
   delete copy.cardBrand;
   delete copy.cardLastDigits;
   return copy;
+}
+
+// ───────────────────────── Teste grátis de 30 dias (escolha de plano no cadastro) ─────────────────────────
+
+export type TrialResult = { activated: boolean; planId: PlanId; trialEndsAt: string };
+
+/**
+ * Ativa o teste grátis de 30 dias do plano escolhido no cadastro, só depois que o onboarding termina com sucesso
+ * (quem chama decide isso: esta função não sabe se o onboarding acabou, só grava a assinatura).
+ *
+ * Elegibilidade e segurança, tudo conferido aqui dentro da mesma transação:
+ *  - só o dono do estabelecimento aciona;
+ *  - cada estabelecimento tem direito a um teste só (marcado em `trialActivatedAt`, que nunca é apagado, mesmo
+ *    depois que a assinatura muda de plano, vence ou é cancelada — por isso não basta olhar `subscription`);
+ *  - cada CONTA (uid) também tem direito a um teste só, mesmo criando outro estabelecimento (`usuarios/{uid}`);
+ *  - idempotente: chamar de novo para o mesmo estabelecimento não estende nem reinicia o prazo, só confirma o que
+ *    já está valendo (protege contra duplo clique e contra a mesma chamada repetida depois de uma falha de rede);
+ *  - a data de início e término são calculadas aqui, no servidor; o navegador nunca manda uma data.
+ */
+export async function activateSelfServiceTrial(restaurantId: string, uid: string, planId: unknown): Promise<TrialResult> {
+  if (!isSelfServiceTrialPlan(planId)) throw new BillingError("invalid_plan", 400, "Escolha um dos planos para testar (o Enterprise é por proposta comercial).");
+  const db = adminDb();
+  const ref = restaurantRef(db, restaurantId);
+  const userRef = db.collection("usuarios").doc(uid);
+
+  return db.runTransaction(async (tx) => {
+    const [restaurant, userDoc] = await Promise.all([tx.get(ref), tx.get(userRef)]);
+    if (!restaurant.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
+    if (restaurant.get("ownerId") !== uid) throw new BillingError("forbidden", 403, "Só o responsável pelo estabelecimento pode ativar o teste grátis.");
+
+    const alreadyOnThisRestaurant = restaurant.get("trialActivatedAt");
+    const existing = restaurant.get("subscription") as StoredSubscription | undefined;
+    if (alreadyOnThisRestaurant || existing?.planId) {
+      // Idempotente: já tem (ou já teve) uma assinatura. Não é erro — é o retorno normal de um duplo clique ou
+      // de uma repetição depois de a resposta anterior não ter chegado ao navegador.
+      const current = existing?.status === "trialing" && isPlanId(existing.planId) ? existing.planId : planId;
+      return { activated: false, planId: current, trialEndsAt: typeof existing?.trialEndsAt === "string" ? existing.trialEndsAt : new Date().toISOString() };
+    }
+    if (userDoc.exists && userDoc.get("trialActivatedAt")) {
+      throw new BillingError("trial_already_used", 409, "Esta conta já utilizou o teste grátis em outro estabelecimento.");
+    }
+
+    const at = new Date().toISOString();
+    const trialEndsAt = new Date(Date.now() + SELF_SERVICE_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const subscription: StoredSubscription = {
+      planId,
+      planName: shortPlanName(planId),
+      planVersion: CATALOG_VERSION,
+      status: "trialing",
+      cycle: "monthly",
+      priceCents: PLAN_CATALOG[planId].priceInCents ?? 0,
+      trialEndsAt,
+      createdAt: at,
+      updatedAt: at,
+    };
+    tx.update(ref, { subscription, trialActivatedAt: at, trialPlanId: planId, updatedAt: at });
+    tx.set(ref.collection("eventosAssinatura").doc(`trial-${at}`), {
+      type: "trial_activated",
+      before: null,
+      after: subscription,
+      actor: { kind: "owner", uid, email: null },
+      reason: `Teste grátis de ${SELF_SERVICE_TRIAL_DAYS} dias ativado no cadastro (plano ${planId})`,
+      at,
+    });
+    tx.set(userRef, { trialActivatedAt: at, trialRestaurantId: restaurantId }, { merge: true });
+    return { activated: true, planId, trialEndsAt };
+  });
 }
 
 /** Falha que precisa de atenção da administração (ex.: assinatura antiga que não foi cancelada no gateway). */

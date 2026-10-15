@@ -70,7 +70,7 @@ const footer = `<footer id="footer" class="kf">
   <div class="kf-wrap">
     <section class="kf-cta" aria-labelledby="kf-cta-title">
       <div class="kf-cta-copy">
-        <p class="kf-cta-kicker">15 dias grátis do plano Pro</p>
+        <p class="kf-cta-kicker">30 dias grátis, escolha o plano</p>
         <h2 class="kf-cta-title" id="kf-cta-title">Seu cardápio na mesa ainda hoje</h2>
         <p class="kf-cta-text">Cadastre os pratos com fotos e vídeos, imprima um QR Code por mesa e receba os chamados do salão em tempo real.</p>
         <div class="kf-cta-actions">

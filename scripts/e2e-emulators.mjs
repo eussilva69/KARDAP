@@ -191,11 +191,14 @@ async function signupAndOnboard(page, { name, email, password, restaurant, logo,
   await page.evaluate(`(() => { const box = [...document.querySelectorAll("input[type=checkbox]")].find(c => c.closest("label")?.textContent.includes("Termos")); if (box && !box.checked) box.click(); return !!box; })()`);
   await page.evaluate(`document.querySelector("form button[type=submit]").click()`);
   await page.waitFor(`location.pathname === "/onboarding" && !!document.querySelector(".kd-onb, .kd-onb-card, form, main")`, 45000, "onboarding");
-  await page.waitFor(`[...document.querySelectorAll("label")].some(l => l.textContent.includes("Nome do estabelecimento"))`, 45000, "etapa 1");
+  // Etapa 1: escolha do plano a testar grátis por 30 dias (docs/PLANOS.md). O Pro já vem pré-selecionado.
+  await page.waitFor(`document.querySelectorAll(".kd-onb-plan").length === 3`, 45000, "etapa 1 (escolha de plano)");
+  await page.click("Continuar");
+  await page.waitFor(`[...document.querySelectorAll("label")].some(l => l.textContent.includes("Nome do estabelecimento"))`, 45000, "etapa 2");
   await page.fill("Nome do estabelecimento", restaurant);
   await sleep(400);
   await page.click("Continuar");
-  await page.waitFor(`document.querySelectorAll(".kd-onb-upload input[type=file]").length === 2`, 30000, "etapa 2 (marca)");
+  await page.waitFor(`document.querySelectorAll(".kd-onb-upload input[type=file]").length === 2`, 30000, "etapa 3 (marca)");
   if (logo) {
     await page.files(".kd-onb-upload input[type=file]", [logo]);
     await page.waitFor(`document.querySelector(".kd-onb-upload b")?.textContent.includes("Trocar logo")`, 60000, "logo enviada no onboarding");
@@ -208,13 +211,13 @@ async function signupAndOnboard(page, { name, email, password, restaurant, logo,
     await page.waitFor(`[...document.querySelectorAll(".kd-onb-upload b")].some(b => b.textContent.includes("Trocar foto de capa"))`, 60000, "capa enviada no onboarding");
   }
   await page.click("Continuar");
-  await page.waitFor(`[...document.querySelectorAll("label")].some(l => l.textContent.includes("Link de avaliação"))`, 30000, "etapa 3");
+  await page.waitFor(`[...document.querySelectorAll("label")].some(l => l.textContent.includes("Link de avaliação"))`, 30000, "etapa 4");
   await page.click("Continuar");
-  await page.waitFor(`[...document.querySelectorAll("label")].some(l => l.textContent.includes("Quantidade de mesas"))`, 30000, "etapa 4");
+  await page.waitFor(`[...document.querySelectorAll("label")].some(l => l.textContent.includes("Quantidade de mesas"))`, 30000, "etapa 5");
   await page.fill("Quantidade de mesas", "2");
   await sleep(300);
   await page.click("Continuar");
-  await page.waitFor(`[...document.querySelectorAll("button")].some(b => b.textContent.includes("Concluir e abrir o painel"))`, 30000, "etapa 5");
+  await page.waitFor(`[...document.querySelectorAll("button")].some(b => b.textContent.includes("Concluir e abrir o painel"))`, 30000, "etapa 6");
   await page.click("Concluir e abrir o painel");
   await page.waitFor(`location.pathname.startsWith("/dashboard") && !!document.querySelector(".kd-side, .kd-main")`, 60000, "painel");
 }

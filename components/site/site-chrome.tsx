@@ -115,7 +115,7 @@ export function SiteFooter({ cta = false }: { cta?: boolean }) {
         {cta && (
           <section className="kf-cta" aria-labelledby="kf-cta-title">
             <div className="kf-cta-copy">
-              <p className="kf-cta-kicker">15 dias grátis do plano Pro</p>
+              <p className="kf-cta-kicker">30 dias grátis, escolha o plano</p>
               <h2 className="kf-cta-title" id="kf-cta-title">
                 Seu cardápio na mesa ainda hoje
               </h2>

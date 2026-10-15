@@ -194,8 +194,67 @@
 .kd-onb-progress { height: 3px; background: var(--k-sunken); }
 .kd-onb-progress i { display: block; height: 100%; background: var(--k-ink); transition: width var(--k-dur-4) var(--k-ease-out); }
 
-.kd-onb-main { width: 100%; max-width: 600px; margin: 0 auto; padding: var(--k-s8) var(--k-s4) var(--k-s9); }
+.kd-onb-main { width: 100%; max-width: 600px; margin: 0 auto; padding: var(--k-s8) var(--k-s4) var(--k-s9); transition: max-width var(--k-dur-3) var(--k-ease-out); }
+.kd-onb-main.is-wide { max-width: 920px; }
 .kd-onb-step { display: grid; gap: var(--k-s3); }
+
+/* Etapa "Seu plano": três planos lado a lado, com o teste grátis de 30 dias. */
+.kd-onb-plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--k-s4); margin-top: var(--k-s5); }
+.kd-onb-plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s3);
+  padding: var(--k-s5);
+  border: 2px solid var(--k-line);
+  border-radius: var(--k-r-md);
+  background: var(--k-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--k-dur-2) var(--k-ease-out), box-shadow var(--k-dur-2) var(--k-ease-out);
+}
+.kd-onb-plan:hover { border-color: var(--k-control-line); }
+.kd-onb-plan.is-popular { border-color: var(--k-cloche-line); }
+.kd-onb-plan.is-selected { border-color: var(--k-ink); box-shadow: 0 0 0 1px var(--k-ink); }
+.kd-onb-plan.is-popular.is-selected { box-shadow: 0 0 0 1px var(--k-ink), 0 0 0 4px var(--k-cloche-soft); }
+.kd-onb-plan-ribbon {
+  position: absolute;
+  top: -11px;
+  left: var(--k-s4);
+  padding: 2px 10px;
+  border-radius: var(--k-r-pill);
+  background: var(--k-cloche);
+  color: var(--k-on-cloche);
+  font-size: var(--k-fs-xs);
+  font-weight: 750;
+}
+.kd-onb-plan-name { font-size: var(--k-fs-lg); font-weight: 750; font-stretch: var(--k-stretch-semi); }
+.kd-onb-plan-price { display: flex; align-items: baseline; gap: 6px; }
+.kd-onb-plan-price b { font-size: 1.5rem; font-weight: 800; font-stretch: var(--k-stretch-semi); }
+.kd-onb-plan-price small { color: var(--k-muted); font-size: var(--k-fs-xs); }
+.kd-onb-plan-features { flex: 1; display: grid; align-content: start; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.kd-onb-plan-features li { position: relative; padding-left: 16px; font-size: var(--k-fs-sm); color: var(--k-text-2); line-height: 1.4; }
+.kd-onb-plan-features li::before { content: ""; position: absolute; left: 2px; top: 0.55em; width: 5px; height: 5px; border-radius: 2px; background: var(--k-ink); }
+.kd-onb-plan-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid var(--k-line-strong);
+  border-radius: var(--k-r-md);
+  font-size: var(--k-fs-sm);
+  font-weight: 700;
+  color: var(--k-muted);
+}
+.kd-onb-plan.is-selected .kd-onb-plan-pick { background: var(--k-ink); color: var(--k-on-ink); border-color: var(--k-ink); }
+.kd-onb-plan-note { margin: var(--k-s4) 0 0; font-size: var(--k-fs-sm); color: var(--k-muted); }
+.kd-onb-plan-note a { color: var(--k-ink); font-weight: 650; }
+@media (max-width: 767px) {
+  .kd-onb-plans { grid-template-columns: 1fr; }
+}
 .kd-onb-step > .kd-form { margin-top: var(--k-s4); }
 .kd-onb-group { display: grid; gap: var(--k-s3); margin: 0; padding: 0; border: 0; min-width: 0; }
 .kd-onb-group legend { margin-bottom: var(--k-s2); padding: 0; font-size: var(--k-fs-sm); font-weight: 650; color: var(--k-ink); }

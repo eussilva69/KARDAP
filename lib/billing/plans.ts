@@ -191,6 +191,12 @@ export const isPlanId = (value: unknown): value is PlanId => typeof value === "s
 export const planRank = (id: PlanId) => PLAN_ORDER.indexOf(id);
 export const shortPlanName = (id: PlanId | string | null | undefined) => (isPlanId(id) ? PLAN_CATALOG[id].name.replace("KARDAP ", "") : "Sem plano");
 
+/** Planos que uma pessoa escolhe sozinha para testar grátis no cadastro; o Enterprise é só por proposta comercial. */
+export const SELF_SERVICE_TRIAL_PLANS: PlanId[] = PLAN_ORDER.filter((id) => !PLAN_CATALOG[id].salesOnly);
+export const isSelfServiceTrialPlan = (value: unknown): value is PlanId => isPlanId(value) && SELF_SERVICE_TRIAL_PLANS.indexOf(value) >= 0;
+/** Dias do teste grátis de quem escolhe o plano no cadastro (lib/billing/server.ts, activateSelfServiceTrial). */
+export const SELF_SERVICE_TRIAL_DAYS = 30;
+
 /**
  * Planos do catálogo anterior. O Essencial (até 30 mesas) vira Start, mantendo as 30 mesas contratadas;
  * o Pro antigo vira o Pro atual (ganha o PDV). O preço pago continua o que está gravado na assinatura.

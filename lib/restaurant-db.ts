@@ -164,26 +164,68 @@ export function watchPublicTable(
   );
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * POST autenticado numa API de planos (lib/billing), com nova tentativa automática: uma falta de rede ou uma
+ * resposta que não chegou a tempo (comum logo depois do cadastro, com a função ainda "fria" no servidor) tenta de
+ * novo sozinha, até duas vezes; um erro do próprio servidor (limite do plano, sessão expirada, dado inválido) não
+ * é repetido, porque repetir não muda o resultado. Lança um erro com `.code` (o campo `error` da resposta).
+ */
+async function postBillingApi<T>(path: string, body: unknown, fallbackMessage: string, attempt = 1): Promise<T> {
+  const { getFirebaseAuth } = await import("./auth");
+  const token = await getFirebaseAuth().currentUser?.getIdToken();
+  if (!token) throw new Error("Sua sessão expirou. Entre de novo para continuar.");
+  let res: Response;
+  try {
+    res = await withTimeout(
+      fetch(path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }),
+      25000,
+    );
+  } catch {
+    if (attempt < 3) {
+      await sleep(attempt * 1500);
+      return postBillingApi<T>(path, body, fallbackMessage, attempt + 1);
+    }
+    throw Object.assign(new Error("Não foi possível conectar ao servidor. Verifique sua internet e tente de novo."), { code: "network" });
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // 5xx é instabilidade do servidor (ex.: função ainda inicializando): vale repetir. 4xx é definitivo.
+    if (res.status >= 500 && attempt < 3) {
+      await sleep(attempt * 1500);
+      return postBillingApi<T>(path, body, fallbackMessage, attempt + 1);
+    }
+    throw Object.assign(new Error(typeof data.message === "string" ? data.message : fallbackMessage), { code: data.error, details: data });
+  }
+  return data as T;
+}
+
 /**
  * Mesas são criadas pelo servidor (POST /api/restaurants/{id}/mesas): o limite do plano é conferido na mesma
  * transação que grava a mesa, então não dá para passar do limite com cliques simultâneos nem gravando direto.
  */
 async function createTablesOnServer(body: { name?: string; quantity?: number }): Promise<RestaurantTable[]> {
-  const { getFirebaseAuth } = await import("./auth");
-  const token = await getFirebaseAuth().currentUser?.getIdToken();
-  if (!token) throw new Error("Sua sessão expirou. Entre de novo para continuar.");
   const restaurantId = getRestaurantId();
-  const res = await withTimeout(
-    fetch(`/api/restaurants/${encodeURIComponent(restaurantId)}/mesas`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    }),
-    20000,
+  const data = await postBillingApi<{ tables?: { id: string; number: number; name: string; qrToken: string }[] }>(
+    `/api/restaurants/${encodeURIComponent(restaurantId)}/mesas`,
+    body,
+    "Não foi possível criar a mesa. Tente de novo.",
   );
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(typeof data.message === "string" ? data.message : "Não foi possível criar a mesa. Tente de novo."), { code: data.error, details: data });
-  return (data.tables || []).map((t: { id: string; number: number; name: string; qrToken: string }) => ({ ...t, restaurantId, capacity: 4, status: "livre" as const }));
+  return (data.tables || []).map((t) => ({ ...t, restaurantId, capacity: 4, status: "livre" as const }));
+}
+
+/**
+ * Ativa o teste grátis de 30 dias do plano escolhido no cadastro (docs/PLANOS.md). Só deve ser chamada depois que
+ * o onboarding salva `onboarding.completed = true` com sucesso. Idempotente: chamar de novo (duplo clique, nova
+ * tentativa) não estende nem reinicia o prazo.
+ */
+export async function activateTrial(planId: string): Promise<{ activated: boolean; planId: string; trialEndsAt: string }> {
+  return postBillingApi(
+    "/api/billing/activate-trial",
+    { restaurantId: getRestaurantId(), planId },
+    "Não foi possível ativar o teste grátis agora. Você pode ativar depois em Meu plano.",
+  );
 }
 
 export async function createInitialTables(quantity: number) {

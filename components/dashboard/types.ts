@@ -8,6 +8,12 @@ export type AccountInfo = {
   createdAt: unknown;
   suspended: boolean;
   suspendedReason: string;
+  /**
+   * Plano escolhido no cadastro (onboarding.selectedPlanId). Só importa junto com `subscription: null`: quer dizer
+   * que a pessoa escolheu um plano para testar, mas o teste grátis de 30 dias não chegou a ser ativado (instabilidade
+   * no momento da conclusão) — o painel oferece ativar de novo. Com `subscription` preenchido, já foi ativado.
+   */
+  onboardingSelectedPlanId: string | null;
 };
 
 /**
