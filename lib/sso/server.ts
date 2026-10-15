@@ -9,7 +9,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { RECENT_SIGN_IN_SECONDS, SSO_MAX_AGE_SECONDS } from "./config";
-import { SsoError } from "./http";
+import { logSsoError, SsoError } from "./http";
 
 export * from "./http";
 
@@ -39,7 +39,12 @@ export async function createSession(idToken: string) {
   let decoded;
   try {
     decoded = await adminAuth().verifyIdToken(idToken, true);
-  } catch {
+  } catch (error) {
+    // Token malformado/vencido/revogado (auth/...) é esperado e não precisa de log; qualquer outro erro aqui
+    // (credencial da conta de serviço, projeto errado, falha ao contatar o Firebase) é problema do servidor, não
+    // do token do usuário — registrado para diagnóstico, já que do lado do cliente os dois viram o mesmo 401.
+    const code = (error as { code?: unknown } | null)?.code;
+    if (typeof code !== "string" || !code.startsWith("auth/")) logSsoError("session.verifyIdToken", error);
     throw new SsoError("invalid_token", 401, "Sessão inválida. Entre de novo.");
   }
   // Identidade anônima (curtidas no cardápio público) não é conta: não abre sessão compartilhada.
@@ -50,16 +55,32 @@ export async function createSession(idToken: string) {
     throw new SsoError("recent_login_required", 401, "Por segurança, entre de novo para continuar.");
   }
   const expiresIn = SSO_MAX_AGE_SECONDS * 1000;
-  const cookie = `${await adminAuth().createSessionCookie(idToken, { expiresIn })}~${randomBytes(16).toString("base64url")}`;
+  // Ao contrário de verifyIdToken (confere a assinatura contra os certificados públicos do Google, sem credencial
+  // própria), esta chamada autentica no Identity Toolkit com a credencial da conta de serviço: uma chave privada
+  // malformada, vencida ou de outro projeto falha só aqui — por isso o escopo de log próprio, para não confundir
+  // com um token de login inválido (que já virou 401 acima).
+  let firebaseCookie: string;
+  try {
+    firebaseCookie = await adminAuth().createSessionCookie(idToken, { expiresIn });
+  } catch (error) {
+    logSsoError("session.createSessionCookie", error);
+    throw new SsoError("session_cookie_failed", 500, "Não foi possível concluir agora. Tente de novo.");
+  }
+  const cookie = `${firebaseCookie}~${randomBytes(16).toString("base64url")}`;
   // O registro guarda o mínimo (uid e validade): o id é o hash do cookie, nunca o cookie.
-  await registry()
-    .doc(sessionKey(cookie))
-    .set({
-      uid: decoded.uid,
-      createdAt: FieldValue.serverTimestamp(),
-      expiresAt: Timestamp.fromMillis(Date.now() + expiresIn),
-      revokedAt: null,
-    });
+  try {
+    await registry()
+      .doc(sessionKey(cookie))
+      .set({
+        uid: decoded.uid,
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + expiresIn),
+        revokedAt: null,
+      });
+  } catch (error) {
+    logSsoError("session.registry.set", error);
+    throw new SsoError("session_registry_failed", 500, "Não foi possível concluir agora. Tente de novo.");
+  }
   return { cookie, uid: decoded.uid };
 }
 
