@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
-import { ArrowLeft, Copy, ExternalLink, LogOut, RotateCw, Search, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Copy, ExternalLink, LoaderCircle, LogOut, RotateCw, Search, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/auth";
 import { friendlyError } from "@/lib/async";
 import { brl, plural } from "@/lib/format";
@@ -43,6 +43,7 @@ import {
   Skeleton,
   SpeedLoader,
   TextArea,
+  TextField,
   type BadgeTone,
 } from "@/components/ui";
 import type { Notify } from "@/components/dashboard/types";
@@ -192,6 +193,7 @@ const SECTIONS = [
   { href: "/admin", label: "Visão geral" },
   { href: "/admin/restaurantes", label: "Restaurantes" },
   { href: "/admin/planos", label: "Planos" },
+  { href: "/admin/debug", label: "Debug" },
 ];
 
 function AdminApp({ path, identity, notify }: { path: string; identity: AdminIdentity; notify: Notify }) {
@@ -264,6 +266,8 @@ function AdminApp({ path, identity, notify }: { path: string; identity: AdminIde
               <RestaurantsPage rows={rows} />
             ) : section === "/admin/planos" ? (
               <PlansAdminPage rows={rows} notify={notify} />
+            ) : section === "/admin/debug" ? (
+              <SystemResetPage notify={notify} />
             ) : (
               <AdminDashboardV2 rows={rows} loading={loading} onRefresh={load} />
             )}
@@ -955,6 +959,300 @@ export function PlansAdminPage({ rows, notify }: { rows: Row[]; notify: Notify }
           Esta tabela também aparece na página pública <Link href="/planos">/planos</Link>.
         </p>
       </section>
+    </div>
+  );
+}
+
+/* ───────────────────────── Debug — Reset do Sistema ───────────────────────── */
+
+type ResetScan = {
+  dryRun: boolean;
+  productionBlocked: boolean;
+  environment: string;
+  protectedAdmins: string[];
+  authUsers: { total: number; toDelete: number; protected: number };
+  collections: { name: string; count: number; action: "delete" | "preserve" }[];
+  subcollections: { parent: string; name: string; estimatedCount: number }[];
+  timestamp: string;
+};
+
+type ResetResult = {
+  success: boolean;
+  deletedUsers: number;
+  deletedDocs: number;
+  processedCollections: string[];
+  protectedAdmins: string[];
+  log: string[];
+  errors: string[];
+  timestamp: string;
+};
+
+async function adminApiCall<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const { getFirebaseAuth } = await import("@/lib/auth");
+  const token = await getFirebaseAuth().currentUser?.getIdToken();
+  if (!token) throw new Error("Sessão expirada.");
+  const opts: RequestInit = { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || "Erro na operação.");
+  return data as T;
+}
+
+function SystemResetPage({ notify }: { notify: Notify }) {
+  const [scan, setScan] = useState<ResetScan | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [executing, setExecuting] = useState(false);
+  const [result, setResult] = useState<ResetResult | null>(null);
+  const [step, setStep] = useState<"idle" | "scanned" | "confirming" | "done">("idle");
+
+  const runScan = async () => {
+    setScanning(true);
+    setScanError("");
+    setScan(null);
+    setResult(null);
+    setStep("idle");
+    try {
+      const data = await adminApiCall<ResetScan>("/api/admin/reset", "GET");
+      setScan(data);
+      setStep("scanned");
+    } catch (err: any) {
+      setScanError(err.message || "Erro ao escanear.");
+    }
+    setScanning(false);
+  };
+
+  const executeReset = async () => {
+    if (confirmation !== "RESETAR KARDAPP") return;
+    setExecuting(true);
+    try {
+      const data = await adminApiCall<ResetResult>("/api/admin/reset", "POST", { confirmation: "RESETAR KARDAPP" });
+      setResult(data);
+      setStep("done");
+      notify(data.success ? "Reset concluído" : "Reset com erros", data.errors.length ? "error" : "success");
+    } catch (err: any) {
+      setScanError(err.message || "Erro ao executar reset.");
+      notify(err.message || "Erro ao executar", "error");
+    }
+    setExecuting(false);
+  };
+
+  return (
+    <div className="kd-stack kd-narrow">
+      <PageHeader
+        title="Debug — Reset do Sistema"
+        description="Ferramenta para reinicializar o ambiente, excluindo contas e dados operacionais. Administradores globais são preservados."
+      />
+
+      <Card>
+        <div style={{ padding: "4px 0" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderBottom: "2px solid #dc2626" }}>
+            <AlertTriangle size={24} style={{ color: "#dc2626", flexShrink: 0 }} />
+            <div>
+              <b style={{ color: "#dc2626", fontSize: "var(--k-fs-lg)" }}>Zona de perigo — Reset completo do sistema</b>
+              <p style={{ color: "var(--k-muted)", fontSize: "var(--k-fs-sm)", marginTop: 4 }}>
+                Esta ferramenta permite excluir permanentemente todas as contas e dados operacionais do sistema,
+                preservando somente os administradores globais e seus registros protegidos.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+            <Button
+              variant="secondary"
+              onClick={runScan}
+              loading={scanning}
+              icon={scanning ? undefined : <Search size={15} />}
+            >
+              Simular limpeza
+            </Button>
+          </div>
+
+          {scanError && (
+            <Callout tone="danger" role="alert" style={{ marginTop: 12 }}>
+              {scanError}
+            </Callout>
+          )}
+        </div>
+      </Card>
+
+      {scan && step !== "idle" && (
+        <Card>
+          <CardHead kicker="Simulação" title="Relatório de impacto" />
+
+          <div style={{ marginTop: 8, fontSize: "var(--k-fs-sm)" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <Badge tone={scan.environment === "emulator" || scan.environment === "demo" ? "signal" : "danger"}>
+                {scan.environment === "emulator" ? "Emulador" : scan.environment === "demo" ? "Demo" : "Produção"}
+              </Badge>
+              {scan.productionBlocked && <Badge tone="outline">Reset bloqueado</Badge>}
+            </div>
+
+            <h3 style={{ fontWeight: 700, margin: "12px 0 8px" }}>Firebase Authentication</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--k-fs-sm)" }}>
+              <tbody>
+                <tr style={{ borderBottom: "1px solid var(--k-line)" }}>
+                  <td style={{ padding: "6px 0" }}>Usuários comuns</td>
+                  <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "#dc2626" }}>{scan.authUsers.toDelete} — Excluir</td>
+                </tr>
+                <tr style={{ borderBottom: "1px solid var(--k-line)" }}>
+                  <td style={{ padding: "6px 0" }}>Administradores globais</td>
+                  <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "#22863a" }}>{scan.authUsers.protected} — Preservar</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3 style={{ fontWeight: 700, margin: "16px 0 8px" }}>Coleções do Firestore</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--k-fs-sm)" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid var(--k-line)" }}>
+                  <th style={{ textAlign: "left", padding: "6px 0", fontWeight: 600 }}>Coleção</th>
+                  <th style={{ textAlign: "right", padding: "6px 0", fontWeight: 600 }}>Documentos</th>
+                  <th style={{ textAlign: "right", padding: "6px 0", fontWeight: 600 }}>Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scan.collections.map((c) => (
+                  <tr key={c.name} style={{ borderBottom: "1px solid var(--k-line)" }}>
+                    <td style={{ padding: "6px 0", fontFamily: "monospace" }}>{c.name}</td>
+                    <td style={{ padding: "6px 0", textAlign: "right" }}>{c.count}</td>
+                    <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: c.action === "preserve" ? "#22863a" : "#dc2626" }}>
+                      {c.action === "preserve" ? "Preservar" : "Excluir"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {scan.subcollections.length > 0 && (
+              <>
+                <h3 style={{ fontWeight: 700, margin: "16px 0 8px" }}>Subcoleções (amostra)</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--k-fs-sm)" }}>
+                  <tbody>
+                    {scan.subcollections.map((s) => (
+                      <tr key={`${s.parent}/${s.name}`} style={{ borderBottom: "1px solid var(--k-line)" }}>
+                        <td style={{ padding: "6px 0", fontFamily: "monospace" }}>{s.parent}/{s.name}</td>
+                        <td style={{ padding: "6px 0", textAlign: "right" }}>~{s.estimatedCount}</td>
+                        <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "#dc2626" }}>Excluir</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            <h3 style={{ fontWeight: 700, margin: "16px 0 8px" }}>Admins protegidos</h3>
+            <ul style={{ margin: 0, padding: "0 0 0 20px", fontSize: "var(--k-fs-sm)" }}>
+              {scan.protectedAdmins.map((uid) => (
+                <li key={uid} style={{ fontFamily: "monospace" }}>{uid}</li>
+              ))}
+            </ul>
+
+            <p style={{ fontSize: "var(--k-fs-xs)", color: "var(--k-muted)", marginTop: 12 }}>
+              Escaneado em {new Date(scan.timestamp).toLocaleString("pt-BR")}
+            </p>
+          </div>
+
+          {!scan.productionBlocked && step === "scanned" && (
+            <div style={{ marginTop: 20, borderTop: "2px solid #dc2626", paddingTop: 16 }}>
+              <Button
+                style={{ background: "#dc2626", borderColor: "#dc2626" }}
+                onClick={() => setStep("confirming")}
+                icon={<Trash2 size={15} />}
+              >
+                Preparar reset completo
+              </Button>
+            </div>
+          )}
+
+          {scan.productionBlocked && (
+            <Callout tone="warn" style={{ marginTop: 16 }}>
+              Reset bloqueado neste ambiente. Para habilitar, configure <code>ADMIN_ALLOW_RESET=true</code> nas variáveis de ambiente do servidor.
+            </Callout>
+          )}
+        </Card>
+      )}
+
+      {step === "confirming" && (
+        <Card>
+          <CardHead kicker="Confirmação" title="Confirmar reset completo" />
+          <div style={{ marginTop: 8 }}>
+            <Callout tone="danger" title="Ação irreversível">
+              Todos os restaurantes, usuários, pedidos, mesas e dados operacionais serão excluídos permanentemente.
+              Os administradores globais e seus registros serão preservados.
+            </Callout>
+            <div className="kd-form" style={{ marginTop: 16 }}>
+              <TextField
+                label="Digite RESETAR KARDAPP para confirmar"
+                placeholder="RESETAR KARDAPP"
+                value={confirmation}
+                error={confirmation.length > 0 && confirmation !== "RESETAR KARDAPP" ? "Digite exatamente: RESETAR KARDAPP" : ""}
+                onChange={(e) => setConfirmation(e.target.value)}
+              />
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <Button
+                  style={{ background: "#dc2626", borderColor: "#dc2626" }}
+                  disabled={confirmation !== "RESETAR KARDAPP" || executing}
+                  loading={executing}
+                  onClick={executeReset}
+                  icon={executing ? undefined : <Trash2 size={15} />}
+                >
+                  {executing ? "Executando reset..." : "Executar reset completo"}
+                </Button>
+                <Button variant="ghost" onClick={() => { setStep("scanned"); setConfirmation(""); }} disabled={executing}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {step === "done" && result && (
+        <Card>
+          <CardHead kicker="Resultado" title={result.success ? "Reset concluído" : "Reset com erros"} />
+          <div style={{ marginTop: 8, fontSize: "var(--k-fs-sm)" }}>
+            <dl className="kd-usage">
+              <div>
+                <dt>Contas excluídas</dt>
+                <dd className="kd-num">{result.deletedUsers}</dd>
+              </div>
+              <div>
+                <dt>Documentos excluídos</dt>
+                <dd className="kd-num">{result.deletedDocs}</dd>
+              </div>
+              <div>
+                <dt>Coleções processadas</dt>
+                <dd className="kd-num">{result.processedCollections.length}</dd>
+              </div>
+            </dl>
+
+            <h3 style={{ fontWeight: 700, margin: "16px 0 8px" }}>Log de execução</h3>
+            <div style={{ background: "var(--k-bg, #f5f5f3)", borderRadius: "var(--k-r-md)", padding: 12, maxHeight: 300, overflowY: "auto", fontFamily: "monospace", fontSize: "var(--k-fs-xs)", lineHeight: 1.6 }}>
+              {result.log.map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </div>
+
+            {result.errors.length > 0 && (
+              <>
+                <h3 style={{ fontWeight: 700, margin: "16px 0 8px", color: "#dc2626" }}>Erros</h3>
+                <ul style={{ margin: 0, padding: "0 0 0 20px", color: "#dc2626" }}>
+                  {result.errors.map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <p style={{ fontSize: "var(--k-fs-xs)", color: "var(--k-muted)", marginTop: 12 }}>
+              Executado em {new Date(result.timestamp).toLocaleString("pt-BR")}
+            </p>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

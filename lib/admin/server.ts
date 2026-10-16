@@ -26,7 +26,9 @@ export type AuditAction =
   | "reactivate"
   | "set_subscription"
   | "reconcile_usage"
-  | "resolve_failure";
+  | "resolve_failure"
+  | "system_reset"
+  | "system_reset_complete";
 
 /**
  * Grava uma ação administrativa em `adminLog`. Mesmo formato das entradas antigas (string ISO em `createdAt`,
