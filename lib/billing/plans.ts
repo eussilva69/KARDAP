@@ -236,8 +236,8 @@ const STATUS_ALIASES: Record<string, SubscriptionStatus> = {
   inactive: "expired",
 };
 
-export const TRIAL_DAYS = 15;
-/** O teste de 15 dias libera o plano Pro (como prometem os Termos de Uso). */
+export const TRIAL_DAYS = 30;
+/** O teste de 30 dias libera o plano Pro (como prometem os Termos de Uso). */
 export const TRIAL_PLAN: PlanId = "pro";
 export const GRACE_PERIOD_DAYS = 3;
 const DAY = 24 * 60 * 60 * 1000;
@@ -324,7 +324,7 @@ function sanitizeLimit(value: unknown, fallback: number | null): number | null {
 
 /**
  * Direitos efetivos do estabelecimento. Ordem: restaurante suspenso → assinatura gravada → teste automático de
- * 15 dias do Pro contado da criação (quando nunca houve assinatura).
+ * 30 dias do Pro contado da criação (quando nunca houve assinatura).
  * Personalizações (Enterprise, condições herdadas) valem sobre o plano.
  */
 export function resolveEntitlements(
@@ -552,4 +552,80 @@ export function roleAllows(member: MemberAccess, feature: FeatureKey | "billing"
   if (feature === "settings") return permissions.indexOf("configuracoes") >= 0;
   if (feature === "videoMenu" || feature === "qrCode" || feature === "waiterCall") return true;
   return permissions.some((p) => (PERMISSION_FEATURES[p] || []).indexOf(feature) >= 0);
+}
+
+// ───────────────────────── Ofertas e checkout (Cakto) ─────────────────────────
+
+export type PlanPeriod = "monthly" | "yearly";
+
+type PlanOffer = { offerId: string; period: PlanPeriod; priceCents: number };
+
+function offerEnv(planId: string, period: PlanPeriod): string {
+  const suffix = period === "yearly" ? "_ANNUAL" : "";
+  return (process.env[`CAKTO_OFFER_${planId.toUpperCase()}${suffix}`] || "").trim();
+}
+
+/** Retorna a oferta Cakto para um plano + período, ou null se não configurada / plano inválido. */
+export function findOffer(planId: string, period: PlanPeriod): (PlanOffer & { plan: PlanDefinition }) | null {
+  if (!isPlanId(planId)) return null;
+  const plan = PLAN_CATALOG[planId];
+  if (plan.salesOnly || plan.priceInCents === null) return null;
+  const offerId = offerEnv(planId, period);
+  if (!offerId) return null;
+  const priceCents = period === "yearly" ? (plan.priceInCents ?? 0) * 10 : (plan.priceInCents ?? 0);
+  return { offerId, period, priceCents, plan };
+}
+
+/** Busca um plano pelo ID (wrapper simples sobre o catálogo). */
+export function findPlan(planId: string | null | undefined): PlanDefinition | null {
+  if (!planId || !isPlanId(planId)) return null;
+  return PLAN_CATALOG[planId];
+}
+
+/** Resolve o plano + oferta a partir de um offerId da Cakto (usado pelo webhook). */
+export function resolvePlanByOfferId(offerId: string): { plan: PlanDefinition; offer: PlanOffer } | null {
+  if (!offerId) return null;
+  const periods: PlanPeriod[] = ["monthly", "yearly"];
+  for (const id of PLAN_ORDER) {
+    for (const period of periods) {
+      const configured = offerEnv(id, period);
+      if (configured && configured === offerId) {
+        const plan = PLAN_CATALOG[id];
+        return { plan, offer: { offerId, period, priceCents: period === "yearly" ? (plan.priceInCents ?? 0) * 10 : (plan.priceInCents ?? 0) } };
+      }
+    }
+  }
+  const legacyEntries: [string, PlanPeriod][] = [
+    ["CAKTO_OFFER_ESSENCIAL_MONTHLY", "monthly"], ["CAKTO_OFFER_ESSENCIAL_ANNUAL", "yearly"],
+    ["CAKTO_OFFER_PRO_MONTHLY", "monthly"], ["CAKTO_OFFER_PRO_ANNUAL", "yearly"],
+  ];
+  for (const [envKey, period] of legacyEntries) {
+    if ((process.env[envKey] || "").trim() === offerId) {
+      const legacyId = envKey.includes("ESSENCIAL") ? "start" : "pro";
+      const plan = PLAN_CATALOG[legacyId];
+      return { plan, offer: { offerId, period, priceCents: plan.priceInCents ?? 0 } };
+    }
+  }
+  return null;
+}
+
+/** Planos para a API pública /api/billing/plans (cards de contratação). */
+export function publicPlans() {
+  return PLAN_ORDER.filter((id) => !PLAN_CATALOG[id].salesOnly).map((id) => {
+    const plan = PLAN_CATALOG[id];
+    const offers: { period: PlanPeriod; priceCents: number; currency: string; billingLabel: string }[] = [];
+    const monthly = offerEnv(id, "monthly");
+    if (monthly) offers.push({ period: "monthly", priceCents: plan.priceInCents ?? 0, currency: plan.currency, billingLabel: "/mês" });
+    const yearly = offerEnv(id, "yearly");
+    if (yearly) offers.push({ period: "yearly", priceCents: (plan.priceInCents ?? 0) * 10, currency: plan.currency, billingLabel: "/ano" });
+    return {
+      id,
+      name: plan.name,
+      tagline: plan.tagline,
+      features: plan.highlights,
+      recommended: plan.popular,
+      trialDays: SELF_SERVICE_TRIAL_DAYS,
+      offers,
+    };
+  });
 }

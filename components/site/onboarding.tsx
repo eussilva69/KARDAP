@@ -170,26 +170,25 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         setStage("Reservando o endereço do cardápio…");
         const reserved = await reserveMenuSlug(menuSlug || name.trim());
 
-        // Mesas e teste grátis não bloqueiam a conclusão: uma instabilidade momentânea aqui não pode impedir que
-        // o restaurante seja aberto. Quem falhar fica pendente, com um aviso claro e uma forma de resolver depois
-        // (Mesas e Meu plano, no painel) — o que importa de verdade (o restaurante existir e abrir) não depende disso.
-        setStage("Criando as mesas…");
-        let tablesFailed = false;
-        try {
-          await createInitialTables(Number(tableCount) || 0);
-        } catch {
-          tablesFailed = true;
-        }
-
         setStage("Finalizando…");
         await saveRestaurant({ slug: reserved, onboarding: { ...onboardingPayload, completed: true, completedAt: new Date().toISOString() } });
 
+        // Ativa o teste grátis ANTES de criar as mesas: assim o plano escolhido já está vigente quando o servidor
+        // confere o limite de mesas (o Start, por exemplo, permite só 8).
         setStage("Ativando seu teste grátis…");
         let trialFailed = false;
         try {
           await activateTrial(planId);
         } catch {
           trialFailed = true;
+        }
+
+        setStage("Criando as mesas…");
+        let tablesFailed = false;
+        try {
+          await createInitialTables(Number(tableCount) || 0);
+        } catch {
+          tablesFailed = true;
         }
 
         localStorage.setItem("kardap-restaurant-slug", reserved);

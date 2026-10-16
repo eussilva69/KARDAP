@@ -35,8 +35,8 @@ export const CAKTO_CONFIG = {
     pro: [env("CAKTO_OFFER_PRO_MONTHLY"), env("CAKTO_OFFER_PRO_ANNUAL")].filter(Boolean),
   },
 
-  // Período de teste inicial para novos estabelecimentos (15 dias)
-  trialDays: 15,
+  // Período de teste inicial para novos estabelecimentos (30 dias)
+  trialDays: 30,
 
   // Dias de carência para inadimplência antes de bloqueio
   gracePeriodDays: 3,

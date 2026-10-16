@@ -40,7 +40,7 @@ export type SubscriptionSummary = {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Assinatura que vale para o restaurante (com o teste automático de 15 dias do Pro quando não há registro). */
+/** Assinatura que vale para o restaurante (com o teste automático de 30 dias do Pro quando não há registro). */
 export function effectiveSubscription(subscription: unknown, createdAt: unknown): SubscriptionSummary | null {
   const stored = (subscription as StoredSubscription | null | undefined) || null;
   const e = resolveEntitlements(stored, { createdAt });

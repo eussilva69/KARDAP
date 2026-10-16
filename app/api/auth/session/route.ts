@@ -5,9 +5,9 @@ import { SsoError, assertCsrf, clearSessionCookies, createSession, errorBody, ra
 
 /**
  * Sessão central do ecossistema KARDAP (SSO_INTEGRATION.md).
- * POST cria a sessão a partir do ID token de um login recente (Origin + CSRF obrigatórios)
- * GET  informa se a sessão é válida, com dados mínimos do usuário e os aplicativos liberados
- * Logout: POST /api/auth/logout.
+ * POST   cria a sessão a partir do ID token de um login recente (Origin + CSRF obrigatórios)
+ * GET    informa se a sessão é válida, com dados mínimos do usuário e os aplicativos liberados
+ * DELETE encerra a sessão atual (ou todas, com { scope: "all" })
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +37,26 @@ export async function POST(req: NextRequest) {
     const access = await appAccess(uid, "pdv").catch(() => ({ allowed: false }));
     const res = NextResponse.json({ authenticated: true, uid, apps: { pdv: access.allowed } }, { status: 201 });
     setSessionCookies(res, cookie, body?.remember !== false);
+    return withCors(req, res);
+  } catch (error) {
+    return fail(req, error);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    rateLimit(req, "sso-delete", 30, 60_000);
+    assertCsrf(req);
+    const cookie = req.cookies.get(SSO_COOKIE)?.value;
+    if (!cookie) {
+      const res = NextResponse.json({ authenticated: false }, { status: 200 });
+      return withCors(req, res);
+    }
+    const body = await req.json().catch(() => null);
+    const everywhere = body?.scope === "all";
+    await revokeSession(cookie, everywhere);
+    const res = NextResponse.json({ authenticated: false }, { status: 200 });
+    clearSessionCookies(res);
     return withCors(req, res);
   } catch (error) {
     return fail(req, error);
