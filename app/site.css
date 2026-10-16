@@ -317,6 +317,64 @@
 }
 .kd-onb-actions-main { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--k-s4); }
 
+/* Google Places search (onboarding step 4) */
+.kd-place-search { position: relative; }
+.kd-place-input-wrap { position: relative; display: flex; align-items: center; }
+.kd-place-icon { position: absolute; left: 12px; color: var(--k-muted); pointer-events: none; }
+.kd-place-spinner { position: absolute; right: 12px; color: var(--k-muted); }
+.kd-place-results {
+  list-style: none;
+  margin: var(--k-s1) 0 0;
+  padding: 0;
+  border: 1px solid var(--k-line);
+  border-radius: var(--k-r-md);
+  background: var(--k-surface);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.kd-place-result {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--k-s2);
+  padding: var(--k-s3);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.kd-place-result:hover { background: var(--k-bg-hover, rgba(0,0,0,.04)); }
+.kd-place-result + .kd-place-result { border-top: 1px solid var(--k-line); }
+.kd-place-result-icon { flex-shrink: 0; margin-top: 2px; color: var(--k-muted); }
+.kd-place-result-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kd-place-result-info b { font-size: var(--k-fs-md); font-weight: 650; }
+.kd-place-result-info small { font-size: var(--k-fs-xs); color: var(--k-muted); overflow-wrap: anywhere; }
+.kd-place-empty { font-size: var(--k-fs-sm); color: var(--k-muted); margin-top: var(--k-s2); }
+.kd-place-confirmed {
+  border: 1px solid var(--k-line);
+  border-radius: var(--k-r-md);
+  padding: var(--k-s4);
+  background: var(--k-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s3);
+}
+.kd-place-confirmed-head { display: flex; gap: var(--k-s3); align-items: flex-start; }
+.kd-place-confirmed-head > svg { flex-shrink: 0; margin-top: 2px; color: #F7EA48; }
+.kd-place-confirmed-head b { display: block; font-weight: 650; }
+.kd-place-confirmed-head small { font-size: var(--k-fs-xs); color: var(--k-muted); }
+.kd-place-review-ok { display: flex; align-items: center; gap: var(--k-s1); font-size: var(--k-fs-sm); color: var(--k-success, #22863a); font-weight: 600; }
+.kd-place-no-review p { font-size: var(--k-fs-sm); color: var(--k-muted); margin: 0 0 var(--k-s2); }
+.kd-place-loading { display: flex; align-items: center; gap: var(--k-s2); margin-top: var(--k-s3); font-size: var(--k-fs-sm); color: var(--k-muted); }
+.kd-link-btn {
+  background: none;
+  border: none;
+  color: var(--k-accent, #111);
+  font-size: var(--k-fs-sm);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.kd-link-btn:hover { opacity: 0.7; }
+
 @media (max-width: 559px) {
   .kd-plans-hero-actions .kd-btn { width: 100%; }
   .kd-onb-brand { grid-template-columns: 1fr; }

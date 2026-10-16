@@ -27,6 +27,7 @@ import {
   Link2,
   LoaderCircle,
   LogOut,
+  MapPin,
   Menu,
   Palette,
   Pencil,
@@ -60,6 +61,13 @@ import {
   renameRestaurantTable,
   updateRestaurantCategory,
   updateRestaurantProduct,
+  searchGooglePlaces,
+  getPlaceDetails,
+  saveGoogleBusiness,
+  deleteGoogleBusiness,
+  getGoogleBusiness,
+  type PlaceResult,
+  type GoogleBusiness,
 } from "@/lib/restaurant-db";
 import { deleteManagedImages, imageMeta, scheduleImageCleanup, uploadImage, type UploadStage, type UploadedImage } from "@/lib/storage";
 import { IMAGE_ACCEPT, IMAGE_HINT, ImageError, describeOptimization, optimizeImage, type OptimizedImage } from "@/lib/image-optimization";
@@ -2297,9 +2305,71 @@ function QrPage({ notify, tables, tableTokens, restaurantName, loaded, loadError
 function ReviewsPage({ settings, setSettings, notify, onSaved }: DashboardProps) {
   const [url, setUrl] = useState(settings.googleReviewUrl || "");
   const [error, setError] = useState("");
+  const [biz, setBiz] = useState<GoogleBusiness | null | undefined>(undefined);
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PlaceResult[]>([]);
+  const [searchErr, setSearchErr] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [fetchingDetails, setFetchingDetails] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
   const saved = (settings.googleReviewUrl || "") === url.trim();
 
-  const save = (e: React.FormEvent) => {
+  useEffect(() => { getGoogleBusiness().then(setBiz).catch(() => setBiz(null)); }, []);
+
+  const doSearch = (q: string) => {
+    setQuery(q);
+    setSearchErr("");
+    clearTimeout(searchTimer.current);
+    if (q.trim().length < 3) { setResults([]); setSearching(false); return; }
+    setSearching(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const r = await searchGooglePlaces(q.trim());
+        setResults(r);
+      } catch (err: any) {
+        setSearchErr(err.message || "Erro na pesquisa.");
+      }
+      setSearching(false);
+    }, 400);
+  };
+
+  const linkPlace = async (place: PlaceResult) => {
+    setFetchingDetails(true);
+    setSearchErr("");
+    try {
+      const details = await getPlaceDetails(place.placeId);
+      const reviewUrl = details.reviewUrl || "";
+      await saveGoogleBusiness({ placeId: place.placeId, name: place.name, address: place.address, reviewUrl, source: "google_places" });
+      setBiz({ placeId: place.placeId, name: place.name, address: place.address, reviewUrl, enabled: true, source: "google_places" });
+      setUrl(reviewUrl);
+      setSettings((cur) => ({ ...cur, googleReviewUrl: reviewUrl, google: !!reviewUrl }));
+      setShowSearch(false);
+      setQuery("");
+      setResults([]);
+      notify(reviewUrl ? "Estabelecimento vinculado e link obtido" : "Estabelecimento vinculado (sem link de avaliação)");
+    } catch (err: any) {
+      setSearchErr(err.message || "Erro ao vincular.");
+    }
+    setFetchingDetails(false);
+  };
+
+  const unlinkPlace = async () => {
+    setSaving(true);
+    try {
+      await deleteGoogleBusiness();
+      setBiz(null);
+      setUrl("");
+      setSettings((cur) => ({ ...cur, googleReviewUrl: "", google: false }));
+      notify("Vinculação removida");
+    } catch (err: any) {
+      notify(err.message || "Erro ao remover", "error");
+    }
+    setSaving(false);
+  };
+
+  const saveManualUrl = (e: React.FormEvent) => {
     e.preventDefault();
     const value = url.trim();
     if (value) {
@@ -2319,11 +2389,102 @@ function ReviewsPage({ settings, setSettings, notify, onSaved }: DashboardProps)
   return (
     <div className="kd-stack kd-narrow">
       <PageHeader
-        title="Avaliações"
-        description="Depois de atendido, o cliente pode abrir sua página de avaliação do Google direto pelo cardápio. Mais avaliações ajudam o restaurante a aparecer nas buscas da região."
+        title="Google Maps e Avaliações"
+        description="Conecte seu restaurante ao Google Maps para facilitar as avaliações dos seus clientes. Mais avaliações ajudam o restaurante a aparecer nas buscas da região."
       />
+
+      {/* Estabelecimento vinculado */}
+      {biz && !showSearch && (
+        <Card>
+          <CardHead title="Estabelecimento vinculado" />
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", margin: "12px 0" }}>
+            <MapPin size={20} style={{ flexShrink: 0, marginTop: 2, color: "#F7EA48" }} />
+            <div>
+              <b style={{ display: "block" }}>{biz.name}</b>
+              <span style={{ fontSize: "var(--k-fs-xs)", color: "var(--k-muted)" }}>{biz.address}</span>
+              <span style={{ display: "block", fontSize: "var(--k-fs-xs)", color: "var(--k-muted)", marginTop: 4 }}>
+                {biz.source === "google_places" ? "Vinculado via Google Maps" : "Link inserido manualmente"}
+                {biz.reviewUrl ? " · Link de avaliação configurado" : " · Sem link de avaliação"}
+              </span>
+            </div>
+          </div>
+          <div className="kd-row" style={{ gap: 8 }}>
+            <Button variant="secondary" size="sm" onClick={() => setShowSearch(true)}>Alterar estabelecimento</Button>
+            <Button variant="ghost" size="sm" onClick={unlinkPlace} loading={saving}>Remover vinculação</Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Sem vínculo — convite */}
+      {biz === null && !showSearch && (
+        <Card>
+          <div style={{ textAlign: "center", padding: "16px 0" }}>
+            <MapPin size={32} style={{ color: "var(--k-muted)", marginBottom: 8 }} />
+            <p style={{ fontWeight: 600, marginBottom: 4 }}>Conecte seu restaurante ao Google Maps</p>
+            <p style={{ fontSize: "var(--k-fs-sm)", color: "var(--k-muted)", marginBottom: 16 }}>
+              Facilite o recebimento de avaliações dos seus clientes.
+            </p>
+            <Button onClick={() => setShowSearch(true)}>Buscar meu estabelecimento</Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Busca Google Places */}
+      {showSearch && (
+        <Card>
+          <CardHead title="Buscar no Google Maps" />
+          <div className="kd-form" style={{ marginTop: 8 }}>
+            <div style={{ position: "relative" }}>
+              <Search size={16} style={{ position: "absolute", left: 12, top: 12, color: "var(--k-muted)", pointerEvents: "none" }} />
+              <input
+                className="kd-input"
+                type="text"
+                placeholder="Digite o nome do seu restaurante..."
+                value={query}
+                autoFocus
+                onChange={(e) => doSearch(e.target.value)}
+                style={{ paddingLeft: 36 }}
+              />
+              {searching && <LoaderCircle size={16} className="k-spin" style={{ position: "absolute", right: 12, top: 12, color: "var(--k-muted)" }} />}
+            </div>
+            {searchErr && <p className="kd-field-error" role="alert">{searchErr}</p>}
+            {fetchingDetails && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--k-fs-sm)", color: "var(--k-muted)" }}>
+                <LoaderCircle size={16} className="k-spin" /> Obtendo link de avaliação…
+              </div>
+            )}
+            {results.length > 0 && !fetchingDetails && (
+              <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, border: "1px solid var(--k-line)", borderRadius: "var(--k-r-md)", maxHeight: 320, overflowY: "auto" }}>
+                {results.map((p) => (
+                  <li
+                    key={p.placeId}
+                    onClick={() => linkPlace(p)}
+                    style={{ display: "flex", gap: 10, padding: "12px", cursor: "pointer", borderTop: "1px solid var(--k-line)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,.04)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
+                  >
+                    <MapPin size={18} style={{ flexShrink: 0, marginTop: 2, color: "var(--k-muted)" }} />
+                    <span>
+                      <b style={{ display: "block" }}>{p.name}</b>
+                      <small style={{ color: "var(--k-muted)" }}>{p.address}{p.city && p.state ? ` · ${p.city}, ${p.state}` : ""}</small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {query.length >= 3 && !searching && results.length === 0 && !searchErr && !fetchingDetails && (
+              <p style={{ fontSize: "var(--k-fs-sm)", color: "var(--k-muted)" }}>Nenhum resultado encontrado.</p>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => { setShowSearch(false); setQuery(""); setResults([]); }}>
+              Cancelar
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Link manual */}
       <Card>
-        <form className="kd-form" onSubmit={save} noValidate>
+        <form className="kd-form" onSubmit={saveManualUrl} noValidate>
           <TextField
             label="Link de avaliação do Google"
             type="url"
@@ -2333,13 +2494,10 @@ function ReviewsPage({ settings, setSettings, notify, onSaved }: DashboardProps)
             error={error}
             hint={
               <>
-                No Perfil da Empresa no Google, toque em <b>Pedir avaliações</b> e copie o link que aparece.
+                {biz?.reviewUrl ? "Obtido automaticamente. " : ""}No Perfil da Empresa no Google, toque em <b>Pedir avaliações</b> e copie o link.
               </>
             }
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setError("");
-            }}
+            onChange={(e) => { setUrl(e.target.value); setError(""); }}
           />
           <div className="kd-row">
             <Button type="submit" disabled={saved} icon={saved && url ? <Check size={15} /> : undefined}>
@@ -2350,14 +2508,21 @@ function ReviewsPage({ settings, setSettings, notify, onSaved }: DashboardProps)
                 Testar link
               </ButtonLink>
             )}
+            {settings.googleReviewUrl && (
+              <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(settings.googleReviewUrl!); notify("Link copiado"); }}>
+                <Copy size={15} /> Copiar link
+              </Button>
+            )}
           </div>
         </form>
       </Card>
+
+      {/* Toggle */}
       <Card>
         <Switch
-          label="Mostrar “Avaliar no Google” no cardápio"
+          label="Permitir avaliações pelo cardápio"
           description={
-            settings.googleReviewUrl ? "O botão aparece no topo do cardápio, ao lado do nome do restaurante." : "Salve o link acima para o botão aparecer no cardápio."
+            settings.googleReviewUrl ? "O botão \"Avaliar no Google\" aparece no cardápio." : "Salve o link acima para o botão aparecer."
           }
           checked={settings.google}
           onChange={(checked) => {

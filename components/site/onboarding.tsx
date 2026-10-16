@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ImagePlus, LoaderCircle } from "lucide-react";
-import { activateTrial, createInitialTables, ensureRestaurant, reserveMenuSlug, saveRestaurant } from "@/lib/restaurant-db";
+import { ArrowLeft, ArrowRight, Check, ImagePlus, LoaderCircle, MapPin, Search, X } from "lucide-react";
+import { activateTrial, createInitialTables, ensureRestaurant, reserveMenuSlug, saveRestaurant, searchGooglePlaces, getPlaceDetails, type PlaceResult } from "@/lib/restaurant-db";
 import { scheduleImageCleanup, uploadImage, type UploadStage } from "@/lib/storage";
 import { IMAGE_ACCEPT, IMAGE_HINT } from "@/lib/image-optimization";
 import { getFirebaseAuth } from "@/lib/auth";
@@ -62,6 +62,17 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   images.current = [logo, logoSmall, cover, coverSmall];
   const [review, setReview] = useState("");
   const [tableCount, setTableCount] = useState("");
+  // Google Places search state
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [placeResults, setPlaceResults] = useState<PlaceResult[]>([]);
+  const [placeSearching, setPlaceSearching] = useState(false);
+  const [placeError, setPlaceError] = useState("");
+  const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
+  const [placeConfirmed, setPlaceConfirmed] = useState(false);
+  const [fetchingDetails, setFetchingDetails] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchAbort = useRef<AbortController>();
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -98,6 +109,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         setCoverSmall(draft.coverSmall || "");
         setReview(draft.review || "");
         setTableCount(draft.tableCount || "");
+        if (draft.selectedPlace) { setSelectedPlace(draft.selectedPlace); setPlaceConfirmed(true); }
+        if (draft.manualMode) setManualMode(true);
       } catch {
         document.cookie = `${draftCookieName}=; Max-Age=0; Path=/; SameSite=Lax`;
       }
@@ -107,9 +120,51 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   useEffect(() => {
     if (!draftReady) return;
-    const draft = encodeURIComponent(JSON.stringify({ step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount }));
+    const draft = encodeURIComponent(JSON.stringify({ step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount, selectedPlace: placeConfirmed ? selectedPlace : null, manualMode }));
     document.cookie = `${draftCookieName}=${draft}; Max-Age=${60 * 60 * 24 * 30}; Path=/; SameSite=Lax`;
-  }, [draftReady, draftCookieName, step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount]);
+  }, [draftReady, draftCookieName, step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount, selectedPlace, placeConfirmed, manualMode]);
+
+  const doPlaceSearch = (q: string) => {
+    setPlaceQuery(q);
+    setPlaceError("");
+    clearTimeout(searchTimer.current);
+    searchAbort.current?.abort();
+    if (q.trim().length < 3) { setPlaceResults([]); setPlaceSearching(false); return; }
+    setPlaceSearching(true);
+    searchTimer.current = setTimeout(async () => {
+      const ctrl = new AbortController();
+      searchAbort.current = ctrl;
+      try {
+        const results = await searchGooglePlaces(q.trim());
+        if (!ctrl.signal.aborted) { setPlaceResults(results); setPlaceSearching(false); }
+      } catch (err: any) {
+        if (!ctrl.signal.aborted) { setPlaceError(err.message || "Erro na pesquisa."); setPlaceSearching(false); }
+      }
+    }, 400);
+  };
+
+  const confirmPlace = async (place: PlaceResult) => {
+    setSelectedPlace(place);
+    setFetchingDetails(true);
+    setPlaceError("");
+    try {
+      const details = await getPlaceDetails(place.placeId);
+      setReview(details.reviewUrl || "");
+      setPlaceConfirmed(true);
+    } catch {
+      setReview("");
+      setPlaceConfirmed(true);
+    }
+    setFetchingDetails(false);
+  };
+
+  const clearPlace = () => {
+    setSelectedPlace(null);
+    setPlaceConfirmed(false);
+    setReview("");
+    setPlaceQuery("");
+    setPlaceResults([]);
+  };
 
   const provision = () => {
     const user = isFirebaseConfigured ? getFirebaseAuth().currentUser : null;
@@ -157,7 +212,19 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         brand: { logo, cover, logoSmall, coverSmall },
         setup: { tableCount: Number(tableCount) || 0 },
         onboarding: onboardingPayload,
-        ...(review.trim() && !skip ? { settings: { googleReviewUrl: review.trim() } } : {}),
+        ...(review.trim() && !skip ? { settings: { googleReviewUrl: review.trim(), google: true } } : {}),
+        ...(placeConfirmed && selectedPlace && !skip ? {
+          googleBusiness: {
+            placeId: selectedPlace.placeId,
+            name: selectedPlace.name,
+            address: selectedPlace.address,
+            reviewUrl: review.trim(),
+            enabled: true,
+            source: manualMode ? "manual" : "google_places",
+            linkedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        } : {}),
       };
       try {
         await saveRestaurant(payload);
@@ -409,28 +476,115 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
           {step === 4 && (
             <>
               <p className="kd-overline">Avaliações</p>
-              <h1 className="kd-h1">Quer receber avaliações no Google?</h1>
-              <p className="kd-lead">Com o link, o cardápio mostra um botão para o cliente avaliar o restaurante depois do atendimento.</p>
-              <div className="kd-form">
-                <TextField
-                  label="Link de avaliação do Google"
-                  optional
-                  type="url"
-                  inputMode="url"
-                  placeholder="https://g.page/r/…/review"
-                  value={review}
-                  error={fieldError}
-                  hint={
-                    <>
-                      No Perfil da Empresa no Google, toque em <b>Pedir avaliações</b> e copie o link.
-                    </>
-                  }
-                  onChange={(e) => {
-                    setReview(e.target.value);
-                    setFieldError("");
-                  }}
-                />
-              </div>
+              <h1 className="kd-h1">Encontre seu estabelecimento no Google</h1>
+              <p className="kd-lead">Busque seu restaurante no Google Maps e facilite o recebimento de avaliações dos seus clientes.</p>
+
+              {!placeConfirmed && !manualMode && (
+                <div className="kd-form">
+                  <div className="kd-place-search">
+                    <label className="kd-field">
+                      <span className="kd-field-label">Buscar no Google Maps</span>
+                      <span className="kd-place-input-wrap">
+                        <Search size={16} className="kd-place-icon" aria-hidden />
+                        <input
+                          className="kd-input"
+                          type="text"
+                          placeholder="Digite o nome do seu restaurante..."
+                          value={placeQuery}
+                          data-autofocus
+                          onChange={(e) => doPlaceSearch(e.target.value)}
+                          style={{ paddingLeft: 36 }}
+                        />
+                        {placeSearching && <LoaderCircle size={16} className="k-spin kd-place-spinner" aria-label="Pesquisando…" />}
+                      </span>
+                    </label>
+                    {placeError && <p className="kd-field-error" role="alert">{placeError}</p>}
+                    {placeResults.length > 0 && (
+                      <ul className="kd-place-results" role="listbox">
+                        {placeResults.map((p) => (
+                          <li key={p.placeId} role="option" className="kd-place-result" onClick={() => confirmPlace(p)}>
+                            <MapPin size={18} className="kd-place-result-icon" aria-hidden />
+                            <span className="kd-place-result-info">
+                              <b>{p.name}</b>
+                              <small>{p.address}{p.city && p.state ? ` · ${p.city}, ${p.state}` : ""}</small>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {placeQuery.length >= 3 && !placeSearching && placeResults.length === 0 && !placeError && (
+                      <p className="kd-place-empty">Nenhum resultado encontrado. Tente outro nome ou endereço.</p>
+                    )}
+                  </div>
+                  <button type="button" className="kd-link-btn" onClick={() => setManualMode(true)}>
+                    Prefiro inserir o link manualmente
+                  </button>
+                </div>
+              )}
+
+              {placeConfirmed && selectedPlace && !manualMode && (
+                <div className="kd-form">
+                  <div className="kd-place-confirmed">
+                    <div className="kd-place-confirmed-head">
+                      <MapPin size={20} aria-hidden />
+                      <div>
+                        <b>{selectedPlace.name}</b>
+                        <small>{selectedPlace.address}</small>
+                      </div>
+                    </div>
+                    {review ? (
+                      <p className="kd-place-review-ok">
+                        <Check size={15} aria-hidden /> Link de avaliação obtido automaticamente
+                      </p>
+                    ) : (
+                      <div className="kd-place-no-review">
+                        <p>O Google não retornou um link de avaliação para este estabelecimento.</p>
+                        <TextField
+                          label="Cole o link de avaliação manualmente"
+                          optional
+                          type="url"
+                          inputMode="url"
+                          placeholder="https://g.page/r/…/review"
+                          value={review}
+                          error={fieldError}
+                          hint="No Perfil da Empresa no Google, toque em Pedir avaliações e copie o link."
+                          onChange={(e) => { setReview(e.target.value); setFieldError(""); }}
+                        />
+                      </div>
+                    )}
+                    <button type="button" className="kd-link-btn" onClick={clearPlace}>
+                      Escolher outro estabelecimento
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {fetchingDetails && (
+                <div className="kd-place-loading">
+                  <LoaderCircle size={20} className="k-spin" aria-hidden />
+                  <span>Obtendo link de avaliação…</span>
+                </div>
+              )}
+
+              {manualMode && (
+                <div className="kd-form">
+                  <TextField
+                    label="Link de avaliação do Google"
+                    optional
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://g.page/r/…/review"
+                    value={review}
+                    error={fieldError}
+                    data-autofocus
+                    hint="No Perfil da Empresa no Google, toque em Pedir avaliações e copie o link."
+                    onChange={(e) => { setReview(e.target.value); setFieldError(""); }}
+                  />
+                  <button type="button" className="kd-link-btn" onClick={() => { setManualMode(false); setReview(""); }}>
+                    Buscar no Google Maps
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -491,7 +645,13 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 </div>
                 <div>
                   <dt>Avaliações no Google</dt>
-                  <dd>{review.trim() ? "Link configurado" : "Não configurado"}</dd>
+                  <dd>
+                    {placeConfirmed && selectedPlace
+                      ? `${selectedPlace.name}${review.trim() ? " · link configurado" : " · sem link de avaliação"}`
+                      : review.trim()
+                        ? "Link configurado (manual)"
+                        : "Não configurado"}
+                  </dd>
                 </div>
               </dl>
             </>

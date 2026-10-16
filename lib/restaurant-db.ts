@@ -354,6 +354,62 @@ export async function reserveMenuSlug(name: string) {
   throw new Error("Não foi possível gerar um link disponível para o cardápio.");
 }
 
+/* ─── Google Business (Places API) ─── */
+
+export type PlaceResult = { placeId: string; name: string; address: string; city: string; state: string; mapsUrl: string };
+export type PlaceDetails = { placeId: string; name: string; address: string; mapsUrl: string; reviewUrl: string };
+export type GoogleBusiness = { placeId: string; name: string; address: string; reviewUrl: string; enabled: boolean; source: string; linkedAt?: unknown; updatedAt?: unknown };
+
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const { getFirebaseAuth } = await import("./auth");
+  const token = await getFirebaseAuth().currentUser?.getIdToken();
+  if (!token) throw new Error("Sessão expirada. Entre de novo.");
+  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+}
+
+export async function searchGooglePlaces(query: string): Promise<PlaceResult[]> {
+  if (query.length < 3) return [];
+  const headers = await getAuthHeaders();
+  const res = await fetch(`/api/google-places/search?q=${encodeURIComponent(query)}`, { headers, signal: AbortSignal.timeout(10000) });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || "Erro ao pesquisar."); }
+  const data = await res.json();
+  return data.results || [];
+}
+
+export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`/api/google-places/details?placeId=${encodeURIComponent(placeId)}`, { headers, signal: AbortSignal.timeout(10000) });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || "Erro ao obter detalhes."); }
+  return res.json();
+}
+
+export async function saveGoogleBusiness(data: { placeId: string; name: string; address: string; reviewUrl: string; source: string }): Promise<void> {
+  const restaurantId = getRestaurantId();
+  const headers = await getAuthHeaders();
+  const res = await fetch(`/api/restaurants/${encodeURIComponent(restaurantId)}/google-business`, {
+    method: "POST", headers, body: JSON.stringify(data),
+  });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || "Erro ao salvar."); }
+}
+
+export async function deleteGoogleBusiness(): Promise<void> {
+  const restaurantId = getRestaurantId();
+  const headers = await getAuthHeaders();
+  const res = await fetch(`/api/restaurants/${encodeURIComponent(restaurantId)}/google-business`, {
+    method: "DELETE", headers,
+  });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || "Erro ao remover."); }
+}
+
+export async function getGoogleBusiness(): Promise<GoogleBusiness | null> {
+  const restaurantId = getRestaurantId();
+  const headers = await getAuthHeaders();
+  const res = await fetch(`/api/restaurants/${encodeURIComponent(restaurantId)}/google-business`, { headers });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.googleBusiness || null;
+}
+
 export type ChamadoDoc = { id: string; table: string; type: string; status: "ativo" | "andamento" | "concluido"; createdAt: string };
 
 /** Observa a primeira página de chamados em tempo real (subcoleção paginada). */
