@@ -1,0 +1,1 @@
+{"version":1,"functions":{"/api/billing/plans":{},"/api/billing/subscription/cancel":{},"/api/billing/checkout":{},"/api/billing/subscription/change-payment-method":{},"/api/billing/subscription":{},"/api/billing/webhook":{},"/assinatura":{},"/planos":{}}}
