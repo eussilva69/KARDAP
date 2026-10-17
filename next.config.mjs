@@ -12,6 +12,7 @@ const securityHeaders = [
 const landingSlugs = Object.keys(JSON.parse(readFileSync(new URL('./lib/seo/landing-pages.json', import.meta.url), 'utf8'))).filter((s) => s !== 'index');
 
 const nextConfig = {
+  experimental: { serverComponentsExternalPackages: ['firebase-admin'] },
   // Lista de origens do SSO (não é segredo): a tela de login também valida o destino de retorno no navegador.
   env: { SSO_ALLOWED_ORIGINS: process.env.SSO_ALLOWED_ORIGINS || '' },
   images: { remotePatterns: [{ protocol: 'https', hostname: 'images.unsplash.com' }] },
