@@ -449,6 +449,67 @@ export async function updateChamadoStatus(id: string, status: ChamadoDoc["status
   await withWriteTimeout(updateDoc(doc(restaurantRef(), "chamados", id), { status, updatedAt: new Date().toISOString() }));
 }
 
+/* ───────────────────────── Perfil do cliente (cardápio público) ───────────────────────── */
+
+export type CustomerAddress = { id: string; label: string; street: string; number: string; complement: string; district: string; city: string; reference: string };
+
+export type CustomerProfile = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  emailNotifications?: boolean;
+  addresses?: CustomerAddress[];
+};
+
+export async function saveCustomerProfile(uid: string, data: Partial<CustomerProfile>) {
+  const { doc, setDoc } = await import("firebase/firestore");
+  await withWriteTimeout(setDoc(doc(getDb(), "clientes", uid), data, { merge: true }), 10000);
+}
+
+export function watchCustomerProfile(
+  uid: string,
+  onChange: (data: CustomerProfile | null, meta: { fromCache: boolean }) => void,
+  onError: (err: Error) => void,
+) {
+  const { doc, onSnapshot } = require("firebase/firestore");
+  const ref = doc(getDb(), "clientes", uid);
+  return onSnapshot(
+    ref,
+    (snap: any) => onChange(snap.exists() ? (snap.data() as CustomerProfile) : null, { fromCache: snap.metadata.fromCache }),
+    onError,
+  );
+}
+
+/* ───────────────────────── Solicitação de serviço (QR home) ───────────────────────── */
+
+export type ChamadoStatus = "ativo" | "andamento" | "concluido";
+export type ServiceRequestType = "call_waiter" | "request_bill";
+
+export async function createServiceRequest(params: {
+  restaurantId: string;
+  tableToken: string;
+  type: ServiceRequestType;
+  sessionId: string;
+}): Promise<{ id: string; duplicate: boolean }> {
+  const { addDoc, collection, query, where, getDocs, limit } = await import("firebase/firestore");
+  const colRef = collection(getDb(), "restaurantes", params.restaurantId, "chamados");
+  const existing = await getDocs(query(colRef, where("sessionId", "==", params.sessionId), where("type", "==", params.type), where("status", "in", ["ativo", "andamento"]), limit(1)));
+  if (!existing.empty) return { id: existing.docs[0].id, duplicate: true };
+  const now = new Date().toISOString();
+  const ref = await withWriteTimeout(addDoc(colRef, { table: params.tableToken, type: params.type, status: "ativo", sessionId: params.sessionId, createdAt: now }), 12000);
+  return { id: ref.id, duplicate: false };
+}
+
+export function watchServiceRequest(
+  restaurantId: string,
+  requestId: string,
+  onChange: (status: ChamadoStatus | null) => void,
+) {
+  const { doc, onSnapshot } = require("firebase/firestore");
+  const ref = doc(getDb(), "restaurantes", restaurantId, "chamados", requestId);
+  return onSnapshot(ref, (snap: any) => onChange(snap.exists() ? snap.data().status : null));
+}
+
 /** Chamado enviado pelo cliente no cardápio público: grava na subcoleção paginada do restaurante. */
 export async function addPublicCall(restaurantId: string, call: { table: string; type: string }) {
   const now = new Date().toISOString();

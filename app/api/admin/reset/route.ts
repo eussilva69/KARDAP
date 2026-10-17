@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Add protected collections explicitly
-    for (const name of PROTECTED_COLLECTIONS) {
+    for (const name of Array.from(PROTECTED_COLLECTIONS)) {
       if (!collections.find((c) => c.name === name)) {
         const count = await countCollection(name);
         collections.push({ name, count, action: "preserve" });

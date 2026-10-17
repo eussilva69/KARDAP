@@ -35,6 +35,9 @@ export type RestaurantSettings = {
   google: boolean;
   sound: boolean;
   googleReviewUrl?: string;
+  hours?: import("@/lib/restaurant-hours").WeeklyHours;
+  service?: import("@/lib/restaurant-hours").ServiceInfo;
+  welcomeMessage?: string;
 };
 export type CallStatus = "ativo" | "andamento" | "concluido";
 export type Call = {

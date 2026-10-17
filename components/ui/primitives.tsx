@@ -206,6 +206,8 @@ export function Callout({
   children,
   action,
   role,
+  style,
+  className,
 }: {
   tone?: "info" | "warn" | "danger" | "success";
   icon?: React.ReactNode;
@@ -213,9 +215,11 @@ export function Callout({
   children?: React.ReactNode;
   action?: React.ReactNode;
   role?: "status" | "alert";
+  style?: React.CSSProperties;
+  className?: string;
 }) {
   return (
-    <div className={`kd-callout kd-callout--${tone}`} role={role}>
+    <div className={`kd-callout kd-callout--${tone}${className ? ` ${className}` : ""}`} role={role} style={style}>
       {icon}
       <div className="kd-callout-body">
         {title && <b>{title}</b>}

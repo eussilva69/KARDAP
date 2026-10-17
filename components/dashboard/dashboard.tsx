@@ -736,26 +736,53 @@ function Overview(props: DashboardProps) {
 
   return (
     <div className="kd-stack">
-      <PageHeader
-        kicker={greeting()}
-        title={restaurantName || "Seu estabelecimento"}
-        display
-        actions={
-          <>
-            <Button
-              variant="secondary"
-              icon={<Copy size={15} />}
-              aria-label="Copiar link do cardápio"
-              onClick={() => copyText(menuUrl(), notify, "Link do cardápio copiado")}
-            >
-              Copiar link
-            </Button>
-            <ButtonLink href={publicMenuPath()} external variant="secondary" icon={<ExternalLink size={15} />}>
-              Abrir cardápio
-            </ButtonLink>
-          </>
-        }
-      />
+      <div>
+        <PageHeader
+          kicker={greeting()}
+          title={restaurantName || "Seu estabelecimento"}
+          display
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                icon={<Copy size={15} />}
+                aria-label="Copiar link do cardápio"
+                onClick={() => copyText(menuUrl(), notify, "Link do cardápio copiado")}
+              >
+                Copiar link
+              </Button>
+              <ButtonLink href={publicMenuPath()} external variant="secondary" icon={<ExternalLink size={15} />}>
+                Abrir cardápio
+              </ButtonLink>
+            </>
+          }
+        />
+        {ready && (
+          <dl className="kd-head-stats">
+            <div className="kd-head-stat">
+              <span className="kd-head-stat-icon" aria-hidden><UtensilsCrossed size={18} strokeWidth={1.8} /></span>
+              <div className="kd-head-stat-body">
+                <dd className="kd-head-stat-value kd-num">{foods.length - hidden}</dd>
+                <dt className="kd-head-stat-label">Produtos ativos</dt>
+              </div>
+            </div>
+            <div className="kd-head-stat">
+              <span className="kd-head-stat-icon" aria-hidden><Tags size={18} strokeWidth={1.8} /></span>
+              <div className="kd-head-stat-body">
+                <dd className="kd-head-stat-value kd-num">{visibleCategories}</dd>
+                <dt className="kd-head-stat-label">Categorias</dt>
+              </div>
+            </div>
+            <div className="kd-head-stat">
+              <span className="kd-head-stat-icon" aria-hidden><Armchair size={18} strokeWidth={1.8} /></span>
+              <div className="kd-head-stat-body">
+                <dd className="kd-head-stat-value kd-num">{tables.length}</dd>
+                <dt className="kd-head-stat-label">Mesas</dt>
+              </div>
+            </div>
+          </dl>
+        )}
+      </div>
 
       {!pendingTrial && status.urgent && (
         <Callout
@@ -844,12 +871,18 @@ function Overview(props: DashboardProps) {
           />
           <dl className="kd-service-stats">
             <div className={waiting.length ? "is-signal" : ""}>
-              <dt>Aguardando</dt>
-              <dd className="kd-num">{waiting.length}</dd>
+              <span className="kd-stat-icon" aria-hidden><ConciergeBell size={20} strokeWidth={1.8} /></span>
+              <div className="kd-stat-body">
+                <dt>Aguardando</dt>
+                <dd className="kd-num">{waiting.length}</dd>
+              </div>
             </div>
             <div>
-              <dt>Em atendimento</dt>
-              <dd className="kd-num">{serving.length}</dd>
+              <span className="kd-stat-icon" aria-hidden><HandPlatter size={20} strokeWidth={1.8} /></span>
+              <div className="kd-stat-body">
+                <dt>Em atendimento</dt>
+                <dd className="kd-num">{serving.length}</dd>
+              </div>
             </div>
           </dl>
           {queue.length ? (
@@ -2556,11 +2589,11 @@ function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, accoun
   const hidden = foods.filter((f) => f.available === false).length;
   const noPhoto = foods.filter((f) => !f.image).length;
 
-  const stats: [number, string][] = [
-    [calls.length, "Chamados analisados"],
-    [done, "Concluídos"],
-    [foods.length - hidden, "Produtos no cardápio"],
-    [noPhoto, "Produtos sem foto"],
+  const stats: [number, string, LucideIcon][] = [
+    [calls.length, "Chamados analisados", ConciergeBell],
+    [done, "Concluídos", Check],
+    [foods.length - hidden, "Produtos no cardápio", UtensilsCrossed],
+    [noPhoto, "Produtos sem foto", ImageOff],
   ];
 
   if (!allowed)
@@ -2582,10 +2615,13 @@ function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, accoun
         }
       />
       <div className="kd-stats">
-        {stats.map(([value, label], i) => (
+        {stats.map(([value, label, Icon], i) => (
           <div key={label} className="kd-stat k-enter" style={stagger(i)}>
-            <span className="kd-stat-value kd-num">{value}</span>
-            <span className="kd-stat-label">{label}</span>
+            <span className="kd-stat-icon" aria-hidden><Icon size={20} strokeWidth={1.8} /></span>
+            <div className="kd-stat-body">
+              <span className="kd-stat-value kd-num">{value}</span>
+              <span className="kd-stat-label">{label}</span>
+            </div>
           </div>
         ))}
       </div>
