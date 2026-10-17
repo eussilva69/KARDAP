@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
-import { AlertTriangle, ArrowLeft, Copy, ExternalLink, LoaderCircle, LogOut, RotateCw, Search, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Bug, Copy, ExternalLink, LayoutDashboard, LoaderCircle, LogOut, RotateCw, Search, ShieldAlert, ShieldCheck, Store, Trash2, Wallet } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/auth";
 import { friendlyError } from "@/lib/async";
 import { brl, plural } from "@/lib/format";
@@ -190,10 +190,10 @@ const sentence = (text: string) => {
 /* ───────────────────────── Estrutura ───────────────────────── */
 
 const SECTIONS = [
-  { href: "/admin", label: "Visão geral" },
-  { href: "/admin/restaurantes", label: "Restaurantes" },
-  { href: "/admin/planos", label: "Planos" },
-  { href: "/admin/debug", label: "Debug" },
+  { href: "/admin", label: "Visão geral", icon: LayoutDashboard },
+  { href: "/admin/restaurantes", label: "Restaurantes", icon: Store },
+  { href: "/admin/planos", label: "Planos", icon: Wallet },
+  { href: "/admin/debug", label: "Debug", icon: Bug },
 ];
 
 function AdminApp({ path, identity, notify }: { path: string; identity: AdminIdentity; notify: Notify }) {
@@ -277,7 +277,7 @@ function AdminApp({ path, identity, notify }: { path: string; identity: AdminIde
   );
 }
 
-/** Barra da administração e área principal. */
+/** Sidebar + área principal da administração. */
 export function AdminFrame({
   section,
   detail = false,
@@ -297,29 +297,34 @@ export function AdminFrame({
       <a href="#kd-admin-main" className="kd-skip">
         Pular para o conteúdo
       </a>
-      <header className="kd-admin-bar">
-        <div className="kd-admin-bar-inner">
-          <Link href="/admin" className="kd-admin-brand" aria-label="Administração do Kardap, visão geral">
-            <KardapLogo width={104} alt="" />
-            <span className="kd-admin-tag">Administração</span>
-          </Link>
-          <nav className="kd-admin-nav" aria-label="Seções da administração">
-            {SECTIONS.map((s) => (
-              <Link key={s.href} href={s.href} className={section === s.href ? "is-active" : ""} aria-current={section === s.href && !detail ? "page" : undefined}>
-                {s.label}
-              </Link>
-            ))}
-          </nav>
+      <aside className="kd-admin-sidebar">
+        <Link href="/admin" className="kd-admin-brand" aria-label="Administração do Kardap, visão geral">
+          <KardapLogo width={104} alt="" />
+          <span className="kd-admin-tag">Admin</span>
+        </Link>
+        <nav className="kd-admin-nav" aria-label="Seções da administração">
+          {SECTIONS.map((s) => (
+            <Link key={s.href} href={s.href} className={`kd-admin-nav-link${section === s.href ? " is-active" : ""}`} aria-current={section === s.href && !detail ? "page" : undefined}>
+              <s.icon size={18} aria-hidden />
+              <span>{s.label}</span>
+            </Link>
+          ))}
+        </nav>
+        <div className="kd-admin-sidebar-footer">
           <div className="kd-admin-account">
+            <span className="kd-admin-avatar" aria-hidden>
+              {(identity.email || "A")[0].toUpperCase()}
+            </span>
             <span className="kd-admin-email" title={identity.email}>
               {identity.email || "Administrador"}
             </span>
-            <button type="button" className="kd-icon-btn" onClick={logout} aria-label="Sair da conta" title="Sair da conta">
-              <LogOut size={17} />
-            </button>
           </div>
+          <button type="button" className="kd-admin-nav-link kd-admin-logout" onClick={logout}>
+            <LogOut size={18} aria-hidden />
+            <span>Sair</span>
+          </button>
         </div>
-      </header>
+      </aside>
       <main id="kd-admin-main" className="kd-admin-main" tabIndex={-1}>
         {children}
       </main>

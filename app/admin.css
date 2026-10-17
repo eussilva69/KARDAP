@@ -1,28 +1,46 @@
 /* ==========================================================================
    Kardap · administração do sistema (/admin)
-   Barra superior em lousa (e não a barra lateral do painel do restaurante),
-   para a pessoa sempre saber que está na área administrativa.
+   Sidebar lateral em lousa com navegação por ícones e labels.
    ========================================================================== */
 
-.kd-admin { min-height: 100vh; min-height: 100dvh; background: var(--k-canvas); }
+/* ─── Layout raiz ─── */
+.kd-admin { display: flex; min-height: 100vh; min-height: 100dvh; background: var(--k-canvas); }
 
-.kd-admin-bar { --k-focus: var(--k-giz); position: sticky; top: 0; z-index: var(--k-z-nav); background: var(--k-lousa); color: var(--k-giz); }
-.kd-admin-bar-inner {
+/* ─── Sidebar ─── */
+.kd-admin-sidebar {
+  --_side-w: 250px;
+  position: sticky;
+  top: 0;
   display: flex;
-  align-items: center;
-  gap: var(--k-s6);
-  max-width: 1240px;
-  min-height: 60px;
-  margin: 0 auto;
-  padding: var(--k-s2) clamp(16px, 3.4vw, 40px);
-  padding-top: max(var(--k-s2), env(safe-area-inset-top));
+  flex-direction: column;
+  width: var(--_side-w);
+  min-width: var(--_side-w);
+  height: 100vh;
+  height: 100dvh;
+  padding: var(--k-s5) var(--k-s4);
+  background: var(--k-lousa);
+  color: var(--k-giz);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--k-lousa-3) transparent;
+  z-index: var(--k-z-nav);
 }
-.kd-admin-brand { display: inline-flex; align-items: center; gap: var(--k-s3); border-radius: var(--k-r-sm); color: inherit; text-decoration: none; }
+
+.kd-admin-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--k-s3);
+  margin-bottom: var(--k-s6);
+  padding: var(--k-s1) var(--k-s2);
+  border-radius: var(--k-r-sm);
+  color: inherit;
+  text-decoration: none;
+}
 .kd-admin-brand img { display: block; }
 .kd-admin-tag {
   padding: 3px 8px;
   border: 1px solid var(--k-lousa-3);
-  border-radius: var(--k-r-xs);
+  border-radius: var(--k-r-pill);
   font-size: 11px;
   font-weight: 700;
   font-stretch: var(--k-stretch-condensed);
@@ -30,33 +48,86 @@
   text-transform: uppercase;
   color: var(--k-giz-muted);
 }
-.kd-admin-nav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.kd-admin-nav::-webkit-scrollbar { display: none; }
-.kd-admin-nav a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 0 var(--k-s3);
-  border-radius: var(--k-r-sm);
-  color: #d6dcd3;
-  font-size: var(--k-fs-md);
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.kd-admin-nav a:hover { background: var(--k-lousa-2); color: var(--k-giz); }
-.kd-admin-nav a.is-active { background: var(--k-lousa-3); color: var(--k-giz); }
-.kd-admin-account { display: flex; align-items: center; gap: var(--k-s2); min-width: 0; }
-.kd-admin-email { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--k-fs-sm); color: var(--k-giz-muted); }
-.kd-admin-account .kd-icon-btn { color: var(--k-giz-muted); }
-.kd-admin-account .kd-icon-btn:hover:not(:disabled) { background: var(--k-lousa-3); color: var(--k-giz); }
 
-.kd-admin-main { width: 100%; max-width: 1240px; margin: 0 auto; padding: var(--k-s8) clamp(16px, 3.4vw, 40px) var(--k-s10); }
+/* ─── Nav links ─── */
+.kd-admin-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.kd-admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--k-s3);
+  min-height: 42px;
+  padding: 0 var(--k-s3);
+  border: none;
+  border-radius: var(--k-r-pill);
+  background: transparent;
+  color: var(--k-giz-soft);
+  font: inherit;
+  font-size: var(--k-fs-md);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--k-dur-2) var(--k-ease-out), color var(--k-dur-2) var(--k-ease-out);
+}
+.kd-admin-nav-link svg { flex: none; color: var(--k-giz-muted); transition: color var(--k-dur-2) var(--k-ease-out); }
+.kd-admin-nav-link:hover { background: rgba(255, 255, 255, 0.08); color: var(--k-giz); }
+.kd-admin-nav-link:hover svg { color: var(--k-giz); }
+.kd-admin-nav-link.is-active { background: rgba(255, 255, 255, 0.12); color: var(--k-giz); font-weight: 650; }
+.kd-admin-nav-link.is-active svg { color: var(--k-signal-on-lousa); }
+
+/* ─── Footer da sidebar ─── */
+.kd-admin-sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-s2);
+  margin-top: auto;
+  padding-top: var(--k-s4);
+  border-top: 1px solid var(--k-lousa-3);
+}
+.kd-admin-account { display: flex; align-items: center; gap: var(--k-s3); padding: var(--k-s2) var(--k-s3); min-width: 0; }
+.kd-admin-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--k-lousa-3);
+  font-size: var(--k-fs-sm);
+  font-weight: 700;
+  color: var(--k-giz);
+}
+.kd-admin-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--k-fs-sm);
+  color: var(--k-giz-muted);
+}
+.kd-admin-logout { color: var(--k-giz-muted) !important; }
+.kd-admin-logout:hover { background: rgba(255, 80, 80, 0.12) !important; color: #ff8a8a !important; }
+.kd-admin-logout:hover svg { color: #ff8a8a !important; }
+
+/* ─── Área principal ─── */
+.kd-admin-main {
+  flex: 1;
+  min-width: 0;
+  max-width: 1140px;
+  padding: var(--k-s8) clamp(20px, 3.4vw, 48px) var(--k-s10);
+}
 .kd-admin-main:focus { outline: none; }
 
-/* Indicadores: o primeiro (receita) é o mais importante e ocupa mais espaço. */
+/* ─── KPIs ─── */
 .kd-kpis { display: grid; grid-template-columns: 1.6fr repeat(3, minmax(0, 1fr)); gap: var(--k-s3); }
-.kd-kpi { display: grid; align-content: start; gap: 6px; padding: var(--k-s5); border: 1px solid var(--k-line); border-radius: var(--k-r-md); background: var(--k-surface); }
+.kd-kpi {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: var(--k-s5);
+  border: 1px solid var(--k-glass-rim);
+  border-radius: var(--k-r-card);
+  background: var(--k-glass);
+}
 .kd-kpi-label { font-size: var(--k-fs-sm); font-weight: 600; color: var(--k-muted); }
 .kd-kpi-value { font-size: 2rem; font-weight: 750; font-stretch: var(--k-stretch-semi); line-height: 1.05; letter-spacing: -0.02em; }
 .kd-kpi-note { font-size: var(--k-fs-sm); color: var(--k-muted); }
@@ -65,6 +136,7 @@
 .kd-kpi.is-lead .kd-kpi-note { color: var(--k-giz-muted); }
 .kd-kpi.is-lead .kd-kpi-value { font-size: 2.5rem; }
 
+/* ─── Listas ─── */
 .kd-admin-list { display: grid; margin: 0; padding: 0; list-style: none; }
 .kd-admin-list li + li { border-top: 1px solid var(--k-line); }
 .kd-admin-list a,
@@ -86,6 +158,7 @@
 .kd-admin-empty-line { margin: 0; font-size: var(--k-fs-md); }
 .kd-admin-meta { font-size: var(--k-fs-sm); }
 
+/* ─── Log de auditoria ─── */
 .kd-admin-log { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .kd-admin-log li { display: grid; gap: 2px; padding: var(--k-s3) 0; border-top: 1px solid var(--k-line); }
 .kd-admin-log li:first-child { border-top: 0; padding-top: 0; }
@@ -94,8 +167,7 @@
 
 .kd-toolbar--admin { grid-template-columns: minmax(0, 1fr) 260px; }
 
-/* O nome do restaurante é a informação principal da linha: tamanho de corpo e cor de texto,
-   não o estilo pequeno e apagado dos cabeçalhos de coluna. As demais colunas ficam um tom abaixo. */
+/* ─── Tabela de restaurantes ─── */
 .kd-admin-table th[scope="row"] { font-size: var(--k-fs-md); font-weight: inherit; color: var(--k-ink); white-space: normal; }
 .kd-admin-table td { color: var(--k-text-2); }
 .kd-admin-table tr:last-child th { border-bottom: 0; }
@@ -114,21 +186,51 @@
 .kd-plan-admin .kd-plan-head { margin-bottom: var(--k-s4); }
 .kd-plan-admin .kd-plan-head > span { font-size: var(--k-fs-sm); }
 
+/* ─── Responsivo: tablet ─── */
 @media (max-width: 1023px) {
   .kd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kd-kpi.is-lead { grid-column: 1 / -1; }
-  .kd-admin-email { display: none; }
+  .kd-admin-sidebar { --_side-w: 68px; padding: var(--k-s4) var(--k-s2); align-items: center; }
+  .kd-admin-brand img { width: 32px; }
+  .kd-admin-brand span { display: none; }
+  .kd-admin-nav-link span { display: none; }
+  .kd-admin-nav-link { justify-content: center; padding: 0; width: 44px; height: 44px; border-radius: 50%; }
+  .kd-admin-account { display: none; }
+  .kd-admin-logout span { display: none; }
+  .kd-admin-logout { justify-content: center; padding: 0; width: 44px; height: 44px; border-radius: 50%; }
 }
 
+/* ─── Responsivo: mobile ─── */
 @media (max-width: 767px) {
-  .kd-admin-bar-inner { flex-wrap: wrap; gap: var(--k-s2) var(--k-s3); }
-  .kd-admin-nav { order: 3; flex-basis: 100%; }
-  .kd-admin-account { margin-left: auto; }
-  .kd-admin-main { padding-top: var(--k-s6); }
+  .kd-admin { flex-direction: column; }
+  .kd-admin-sidebar {
+    --_side-w: 100%;
+    position: sticky;
+    top: 0;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    padding: var(--k-s2) var(--k-s3);
+    gap: var(--k-s2);
+    overflow-x: auto;
+  }
+  .kd-admin-brand { margin-bottom: 0; padding: var(--k-s1); }
+  .kd-admin-brand img { width: 28px; }
+  .kd-admin-brand span { display: none; }
+  .kd-admin-nav { flex-direction: row; flex: 0 0 auto; gap: 2px; }
+  .kd-admin-nav-link { white-space: nowrap; border-radius: var(--k-r-pill); width: auto; height: auto; min-height: 36px; padding: 0 var(--k-s3); }
+  .kd-admin-nav-link span { display: inline; font-size: var(--k-fs-sm); }
+  .kd-admin-nav-link svg { display: none; }
+  .kd-admin-sidebar-footer { margin-top: 0; padding-top: 0; border: 0; flex-direction: row; margin-left: auto; }
+  .kd-admin-account { display: none; }
+  .kd-admin-logout { width: 36px; height: 36px; border-radius: 50%; padding: 0; justify-content: center; }
+  .kd-admin-logout span { display: none; }
+  .kd-admin-main { padding: var(--k-s6) var(--k-s4) var(--k-s10); }
   .kd-toolbar--admin { grid-template-columns: 1fr; }
   .kd-admin-action { grid-template-columns: 1fr; }
 
-  /* Lista de restaurantes vira cartões: nome primeiro, situação e dados abaixo. */
   .kd-admin-table thead { display: none; }
   .kd-admin-table tr { display: grid; grid-template-columns: 1fr auto; gap: 6px var(--k-s3); padding: var(--k-s3) var(--k-s4); border-bottom: 1px solid var(--k-line); }
   .kd-admin-table th,
@@ -144,14 +246,13 @@
 @media (max-width: 479px) {
   .kd-kpis { grid-template-columns: 1fr; gap: var(--k-s2); }
   .kd-kpi.is-lead .kd-kpi-value { font-size: 2.125rem; }
-  /* Indicadores secundários em linha (rótulo à esquerda, número à direita) para não empurrar as listas para baixo. */
   .kd-kpi:not(.is-lead) { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--k-s3); row-gap: 2px; padding: var(--k-s3) var(--k-s4); }
   .kd-kpi:not(.is-lead) .kd-kpi-label { grid-column: 1; grid-row: 1; }
   .kd-kpi:not(.is-lead) .kd-kpi-note { grid-column: 1; grid-row: 2; font-size: var(--k-fs-xs); }
   .kd-kpi:not(.is-lead) .kd-kpi-value { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 1.625rem; }
 }
 
-/* Assinatura na administração: plano, situação, limites e recursos personalizados. */
+/* ─── Assinatura ─── */
 .kd-admin-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--k-s3) var(--k-s4); margin: var(--k-s4) 0; }
 .kd-admin-features { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px var(--k-s4); margin: 0 0 var(--k-s4); padding: 0; border: 0; }
 .kd-admin-features legend { margin-bottom: var(--k-s2); }
