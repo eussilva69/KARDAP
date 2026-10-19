@@ -485,6 +485,67 @@
 .pm-spin { animation: pm-rotate 0.8s linear infinite; }
 @keyframes pm-rotate { to { transform: rotate(360deg); } }
 
+/* ── Skeleton de loading (fallback SSR antes do JS carregar) ── */
+.pm-loading-header {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 14px 13px 12px;
+}
+.pm-loading-logo {
+  display: block;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f0f0f0 0%, #f8f8f8 50%, #f0f0f0 100%);
+  background-size: 200% 100%;
+  animation: pm-shimmer 1.2s linear infinite;
+}
+.pm-loading-meta {
+  display: grid;
+  gap: 7px;
+}
+.pm-loading-cats {
+  display: flex;
+  gap: 6px;
+  padding: 9px 13px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.pm-loading-cat-pill {
+  flex: none;
+  height: 27px;
+  border-radius: 4px;
+}
+.pm-loading-list {
+  padding: 0 13px;
+}
+.pm-loading-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid #f4f4f4;
+}
+.pm-loading-row:last-child { border-bottom: 0; }
+.pm-loading-row-text {
+  display: grid;
+  gap: 7px;
+}
+.pm-loading-thumb {
+  width: 82px;
+  height: 82px;
+  border-radius: 7px;
+  flex: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-loading-logo, .pm-loading-cat-pill, .pm-loading-thumb,
+  .pm-loading-row-text .pm-skel { animation: none; }
+}
+
 /* Toast do app acima da navegação inferior no cardápio. */
 .toast.toast--public { right: 50% !important; bottom: calc(var(--pm-nav-h, 54px) + 12px + env(safe-area-inset-bottom, 0px)) !important; max-width: calc(100vw - 32px); transform: translateX(50%); }
 

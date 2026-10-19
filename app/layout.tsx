@@ -7,6 +7,7 @@ import "./dashboard.css";
 import "./menu.css";
 import "./site.css";
 import "./admin.css";
+import "./public-menu.css";
 // Rodapé compartilhado com a landing estática (public/*.html).
 import "../public/kardap-footer.css";
 
