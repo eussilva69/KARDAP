@@ -20,8 +20,9 @@ import {
   TextField,
   type BadgeTone,
 } from "@/components/ui";
-import type { DeliveryConfig } from "@/lib/delivery/types";
+import type { DeliveryConfig, FeeMode } from "@/lib/delivery/types";
 import { PAYMENT_METHOD_LABELS, DEFAULT_DELIVERY_CONFIG } from "@/lib/delivery/types";
+import { DeliveryAreasManager } from "./delivery-areas";
 
 type Notify = (message: string, tone?: "success" | "error") => void;
 
@@ -160,6 +161,7 @@ function DeliveryConfigPanel({
   const [minOrderCents, setMinOrderCents] = useState(String(config.minOrderCents > 0 ? (config.minOrderCents / 100).toFixed(2).replace(".", ",") : ""));
   const [methods, setMethods] = useState<string[]>(config.paymentMethods);
   const [notes, setNotes] = useState(config.notes || "");
+  const feeMode: FeeMode = config.feeMode || "taxa_fixa";
 
   const fullUrl = deliveryUrl ? `${typeof window !== "undefined" ? window.location.origin : ""}${deliveryUrl}` : null;
 
@@ -188,6 +190,7 @@ function DeliveryConfigPanel({
         minOrderCents: Math.round(parseMin * 100),
         paymentMethods: methods,
         notes: notes.trim(),
+        feeMode: config.feeMode || "taxa_fixa",
       });
       onUpdate(next);
       notify("Configurações do delivery salvas.");
@@ -275,7 +278,9 @@ function DeliveryConfigPanel({
       <Card style={{ marginBottom: 16 }}>
         <CardHead title="Configurações do delivery" />
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-          <TextField label="Taxa de entrega (R$)" value={feeCents} onChange={(e) => setFeeCents(e.target.value)} placeholder="0,00" inputMode="decimal" />
+          {feeMode === "taxa_fixa" && (
+            <TextField label="Taxa de entrega (R$)" value={feeCents} onChange={(e) => setFeeCents(e.target.value)} placeholder="0,00" inputMode="decimal" />
+          )}
           <TextField label="Tempo estimado de entrega" value={eta} onChange={(e) => setEta(e.target.value)} placeholder="30-45 min" />
           <TextField label="Área de entrega" value={area} onChange={(e) => setArea(e.target.value)} placeholder="Até 5 km do centro" />
           <TextField label="Pedido mínimo (R$)" value={minOrderCents} onChange={(e) => setMinOrderCents(e.target.value)} placeholder="0,00" inputMode="decimal" />
@@ -311,6 +316,23 @@ function DeliveryConfigPanel({
           </Button>
         </div>
       </Card>
+
+      <DeliveryAreasManager
+        restaurantId={restaurantId}
+        config={config}
+        notify={notify}
+        onConfigUpdate={async (patch) => {
+          setSaving(true);
+          try {
+            const next = await saveDeliveryConfig(restaurantId, patch);
+            onUpdate(next);
+          } catch (err) {
+            notify(friendlyError(err, "Não foi possível salvar."), "error");
+          } finally {
+            setSaving(false);
+          }
+        }}
+      />
     </div>
   );
 }

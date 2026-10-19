@@ -75,6 +75,7 @@ export type DeliveryAddress = {
   complement?: string;
   district: string;
   city: string;
+  uf?: string;
   reference?: string;
 };
 
@@ -88,6 +89,13 @@ export type StatusHistoryEntry = {
   status: DeliveryOrderStatus;
   at: string;
   by?: string;
+};
+
+export type FeeCalculation = {
+  feeMode: FeeMode;
+  cityMatched: string;
+  neighborhoodMatched?: string;
+  feeCents: number;
 };
 
 export type DeliveryOrder = {
@@ -105,6 +113,7 @@ export type DeliveryOrder = {
   paymentMethod: string;
   paymentStatus: "pendente" | "pago";
   notes?: string;
+  feeCalculation?: FeeCalculation;
   origin: {
     source: "kardap_delivery";
     channel: "web";
@@ -124,6 +133,54 @@ export type DeliveryOrder = {
 
 // ───────────────────────── Configuração do delivery ─────────────────────────
 
+export type FeeMode = "taxa_fixa" | "taxa_por_bairro";
+
+export type ServedCity = {
+  ibgeCode: string;
+  name: string;
+  uf: string;
+};
+
+export type NeighborhoodEntry = {
+  name: string;
+  feeCents: number;
+  enabled: boolean;
+};
+
+export type CityDeliveryArea = {
+  cityName: string;
+  uf: string;
+  ibgeCode: string;
+  neighborhoods: Record<string, NeighborhoodEntry>;
+  updatedAt: string;
+};
+
+export type DeliveryFeeResult = {
+  feeCents: number;
+  feeMode: FeeMode;
+  cityName: string;
+  neighborhoodName: string | null;
+  matched: boolean;
+  reason?: string;
+};
+
+export function slugifyNeighborhood(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export function normalizeCity(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export type DeliveryConfig = {
   enabled: boolean;
   enabledAt?: string;
@@ -134,6 +191,8 @@ export type DeliveryConfig = {
   minOrderCents: number;
   paymentMethods: string[];
   notes?: string;
+  feeMode?: FeeMode;
+  servedCities?: ServedCity[];
 };
 
 export const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
@@ -144,6 +203,8 @@ export const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
   minOrderCents: 0,
   paymentMethods: ["dinheiro", "pix", "cartao_credito", "cartao_debito"],
   notes: "",
+  feeMode: "taxa_fixa",
+  servedCities: [],
 };
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {

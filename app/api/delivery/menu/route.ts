@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
       minOrderCents: config.minOrderCents,
       paymentMethods: config.paymentMethods,
       notes: config.notes || "",
+      feeMode: config.feeMode || "taxa_fixa",
+      servedCities: config.servedCities || [],
     });
   } catch (error) {
     return errorResponse(req, "delivery menu", error);

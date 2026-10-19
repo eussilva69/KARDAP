@@ -41,8 +41,43 @@ type CartItem = {
   image?: string;
 };
 
-function useCart() {
-  const [items, setItems] = useState<CartItem[]>([]);
+function cartStorageKey(restaurantId: string) { return `kardap_cart_${restaurantId}`; }
+
+function loadCartFromStorage(restaurantId: string): CartItem[] {
+  if (!restaurantId) return [];
+  try {
+    const raw = localStorage.getItem(cartStorageKey(restaurantId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const MAX_AGE = 4 * 60 * 60 * 1000;
+    const saved = parsed as Array<CartItem & { savedAt?: number }>;
+    if (saved[0]?.savedAt && Date.now() - saved[0].savedAt > MAX_AGE) return [];
+    return saved.map(({ savedAt: _, ...item }) => item);
+  } catch { return []; }
+}
+
+function saveCartToStorage(restaurantId: string, items: CartItem[]) {
+  if (!restaurantId) return;
+  try {
+    if (!items.length) { localStorage.removeItem(cartStorageKey(restaurantId)); return; }
+    const withTimestamp = items.map((item, i) => i === 0 ? { ...item, savedAt: Date.now() } : item);
+    localStorage.setItem(cartStorageKey(restaurantId), JSON.stringify(withTimestamp));
+  } catch {}
+}
+
+function useCart(restaurantId: string) {
+  const [items, setItems] = useState<CartItem[]>(() => loadCartFromStorage(restaurantId));
+  const ridRef = useRef(restaurantId);
+
+  useEffect(() => {
+    if (restaurantId && restaurantId !== ridRef.current) {
+      ridRef.current = restaurantId;
+      setItems(loadCartFromStorage(restaurantId));
+    }
+  }, [restaurantId]);
+
+  useEffect(() => { saveCartToStorage(ridRef.current, items); }, [items]);
 
   const add = useCallback((product: RestaurantProduct) => {
     const priceCents = parsePriceCents(product);
@@ -146,8 +181,19 @@ function useDeliveryData(slug: string) {
   return { status, restaurant, sections, productsLoaded };
 }
 
+type DeliveryMenuConfig = {
+  deliveryFeeCents: number;
+  deliveryEta: string;
+  deliveryArea: string;
+  minOrderCents: number;
+  paymentMethods: string[];
+  notes: string;
+  feeMode: "taxa_fixa" | "taxa_por_bairro";
+  servedCities: { ibgeCode: string; name: string; uf: string }[];
+};
+
 function useDeliveryConfig(restaurantId: string) {
-  const [config, setConfig] = useState<{ deliveryFeeCents: number; deliveryEta: string; deliveryArea: string; minOrderCents: number; paymentMethods: string[]; notes: string } | null>(null);
+  const [config, setConfig] = useState<DeliveryMenuConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -170,13 +216,69 @@ function useDeliveryConfig(restaurantId: string) {
   return { config, loading, error };
 }
 
+type FeeState = { feeCents: number | null; loading: boolean; matched: boolean; reason?: string; servedNeighborhoods?: { name: string; slug: string }[] };
+
+function useDeliveryFee(
+  restaurantId: string,
+  feeMode: "taxa_fixa" | "taxa_por_bairro" | undefined,
+  city: string,
+  district: string,
+  uf: string,
+  flatFeeCents: number,
+  servedCities: { ibgeCode: string; name: string; uf: string }[],
+): FeeState {
+  const [state, setState] = useState<FeeState>({ feeCents: flatFeeCents, loading: false, matched: true });
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const lastQuery = useRef("");
+
+  useEffect(() => {
+    if (!feeMode || (feeMode === "taxa_fixa" && !servedCities.length)) {
+      setState({ feeCents: flatFeeCents, loading: false, matched: true });
+      return;
+    }
+
+    const q = `${city}|${district}|${uf}`;
+    if (q === lastQuery.current) return;
+
+    if (!city) {
+      setState({ feeCents: null, loading: false, matched: true });
+      return;
+    }
+
+    setState((s) => ({ ...s, loading: true }));
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    debounceRef.current = setTimeout(async () => {
+      lastQuery.current = q;
+      try {
+        const params = new URLSearchParams({ restaurantId, city, district, uf });
+        const res = await fetch(`/api/delivery/fee?${params}`);
+        const data = await res.json();
+        setState({
+          feeCents: data.matched ? data.feeCents : null,
+          loading: false,
+          matched: data.matched,
+          reason: data.reason,
+          servedNeighborhoods: data.servedNeighborhoods,
+        });
+      } catch {
+        setState({ feeCents: flatFeeCents, loading: false, matched: true });
+      }
+    }, 500);
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [restaurantId, feeMode, city, district, uf, flatFeeCents, servedCities]);
+
+  return state;
+}
+
 // ───────────────────────── Main component ─────────────────────────
 
 type Step = "menu" | "cart" | "checkout" | "confirmation";
 
 export default function DeliveryMenu({ slug, notify }: { slug: string; notify: Notify }) {
   const { status, restaurant, sections, productsLoaded } = useDeliveryData(slug);
-  const cart = useCart();
+  const cart = useCart(restaurant?.id || "");
   const [step, setStep] = useState<Step>("menu");
   const deliveryConfig = useDeliveryConfig(restaurant?.id || "");
   const [orderResult, setOrderResult] = useState<{ orderId: string; orderNumber: number } | null>(null);
@@ -214,8 +316,12 @@ export default function DeliveryMenu({ slug, notify }: { slug: string; notify: N
     );
   }
 
-  const deliveryFeeCents = deliveryConfig.config?.deliveryFeeCents ?? 0;
-  const totalCents = cart.subtotalCents + deliveryFeeCents;
+  const feeMode = deliveryConfig.config?.feeMode || "taxa_fixa";
+  const servedCities = deliveryConfig.config?.servedCities || [];
+  const flatFeeCents = deliveryConfig.config?.deliveryFeeCents ?? 0;
+  const showFeeInCart = feeMode === "taxa_fixa" || !servedCities.length;
+  const deliveryFeeCents = showFeeInCart ? flatFeeCents : null;
+  const totalCents = cart.subtotalCents + (deliveryFeeCents ?? 0);
 
   return (
     <div className="pm-app">
@@ -259,7 +365,9 @@ export default function DeliveryMenu({ slug, notify }: { slug: string; notify: N
           <CheckoutForm
             restaurantId={restaurant.id}
             cart={cart}
-            deliveryFeeCents={deliveryFeeCents}
+            deliveryFeeCents={flatFeeCents}
+            feeMode={feeMode}
+            servedCities={servedCities}
             paymentMethods={deliveryConfig.config.paymentMethods}
             notify={notify}
             onSuccess={(result) => {
@@ -273,6 +381,8 @@ export default function DeliveryMenu({ slug, notify }: { slug: string; notify: N
         {step === "confirmation" && orderResult && (
           <OrderConfirmation
             orderNumber={orderResult.orderNumber}
+            orderId={orderResult.orderId}
+            restaurantId={restaurant.id}
             restaurantName={restaurant.name}
             slug={slug}
           />
@@ -304,7 +414,7 @@ function DeliveryProductList({
   sections: Section[];
   loaded: boolean;
   cart: ReturnType<typeof useCart>;
-  deliveryConfig: { deliveryFeeCents: number; deliveryEta: string; deliveryArea: string } | null;
+  deliveryConfig: DeliveryMenuConfig | null;
   onGoToCart: () => void;
 }) {
   return (
@@ -319,7 +429,7 @@ function DeliveryProductList({
             {deliveryConfig && (
               <span className="pm-restaurant-meta" style={{ fontSize: 12, color: "var(--pm-muted, #888)" }}>
                 {deliveryConfig.deliveryEta && <span>⏱ {deliveryConfig.deliveryEta}</span>}
-                {deliveryConfig.deliveryFeeCents === 0 ? <span>Entrega grátis</span> : <span>Taxa: {brl.format(deliveryConfig.deliveryFeeCents / 100)}</span>}
+                {deliveryConfig.feeMode === "taxa_por_bairro" ? <span>Taxa por bairro</span> : deliveryConfig.deliveryFeeCents === 0 ? <span>Entrega grátis</span> : <span>Taxa: {brl.format(deliveryConfig.deliveryFeeCents / 100)}</span>}
                 {deliveryConfig.deliveryArea && <span>{deliveryConfig.deliveryArea}</span>}
               </span>
             )}
@@ -390,11 +500,11 @@ function CartView({
   minOrderCents,
 }: {
   cart: ReturnType<typeof useCart>;
-  deliveryFeeCents: number;
+  deliveryFeeCents: number | null;
   onCheckout: () => void;
   minOrderCents: number;
 }) {
-  const totalCents = cart.subtotalCents + deliveryFeeCents;
+  const totalCents = cart.subtotalCents + (deliveryFeeCents ?? 0);
   const belowMin = minOrderCents > 0 && cart.subtotalCents < minOrderCents;
 
   if (!cart.items.length) {
@@ -439,10 +549,11 @@ function CartView({
           <span>Subtotal</span><span>{brl.format(cart.subtotalCents / 100)}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <span>Taxa de entrega</span><span>{deliveryFeeCents === 0 ? "Grátis" : brl.format(deliveryFeeCents / 100)}</span>
+          <span>Taxa de entrega</span>
+          <span>{deliveryFeeCents === null ? "Calculado no checkout" : deliveryFeeCents === 0 ? "Grátis" : brl.format(deliveryFeeCents / 100)}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 16, marginTop: 8, paddingTop: 8, borderTop: "2px solid var(--pm-text, #000)" }}>
-          <span>Total</span><span>{brl.format(totalCents / 100)}</span>
+          <span>Total</span><span>{deliveryFeeCents === null ? `${brl.format(cart.subtotalCents / 100)} + frete` : brl.format(totalCents / 100)}</span>
         </div>
       </div>
       {belowMin && (
@@ -466,10 +577,30 @@ function formatPhone(raw: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+function formatCep(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
+async function fetchCep(cep: string): Promise<{ street: string; district: string; city: string; uf: string } | null> {
+  const digits = cep.replace(/\D/g, "");
+  if (digits.length !== 8) return null;
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.erro) return null;
+    return { street: data.logradouro || "", district: data.bairro || "", city: data.localidade || "", uf: data.uf || "" };
+  } catch { return null; }
+}
+
 function CheckoutForm({
   restaurantId,
   cart,
-  deliveryFeeCents,
+  deliveryFeeCents: flatFeeCents,
+  feeMode,
+  servedCities,
   paymentMethods,
   notify,
   onSuccess,
@@ -477,6 +608,8 @@ function CheckoutForm({
   restaurantId: string;
   cart: ReturnType<typeof useCart>;
   deliveryFeeCents: number;
+  feeMode: "taxa_fixa" | "taxa_por_bairro";
+  servedCities: { ibgeCode: string; name: string; uf: string }[];
   paymentMethods: string[];
   notify: Notify;
   onSuccess: (result: { orderId: string; orderNumber: number }) => void;
@@ -490,10 +623,63 @@ function CheckoutForm({
   const [district, setDistrict] = useState("");
   const [city, setCity] = useState("");
   const [reference, setReference] = useState("");
+  const [uf, setUf] = useState("");
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  useEffect(() => {
+    if (profileLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getFirebaseAuth } = await import("@/lib/auth");
+        const user = getFirebaseAuth().currentUser;
+        if (!user || cancelled) return;
+        const { watchCustomerProfile } = await import("@/lib/restaurant-db");
+        const unsub = watchCustomerProfile(user.uid, (profile) => {
+          if (!profile || cancelled) { unsub(); return; }
+          setName((v) => v || profile.name || "");
+          setPhone((v) => v || (profile.phone ? formatPhone(profile.phone) : ""));
+          if (profile.addresses?.length) {
+            const addr = profile.addresses[0];
+            setStreet((v) => v || addr.street || "");
+            setNumber((v) => v || addr.number || "");
+            setComplement((v) => v || addr.complement || "");
+            setDistrict((v) => v || addr.district || "");
+            setCity((v) => v || addr.city || "");
+            setReference((v) => v || addr.reference || "");
+          }
+          setProfileLoaded(true);
+          unsub();
+        }, () => {});
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [paymentMethod, setPaymentMethod] = useState(paymentMethods[0] || "");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [cepLoading, setCepLoading] = useState(false);
+
+  const fee = useDeliveryFee(restaurantId, feeMode, city, district, uf, flatFeeCents, servedCities);
+  const deliveryFeeCents = fee.feeCents ?? 0;
+
+  const handleCepChange = useCallback(async (raw: string) => {
+    const formatted = formatCep(raw);
+    setCep(formatted);
+    const digits = formatted.replace(/\D/g, "");
+    if (digits.length === 8) {
+      setCepLoading(true);
+      const result = await fetchCep(digits);
+      setCepLoading(false);
+      if (result) {
+        if (result.street) setStreet(result.street);
+        if (result.district) setDistrict(result.district);
+        if (result.city) setCity(result.city);
+        if (result.uf) setUf(result.uf);
+      }
+    }
+  }, []);
   const submittedRef = useRef(false);
 
   const idempotencyKey = useRef(`del_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
@@ -513,6 +699,8 @@ function CheckoutForm({
     if (!district.trim()) { setError("Informe o bairro."); return; }
     if (!city.trim()) { setError("Informe a cidade."); return; }
     if (!paymentMethod) { setError("Selecione a forma de pagamento."); return; }
+    if (!fee.matched) { setError(fee.reason || "Endereço fora da área de entrega."); return; }
+    if (fee.loading) { setError("Aguarde o cálculo do frete."); return; }
 
     setSubmitting(true);
     setError("");
@@ -522,7 +710,7 @@ function CheckoutForm({
       const payload: DeliveryCheckoutPayload = {
         restaurantId,
         customer: { name: name.trim(), phone: phoneDigits },
-        address: { cep: cep.trim(), street: street.trim(), number: number.trim(), complement: complement.trim() || undefined, district: district.trim(), city: city.trim(), reference: reference.trim() || undefined },
+        address: { cep: cep.trim(), street: street.trim(), number: number.trim(), complement: complement.trim() || undefined, district: district.trim(), city: city.trim(), uf: uf.trim() || undefined, reference: reference.trim() || undefined },
         items: cart.items.map((i) => ({ productId: i.productId, quantity: i.quantity, notes: i.notes || undefined })),
         paymentMethod,
         notes: notes.trim() || undefined,
@@ -539,6 +727,19 @@ function CheckoutForm({
       const res = await fetch("/api/delivery/orders", { method: "POST", headers, body: JSON.stringify(payload) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Não foi possível enviar o pedido.");
+
+      try {
+        const { getFirebaseAuth } = await import("@/lib/auth");
+        const uid = getFirebaseAuth().currentUser?.uid;
+        if (uid) {
+          const { saveCustomerProfile } = await import("@/lib/restaurant-db");
+          saveCustomerProfile(uid, {
+            name: name.trim(),
+            phone: phoneDigits,
+            addresses: [{ id: "main", label: "Principal", street: street.trim(), number: number.trim(), complement: complement.trim() || "", district: district.trim(), city: city.trim(), reference: reference.trim() || "" }],
+          }).catch(() => {});
+        }
+      } catch {}
 
       onSuccess({ orderId: data.orderId, orderNumber: data.orderNumber });
     } catch (err) {
@@ -564,16 +765,31 @@ function CheckoutForm({
       <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
         <legend style={{ fontWeight: 600, marginBottom: 8 }}><MapPin size={14} style={{ verticalAlign: -2 }} /> Endereço de entrega</legend>
         <div className="pm-checkout-fields">
-          <label className="pm-field">CEP<input className="pm-input" value={cep} onChange={(e) => setCep(e.target.value)} inputMode="numeric" maxLength={10} required /></label>
+          <label className="pm-field">CEP{cepLoading && <LoaderCircle size={14} className="pm-spin" style={{ marginLeft: 6, verticalAlign: -2 }} />}<input className="pm-input" value={cep} onChange={(e) => handleCepChange(e.target.value)} inputMode="numeric" maxLength={9} required placeholder="00000-000" /></label>
           <label className="pm-field">Rua<input className="pm-input" value={street} onChange={(e) => setStreet(e.target.value)} required /></label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8 }}>
             <label className="pm-field">Número<input className="pm-input" value={number} onChange={(e) => setNumber(e.target.value)} required /></label>
             <label className="pm-field">Complemento<input className="pm-input" value={complement} onChange={(e) => setComplement(e.target.value)} placeholder="Apto, bloco..." /></label>
           </div>
-          <label className="pm-field">Bairro<input className="pm-input" value={district} onChange={(e) => setDistrict(e.target.value)} required /></label>
+          <label className="pm-field">
+            Bairro
+            {!district && fee.servedNeighborhoods?.length ? (
+              <select className="pm-input" value={district} onChange={(e) => setDistrict(e.target.value)} required>
+                <option value="">Selecione seu bairro</option>
+                {fee.servedNeighborhoods.map((n) => <option key={n.slug} value={n.name}>{n.name}</option>)}
+              </select>
+            ) : (
+              <input className="pm-input" value={district} onChange={(e) => setDistrict(e.target.value)} required />
+            )}
+          </label>
           <label className="pm-field">Cidade<input className="pm-input" value={city} onChange={(e) => setCity(e.target.value)} required /></label>
           <label className="pm-field">Referência<input className="pm-input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Próximo a..." /></label>
         </div>
+        {!fee.matched && fee.reason && (
+          <p style={{ color: "var(--pm-danger, #c00)", fontSize: 13, marginTop: 8, padding: "8px 10px", background: "var(--pm-danger-bg, #fff0f0)", borderRadius: 6 }}>
+            {fee.reason}
+          </p>
+        )}
       </fieldset>
 
       <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
@@ -602,44 +818,149 @@ function CheckoutForm({
           <span>Subtotal ({cart.totalItems} {cart.totalItems === 1 ? "item" : "itens"})</span>
           <span>{brl.format(cart.subtotalCents / 100)}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
           <span>Taxa de entrega</span>
-          <span>{deliveryFeeCents === 0 ? "Grátis" : brl.format(deliveryFeeCents / 100)}</span>
+          <span>
+            {fee.loading ? <LoaderCircle size={14} className="pm-spin" /> : !fee.matched ? "—" : deliveryFeeCents === 0 ? "Grátis" : brl.format(deliveryFeeCents / 100)}
+          </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 16, marginTop: 8, paddingTop: 8, borderTop: "2px solid var(--pm-text, #000)" }}>
           <span>Total</span>
-          <span>{brl.format(totalCents / 100)}</span>
+          <span>{fee.loading ? "..." : !fee.matched ? "—" : brl.format(totalCents / 100)}</span>
         </div>
       </div>
 
       {error && <p style={{ color: "var(--pm-danger, #c00)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
 
-      <button type="submit" className="pm-btn pm-btn--primary" disabled={submitting} style={{ width: "100%", position: "relative" }}>
+      <button type="submit" className="pm-btn pm-btn--primary" disabled={submitting || !fee.matched || fee.loading} style={{ width: "100%", position: "relative" }}>
         {submitting ? <LoaderCircle size={18} className="pm-spin" /> : <Check size={16} />}
-        {submitting ? "Enviando pedido..." : `Confirmar pedido · ${brl.format(totalCents / 100)}`}
+        {submitting ? "Enviando pedido..." : fee.loading ? "Calculando frete..." : !fee.matched ? "Endereço não atendido" : `Confirmar pedido · ${brl.format(totalCents / 100)}`}
       </button>
     </form>
   );
 }
 
-// ───────────────────────── Order confirmation ─────────────────────────
+// ───────────────────────── Order tracking ─────────────────────────
 
-function OrderConfirmation({ orderNumber, restaurantName, slug }: { orderNumber: number; restaurantName: string; slug: string }) {
+const TRACKING_STEPS: { status: string; label: string; icon: string }[] = [
+  { status: "pendente", label: "Pedido recebido", icon: "📋" },
+  { status: "confirmado", label: "Pedido confirmado", icon: "✅" },
+  { status: "em_preparo", label: "Em preparação", icon: "👨‍🍳" },
+  { status: "pronto", label: "Pedido pronto", icon: "📦" },
+  { status: "saiu_para_entrega", label: "Saiu para entrega", icon: "🛵" },
+  { status: "entregue", label: "Entregue", icon: "🎉" },
+];
+
+function stepIndex(status: string): number {
+  const idx = TRACKING_STEPS.findIndex((s) => s.status === status);
+  return idx >= 0 ? idx : 0;
+}
+
+type TrackingData = {
+  status: string;
+  orderNumber: number;
+  statusHistory: { status: string; at: string; by?: string }[];
+  updatedAt: string;
+};
+
+function OrderConfirmation({
+  orderNumber,
+  orderId,
+  restaurantId,
+  restaurantName,
+  slug,
+}: {
+  orderNumber: number;
+  orderId: string;
+  restaurantId: string;
+  restaurantName: string;
+  slug: string;
+}) {
+  const [tracking, setTracking] = useState<TrackingData | null>(null);
+  const [trackError, setTrackError] = useState(false);
+
+  useEffect(() => {
+    if (!restaurantId || !orderId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/delivery/orders/${encodeURIComponent(orderId)}/status?restaurantId=${encodeURIComponent(restaurantId)}`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (!cancelled) setTracking(data);
+      } catch {
+        if (!cancelled) setTrackError(true);
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 8000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [restaurantId, orderId]);
+
+  const currentStatus = tracking?.status || "pendente";
+  const isCancelled = currentStatus === "cancelado" || currentStatus === "recusado";
+  const isDelivered = currentStatus === "entregue";
+  const current = stepIndex(currentStatus);
+
+  const historyTime = (status: string) => {
+    const entry = tracking?.statusHistory?.find((h) => h.status === status);
+    if (!entry) return null;
+    try { return new Date(entry.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); } catch { return null; }
+  };
+
   return (
-    <div style={{ padding: "40px 16px", textAlign: "center" }}>
-      <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-        <Check size={28} color="#fff" />
+    <div className="dl-tracking">
+      <div className="dl-tracking-header">
+        <div className="dl-tracking-check">
+          {isDelivered ? "🎉" : isCancelled ? "❌" : <Check size={28} />}
+        </div>
+        <h2 className="dl-tracking-title">
+          {isDelivered ? "Pedido entregue!" : isCancelled ? (currentStatus === "recusado" ? "Pedido recusado" : "Pedido cancelado") : "Pedido enviado!"}
+        </h2>
+        <p className="dl-tracking-sub">
+          Pedido #{String(orderNumber).padStart(3, "0")} · <strong>{restaurantName}</strong>
+        </p>
       </div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Pedido enviado!</h2>
-      <p style={{ fontSize: 14, color: "var(--pm-muted, #888)", marginBottom: 4 }}>
-        Seu pedido #{String(orderNumber).padStart(3, "0")} foi recebido por <strong>{restaurantName}</strong>.
-      </p>
-      <p style={{ fontSize: 13, color: "var(--pm-muted, #888)", marginBottom: 24 }}>
-        O estabelecimento confirmará seu pedido em breve. Acompanhe pelo seu telefone.
-      </p>
-      <Link href={`/r/${slug}/delivery`} className="pm-btn" style={{ display: "inline-flex" }}>
-        Fazer novo pedido
-      </Link>
+
+      {!isCancelled && (
+        <div className="dl-timeline">
+          {TRACKING_STEPS.map((step, i) => {
+            const done = i <= current;
+            const active = i === current;
+            const time = historyTime(step.status);
+            return (
+              <div key={step.status} className={`dl-timeline-step${done ? " is-done" : ""}${active ? " is-active" : ""}`}>
+                <div className="dl-timeline-marker">
+                  <span className="dl-timeline-dot">{done ? step.icon : ""}</span>
+                  {i < TRACKING_STEPS.length - 1 && <span className="dl-timeline-line" />}
+                </div>
+                <div className="dl-timeline-content">
+                  <span className="dl-timeline-label">{step.label}</span>
+                  {time && <span className="dl-timeline-time">{time}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {isCancelled && (
+        <p className="dl-tracking-cancelled">
+          {currentStatus === "recusado" ? "O restaurante não pôde aceitar seu pedido no momento." : "Este pedido foi cancelado."}
+        </p>
+      )}
+
+      {trackError && !tracking && (
+        <p style={{ fontSize: 13, color: "var(--pm-muted, #888)", textAlign: "center", marginTop: 12 }}>
+          Não foi possível carregar o acompanhamento. Atualize a página.
+        </p>
+      )}
+
+      <div className="dl-tracking-actions">
+        <Link href={`/r/${slug}/delivery`} className="pm-btn">
+          Fazer novo pedido
+        </Link>
+      </div>
     </div>
   );
 }
