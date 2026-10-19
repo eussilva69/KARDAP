@@ -252,7 +252,7 @@ function CitySearchInput({
             >
               <MapPin size={14} style={{ color: "var(--kd-muted)", flexShrink: 0 }} />
               <span>{c.name}</span>
-              <Badge tone="neutral" style={{ marginLeft: "auto" }}>{c.uf}</Badge>
+              <span style={{ marginLeft: "auto" }}><Badge tone="neutral">{c.uf}</Badge></span>
             </button>
           ))}
         </div>
