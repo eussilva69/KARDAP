@@ -521,7 +521,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                     {placeResults.length > 0 && (
                       <ul className="kd-place-results" role="listbox">
                         {placeResults.map((p) => (
-                          <li key={p.placeId} role="option" className="kd-place-result" onClick={() => confirmPlace(p)}>
+                          <li key={p.placeId} role="option" aria-selected={false} className="kd-place-result" onClick={() => confirmPlace(p)}>
                             <MapPin size={18} className="kd-place-result-icon" aria-hidden />
                             <span className="kd-place-result-info">
                               <b>{p.name}</b>

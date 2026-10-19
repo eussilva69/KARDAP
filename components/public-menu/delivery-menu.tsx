@@ -654,6 +654,7 @@ function CheckoutForm({
       } catch {}
     })();
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount to pre-fill from saved profile
   }, []);
   const [paymentMethod, setPaymentMethod] = useState(paymentMethods[0] || "");
   const [notes, setNotes] = useState("");

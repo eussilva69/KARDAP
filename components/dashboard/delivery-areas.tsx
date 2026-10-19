@@ -384,7 +384,6 @@ function CityPanel({
   };
 
   const selectAll = () => {
-    setSelected(new Set(Object.keys(sortedEntries.map(([k]) => k))));
     setSelected(new Set(sortedEntries.map(([k]) => k)));
   };
   const deselectAll = () => setSelected(new Set());
@@ -393,9 +392,9 @@ function CityPanel({
     const cents = strToCents(bulkFee);
     setNeighborhoods((prev) => {
       const next = { ...prev };
-      for (const slug of selected) {
+      selected.forEach((slug) => {
         if (next[slug]) next[slug] = { ...next[slug], feeCents: cents };
-      }
+      });
       return next;
     });
     setShowBulk(false);
@@ -429,9 +428,9 @@ function CityPanel({
   const bulkEnable = (enable: boolean) => {
     setNeighborhoods((prev) => {
       const next = { ...prev };
-      for (const slug of selected) {
+      selected.forEach((slug) => {
         if (next[slug]) next[slug] = { ...next[slug], enabled: enable };
-      }
+      });
       return next;
     });
     notify(`${selected.size} bairro(s) ${enable ? "ativado(s)" : "desativado(s)"}.`);
