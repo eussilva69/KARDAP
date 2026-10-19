@@ -1,17 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Bike,
+  BookOpen,
   Check,
   ChevronRight,
+  Clock,
   LoaderCircle,
   MapPin,
   Minus,
+  Play,
   Plus,
+  Search,
   ShoppingBag,
   Trash2,
+  UtensilsCrossed,
   X,
 } from "lucide-react";
 import {
@@ -23,12 +29,27 @@ import {
 } from "@/lib/restaurant-db";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { friendlyError } from "@/lib/async";
+import { hasHours, openStatus, RESTAURANT_TIME_ZONE, WEEKDAYS, type ServiceInfo, type WeeklyHours } from "@/lib/restaurant-hours";
 import type { Brand, RestaurantSettings } from "@/components/dashboard/types";
-import type { DeliveryCheckoutPayload, DeliveryAddress, DeliveryConfig } from "@/lib/delivery/types";
+import type { DeliveryCheckoutPayload } from "@/lib/delivery/types";
 import { PAYMENT_METHOD_LABELS } from "@/lib/delivery/types";
 import { productPrice } from "../public-menu/public-menu";
+import ReelsViewer from "./reels-viewer";
+import { Panel, SubHeader } from "./panel";
 
 type Notify = (message: string, tone?: "success" | "error") => void;
+type Tab = "menu" | "search" | "cart";
+
+// ───────────────────────── Types ─────────────────────────
+
+type Restaurant = {
+  id: string;
+  name: string;
+  establishmentType: string;
+  brand: Partial<Brand>;
+  settings: Partial<RestaurantSettings>;
+};
+type Section = { key: string; name: string; items: RestaurantProduct[] };
 
 // ───────────────────────── Cart state ─────────────────────────
 
@@ -41,7 +62,7 @@ type CartItem = {
   image?: string;
 };
 
-function cartStorageKey(restaurantId: string) { return `kardap_cart_${restaurantId}`; }
+function cartStorageKey(restaurantId: string) { return `kardap_cart_dl_${restaurantId}`; }
 
 function loadCartFromStorage(restaurantId: string): CartItem[] {
   if (!restaurantId) return [];
@@ -79,12 +100,12 @@ function useCart(restaurantId: string) {
 
   useEffect(() => { saveCartToStorage(ridRef.current, items); }, [items]);
 
-  const add = useCallback((product: RestaurantProduct) => {
+  const add = useCallback((product: RestaurantProduct, notes = "") => {
     const priceCents = parsePriceCents(product);
     setItems((prev) => {
-      const existing = prev.find((i) => i.productId === product.id);
-      if (existing) return prev.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { productId: product.id, name: product.name, priceCents, quantity: 1, notes: "", image: product.image }];
+      const existing = prev.find((i) => i.productId === product.id && i.notes === notes);
+      if (existing) return prev.map((i) => i.productId === product.id && i.notes === notes ? { ...i, quantity: i.quantity + 1 } : i);
+      return [...prev, { productId: product.id, name: product.name, priceCents, quantity: 1, notes, image: product.image }];
     });
   }, []);
 
@@ -121,13 +142,20 @@ function parsePriceCents(product: RestaurantProduct): number {
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-// ───────────────────────── Data loading ─────────────────────────
+// ───────────────────────── Normalize (busca) ─────────────────────────
 
-type Restaurant = { id: string; name: string; brand: Partial<Brand>; settings: Partial<RestaurantSettings> };
-type Section = { key: string; name: string; items: RestaurantProduct[] };
+const normalize = (value: unknown) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+
+// ───────────────────────── Data loading ─────────────────────────
 
 function useDeliveryData(slug: string) {
   const [status, setStatus] = useState<"loading" | "ready" | "not-found" | "error">("loading");
+  const [slow, setSlow] = useState(false);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [products, setProducts] = useState<RestaurantProduct[]>([]);
   const [categories, setCategories] = useState<RestaurantCategory[]>([]);
@@ -137,20 +165,27 @@ function useDeliveryData(slug: string) {
   useEffect(() => {
     if (!slug || !isFirebaseConfigured) { setStatus(slug ? "error" : "not-found"); return; }
     setStatus("loading");
-    return watchPublicRestaurant(slug, (data, meta) => {
-      if (!data) { if (!meta.fromCache) setStatus("not-found"); return; }
+    setSlow(false);
+    const timer = setTimeout(() => setSlow(true), 9000);
+    const stop = watchPublicRestaurant(slug, (data, meta) => {
+      if (!data) { if (!meta.fromCache) { clearTimeout(timer); setStatus("not-found"); } return; }
+      clearTimeout(timer);
+      setSlow(false);
       setRestaurant({
         id: data.id,
         name: typeof data.name === "string" ? data.name : "",
+        establishmentType: typeof data.establishmentType === "string" ? data.establishmentType : "",
         brand: (data.brand as Partial<Brand> | undefined) || {},
         settings: (data.settings as Partial<RestaurantSettings> | undefined) || {},
       });
       setStatus("ready");
-    }, () => setStatus("error"));
+    }, () => { clearTimeout(timer); setStatus("error"); });
+    return () => { clearTimeout(timer); stop(); };
   }, [slug]);
 
   useEffect(() => {
     if (!restaurantId) return;
+    setProductsLoaded(false);
     return watchPublicRestaurantProducts(restaurantId, (items, meta) => {
       if (meta.fromCache && !items.length) return;
       setProducts(items);
@@ -170,16 +205,20 @@ function useDeliveryData(slug: string) {
       const cat = product.categoryId ? byId.get(product.categoryId) : undefined;
       if (cat && cat.active === false) continue;
       const name = cat?.name || product.category || "Outros";
-      const key = cat ? cat.id : `nome:${name.toLowerCase()}`;
-      const group = groups.get(key) || { key, name, order: cat ? Number(cat.order) || 0 : Infinity, items: [] };
+      const key = cat ? cat.id : `nome:${normalize(name)}`;
+      const group = groups.get(key) || { key, name, order: cat ? Number(cat.order) || 0 : Number.MAX_SAFE_INTEGER, items: [] };
       group.items.push(product);
       groups.set(key, group);
     }
-    return Array.from(groups.values()).sort((a, b) => a.order - b.order).map(({ key, name, items }) => ({ key, name, items }));
+    return Array.from(groups.values())
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "pt-BR"))
+      .map(({ key, name, items }) => ({ key, name, items }));
   }, [products, categories]);
 
-  return { status, restaurant, sections, productsLoaded };
+  return { status, slow, restaurant, sections, productsLoaded };
 }
+
+// ───────────────────────── Delivery config ─────────────────────────
 
 type DeliveryMenuConfig = {
   deliveryFeeCents: number;
@@ -272,30 +311,64 @@ function useDeliveryFee(
   return state;
 }
 
+// ───────────────────────── Open Status (para o header) ─────────────────────────
+
+function useOpenStatus(hours?: WeeklyHours) {
+  const [open, setOpen] = useState<boolean | null>(() => openStatus(hours));
+  useEffect(() => {
+    setOpen(openStatus(hours));
+    const timer = setInterval(() => setOpen(openStatus(hours)), 60_000);
+    return () => clearInterval(timer);
+  }, [hours]);
+  return open;
+}
+
 // ───────────────────────── Main component ─────────────────────────
 
-type Step = "menu" | "cart" | "checkout" | "confirmation";
+type Step = "menu" | "checkout" | "confirmation";
+type PanelState =
+  | { type: "reels"; items: RestaurantProduct[]; index: number }
+  | { type: "product"; product: RestaurantProduct }
+  | { type: "info" }
+  | null;
 
 export default function DeliveryMenu({ slug, notify }: { slug: string; notify: Notify }) {
-  const { status, restaurant, sections, productsLoaded } = useDeliveryData(slug);
+  const { status, slow, restaurant, sections, productsLoaded } = useDeliveryData(slug);
   const cart = useCart(restaurant?.id || "");
   const [step, setStep] = useState<Step>("menu");
-  const deliveryConfig = useDeliveryConfig(restaurant?.id || "");
+  const [tab, setTab] = useState<Tab>("menu");
+  const [panel, setPanel] = useState<PanelState>(null);
   const [orderResult, setOrderResult] = useState<{ orderId: string; orderNumber: number } | null>(null);
+  const deliveryConfig = useDeliveryConfig(restaurant?.id || "");
+  const menuScroll = useRef(0);
+
+  const goTo = (next: Tab) => {
+    if (next === tab) {
+      if (next === "menu") window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (tab === "menu") menuScroll.current = window.scrollY;
+    setTab(next);
+  };
+
+  useEffect(() => {
+    window.scrollTo(0, tab === "menu" ? menuScroll.current : 0);
+  }, [tab]);
+
+  const openReels = (product: RestaurantProduct, list: RestaurantProduct[]) =>
+    setPanel({ type: "reels", items: list, index: Math.max(0, list.findIndex((item) => item.id === product.id)) });
+
+  const openProduct = (product: RestaurantProduct) =>
+    setPanel({ type: "product", product });
 
   if (status !== "ready" || !restaurant) {
     return (
       <div className="pm-app">
         <div className="pm-column">
-          <div className="pm-platform"><span>KARDAP</span></div>
-          {status === "loading" ? (
-            <div style={{ padding: 40, textAlign: "center" }}><LoaderCircle size={24} className="pm-spin" /></div>
-          ) : (
-            <div className="pm-state">
-              <h1 className="pm-state-title">{status === "not-found" ? "Restaurante não encontrado" : "Erro ao carregar"}</h1>
-              <p className="pm-state-text">{status === "not-found" ? "Este link de delivery não corresponde a nenhum restaurante." : "Verifique sua conexão e tente de novo."}</p>
-            </div>
-          )}
+          <div className="pm-platform" aria-hidden>
+            <span>KARDAP</span>
+          </div>
+          <DeliveryMenuState status={status} slow={slow} />
         </div>
       </div>
     );
@@ -321,54 +394,25 @@ export default function DeliveryMenu({ slug, notify }: { slug: string; notify: N
   const flatFeeCents = deliveryConfig.config?.deliveryFeeCents ?? 0;
   const showFeeInCart = feeMode === "taxa_fixa" || !servedCities.length;
   const deliveryFeeCents = showFeeInCart ? flatFeeCents : null;
-  const totalCents = cart.subtotalCents + (deliveryFeeCents ?? 0);
 
-  return (
-    <div className="pm-app">
-      <div className="pm-column">
-        <div className="pm-platform">
-          {step !== "menu" ? (
-            <button className="pm-platform-back" onClick={() => setStep(step === "cart" ? "menu" : step === "checkout" ? "cart" : "menu")}>
+  if (step === "checkout") {
+    return (
+      <div className="pm-app">
+        <div className="pm-column">
+          <div className="pm-platform">
+            <button className="pm-platform-back" onClick={() => setStep("menu")}>
               <ArrowLeft size={15} />
               <span>Voltar</span>
             </button>
-          ) : (
-            <Link className="pm-platform-back" href={`/r/${slug}`}>
-              <ArrowLeft size={15} />
-              <span>Cardápio</span>
-            </Link>
-          )}
-          <span>Delivery</span>
-        </div>
-
-        {step === "menu" && (
-          <DeliveryProductList
-            restaurant={restaurant}
-            sections={sections}
-            loaded={productsLoaded}
-            cart={cart}
-            deliveryConfig={deliveryConfig.config}
-            onGoToCart={() => setStep("cart")}
-          />
-        )}
-
-        {step === "cart" && (
-          <CartView
-            cart={cart}
-            deliveryFeeCents={deliveryFeeCents}
-            onCheckout={() => setStep("checkout")}
-            minOrderCents={deliveryConfig.config?.minOrderCents ?? 0}
-          />
-        )}
-
-        {step === "checkout" && restaurant && deliveryConfig.config && (
+            <span>Delivery</span>
+          </div>
           <CheckoutForm
             restaurantId={restaurant.id}
             cart={cart}
             deliveryFeeCents={flatFeeCents}
             feeMode={feeMode}
             servedCities={servedCities}
-            paymentMethods={deliveryConfig.config.paymentMethods}
+            paymentMethods={deliveryConfig.config?.paymentMethods ?? []}
             notify={notify}
             onSuccess={(result) => {
               setOrderResult(result);
@@ -376,9 +420,22 @@ export default function DeliveryMenu({ slug, notify }: { slug: string; notify: N
               setStep("confirmation");
             }}
           />
-        )}
+        </div>
+      </div>
+    );
+  }
 
-        {step === "confirmation" && orderResult && (
+  if (step === "confirmation" && orderResult) {
+    return (
+      <div className="pm-app">
+        <div className="pm-column">
+          <div className="pm-platform">
+            <Link className="pm-platform-back" href={`/r/${slug}/delivery`}>
+              <ArrowLeft size={15} />
+              <span>Novo pedido</span>
+            </Link>
+            <span>Delivery</span>
+          </div>
           <OrderConfirmation
             orderNumber={orderResult.orderNumber}
             orderId={orderResult.orderId}
@@ -386,185 +443,852 @@ export default function DeliveryMenu({ slug, notify }: { slug: string; notify: N
             restaurantName={restaurant.name}
             slug={slug}
           />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pm-app">
+      <div className="pm-column">
+        {tab !== "cart" && (
+          <div className="pm-platform">
+            <Link className="pm-platform-back" href={`/r/${slug}`} aria-label="Ver cardápio do restaurante">
+              <ArrowLeft size={15} aria-hidden />
+              <span>Cardápio</span>
+            </Link>
+            <span>Delivery</span>
+          </div>
         )}
 
-        {step === "menu" && cart.totalItems > 0 && (
-          <div className="pm-cart-fab" onClick={() => setStep("cart")}>
-            <ShoppingBag size={18} />
-            <span>Ver carrinho ({cart.totalItems})</span>
-            <span style={{ marginLeft: "auto", fontWeight: 600 }}>{brl.format(cart.subtotalCents / 100)}</span>
+        <div hidden={tab !== "menu"}>
+          <DeliveryRestaurantHeader
+            restaurant={restaurant}
+            deliveryConfig={deliveryConfig.config}
+            onInfo={() => setPanel({ type: "info" })}
+          />
+          <DeliveryMenuList
+            active={tab === "menu"}
+            sections={sections}
+            loaded={productsLoaded}
+            cart={cart}
+            onOpen={openReels}
+            onAddToCart={openProduct}
+          />
+        </div>
+
+        {tab === "search" && (
+          <DeliverySearchScreen
+            sections={sections}
+            loaded={productsLoaded}
+            cart={cart}
+            onOpen={openReels}
+            onAddToCart={openProduct}
+          />
+        )}
+
+        {tab === "cart" && (
+          <DeliveryCartScreen
+            cart={cart}
+            deliveryFeeCents={deliveryFeeCents}
+            minOrderCents={deliveryConfig.config?.minOrderCents ?? 0}
+            onCheckout={() => setStep("checkout")}
+            onBack={() => goTo("menu")}
+          />
+        )}
+
+        <DeliveryBottomNav tab={tab} cartCount={cart.totalItems} onChange={goTo} />
+      </div>
+
+      {panel?.type === "reels" && (
+        <ReelsViewer
+          items={panel.items}
+          startIndex={panel.index}
+          priceOf={productPrice}
+          onClose={() => setPanel(null)}
+        />
+      )}
+      {panel?.type === "product" && (
+        <ProductDetailPanel
+          product={panel.product}
+          cart={cart}
+          onClose={() => setPanel(null)}
+          notify={notify}
+        />
+      )}
+      {panel?.type === "info" && restaurant && (
+        <DeliveryInfoPanel
+          restaurant={restaurant}
+          deliveryConfig={deliveryConfig.config}
+          onClose={() => setPanel(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── Loading state ─────────────────────────
+
+function DeliveryMenuState({ status, slow }: { status: "loading" | "ready" | "not-found" | "error"; slow: boolean }) {
+  if (status !== "not-found" && status !== "error" && !slow)
+    return (
+      <div aria-busy="true" aria-label="Carregando delivery">
+        <div className="pm-restaurant">
+          <div className="pm-restaurant-main">
+            <span className="pm-skel" style={{ width: 38, height: 38 }} />
+            <span className="pm-restaurant-text">
+              <span className="pm-skel" style={{ width: "55%", height: 14 }} />
+              <span className="pm-skel" style={{ width: "35%", height: 11 }} />
+            </span>
           </div>
+        </div>
+        <DeliveryProductSkeleton />
+      </div>
+    );
+  const copy =
+    status === "not-found"
+      ? { title: "Delivery não encontrado", text: "Este link não corresponde a nenhum restaurante ativo." }
+      : status === "error"
+        ? { title: "Não foi possível abrir o delivery", text: "Verifique sua conexão e tente de novo." }
+        : { title: "A conexão está lenta", text: "Ainda carregando. Aguarde um momento." };
+  return (
+    <div className="pm-state" role={status === "error" ? "alert" : "status"}>
+      {status === "loading" && <LoaderCircle className="pm-spin" size={20} aria-hidden />}
+      <h1 className="pm-state-title">{copy.title}</h1>
+      <p className="pm-state-text">{copy.text}</p>
+    </div>
+  );
+}
+
+function DeliveryProductSkeleton() {
+  return (
+    <div className="pm-sections" aria-hidden>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="pm-product">
+          <span className="pm-product-info" style={{ gap: 6 }}>
+            <span className="pm-skel" style={{ width: "40%", height: 13 }} />
+            <span className="pm-skel" style={{ width: "92%", height: 11 }} />
+            <span className="pm-skel" style={{ width: "80%", height: 11 }} />
+            <span className="pm-skel" style={{ width: 54, height: 12, marginTop: 8 }} />
+          </span>
+          <span className="pm-skel" style={{ width: 80, height: 80, borderRadius: 6 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ───────────────────────── Cabeçalho do restaurante ─────────────────────────
+
+function StatusPill({ open }: { open: boolean }) {
+  return (
+    <span className={`pm-status ${open ? "" : "pm-status--closed"}`}>
+      <Clock size={10} strokeWidth={2.4} aria-hidden />
+      {open ? "Aberto" : "Fechado"}
+    </span>
+  );
+}
+
+function RestaurantLogo({ restaurant, size = 38 }: { restaurant: Restaurant; size?: number }) {
+  return (
+    <span className="pm-logo" style={size !== 38 ? { width: size, height: size } : undefined}>
+      {restaurant.brand.logo ? (
+        <img src={restaurant.brand.logo} alt="" width={size} height={size} decoding="async" />
+      ) : (
+        (restaurant.name.trim()[0] || "K").toUpperCase()
+      )}
+    </span>
+  );
+}
+
+function DeliveryRestaurantHeader({
+  restaurant,
+  deliveryConfig,
+  onInfo,
+}: {
+  restaurant: Restaurant;
+  deliveryConfig: DeliveryMenuConfig | null;
+  onInfo: () => void;
+}) {
+  const open = useOpenStatus(restaurant.settings.hours);
+  return (
+    <header className="pm-restaurant">
+      <button type="button" className="pm-restaurant-main" onClick={onInfo} aria-label={`Informações de ${restaurant.name || "estabelecimento"}`}>
+        <RestaurantLogo restaurant={restaurant} />
+        <span className="pm-restaurant-text">
+          <h1 className="pm-restaurant-name">{restaurant.name || "Delivery"}</h1>
+          <span className="pm-restaurant-meta">
+            {restaurant.establishmentType && (
+              <span className="pm-kind">
+                <UtensilsCrossed size={11} aria-hidden />
+                {restaurant.establishmentType}
+              </span>
+            )}
+            {open !== null && <StatusPill open={open} />}
+          </span>
+        </span>
+        <ChevronRight className="pm-chevron" size={16} aria-hidden />
+      </button>
+      <div className="pm-restaurant-links">
+        <button type="button" className="pm-text-link" onClick={onInfo}>
+          <Bike size={13} aria-hidden />
+          {deliveryConfig
+            ? `${deliveryConfig.deliveryEta ? deliveryConfig.deliveryEta + " · " : ""}${
+                deliveryConfig.feeMode === "taxa_por_bairro"
+                  ? "Taxa por bairro"
+                  : deliveryConfig.deliveryFeeCents === 0
+                  ? "Entrega grátis"
+                  : `Taxa: ${brl.format(deliveryConfig.deliveryFeeCents / 100)}`
+              }`
+            : "Ver tempo e taxa de entrega"}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+// ───────────────────────── Lista de produtos (com carrinho) ─────────────────────────
+
+type OpenProduct = (product: RestaurantProduct, list: RestaurantProduct[]) => void;
+type AddToCart = (product: RestaurantProduct) => void;
+
+function DeliveryMenuList({
+  active,
+  sections,
+  loaded,
+  cart,
+  onOpen,
+  onAddToCart,
+}: {
+  active: boolean;
+  sections: Section[];
+  loaded: boolean;
+  cart: ReturnType<typeof useCart>;
+  onOpen: OpenProduct;
+  onAddToCart: AddToCart;
+}) {
+  const [current, setCurrent] = useState("");
+  const barRef = useRef<HTMLElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const lock = useRef<{ key: string; until: number } | null>(null);
+  const activeKey = current || sections[0]?.key || "";
+
+  useEffect(() => {
+    if (!active || !sections.length) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (lock.current && Date.now() < lock.current.until) return;
+      lock.current = null;
+      const barBottom = barRef.current?.getBoundingClientRect().bottom ?? 0;
+      let key = sections[0].key;
+      for (const section of sections) {
+        const el = document.getElementById(`pm-sec-${section.key}`);
+        if (el && el.getBoundingClientRect().top - barBottom <= 12) key = section.key;
+      }
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) key = sections[sections.length - 1].key;
+      setCurrent(key);
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [active, sections]);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    const button = track?.querySelector<HTMLElement>(`[data-key="${CSS.escape(activeKey)}"]`);
+    if (!track || !button) return;
+    const left = button.offsetLeft - 12;
+    const right = button.offsetLeft + button.offsetWidth + 12 - track.clientWidth;
+    if (track.scrollLeft > left) track.scrollTo({ left, behavior: "smooth" });
+    else if (track.scrollLeft < right) track.scrollTo({ left: right, behavior: "smooth" });
+  }, [activeKey]);
+
+  const select = (key: string) => {
+    const el = document.getElementById(`pm-sec-${key}`);
+    if (!el) return;
+    const barHeight = barRef.current?.offsetHeight ?? 0;
+    const top = el.getBoundingClientRect().top + window.scrollY - barHeight + 1;
+    lock.current = { key, until: Date.now() + 900 };
+    setCurrent(key);
+    window.scrollTo({ top, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
+
+  if (!loaded) return <DeliveryProductSkeleton />;
+  if (!sections.length)
+    return (
+      <p className="pm-empty" role="status">
+        <b>O cardápio está sendo preparado</b>
+        Ainda não há produtos publicados.
+      </p>
+    );
+
+  return (
+    <>
+      <nav className="pm-categories" ref={barRef} aria-label="Categorias do cardápio">
+        <div className="pm-categories-track" ref={trackRef}>
+          {sections.map((section) => (
+            <button
+              key={section.key}
+              type="button"
+              data-key={section.key}
+              className={`pm-category ${section.key === activeKey ? "is-active" : ""}`}
+              aria-current={section.key === activeKey ? "true" : undefined}
+              onClick={() => select(section.key)}
+            >
+              {section.name}
+            </button>
+          ))}
+        </div>
+      </nav>
+      <div className="pm-sections">
+        {sections.map((section) => (
+          <section key={section.key} id={`pm-sec-${section.key}`} className="pm-section" aria-labelledby={`pm-sec-title-${section.key}`}>
+            <h2 className="pm-section-title" id={`pm-sec-title-${section.key}`}>
+              {section.name}
+            </h2>
+            <DeliveryProductList items={section.items} cart={cart} onOpen={onOpen} onAddToCart={onAddToCart} />
+          </section>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function DeliveryProductList({
+  items,
+  cart,
+  onOpen,
+  onAddToCart,
+}: {
+  items: RestaurantProduct[];
+  cart: ReturnType<typeof useCart>;
+  onOpen: OpenProduct;
+  onAddToCart: AddToCart;
+}) {
+  return (
+    <ul className="pm-products">
+      {items.map((product) => (
+        <li key={product.id}>
+          <DeliveryProductRow
+            product={product}
+            cart={cart}
+            onOpen={() => onOpen(product, items)}
+            onAddToCart={() => onAddToCart(product)}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function DeliveryProductRow({
+  product,
+  cart,
+  onOpen,
+  onAddToCart,
+}: {
+  product: RestaurantProduct;
+  cart: ReturnType<typeof useCart>;
+  onOpen: () => void;
+  onAddToCart: () => void;
+}) {
+  const price = productPrice(product);
+  const inCart = cart.items.find((i) => i.productId === product.id);
+
+  return (
+    <div className="dl-product-row">
+      <button type="button" className="pm-product" onClick={onOpen} style={{ cursor: "pointer" }}>
+        <span className="pm-product-info">
+          <span className="pm-product-name">{product.name}</span>
+          {product.description?.trim() && <span className="pm-product-desc">{product.description.trim()}</span>}
+          <span className="pm-more">Ver mais</span>
+          {price && <span className="pm-price">{price}</span>}
+        </span>
+        <DeliveryProductThumb product={product} />
+      </button>
+      <div className="dl-cart-controls">
+        {inCart ? (
+          <div className="dl-qty-row">
+            <button
+              type="button"
+              className="pm-qty-btn"
+              onClick={() => cart.updateQty(product.id, inCart.quantity - 1)}
+              aria-label="Diminuir quantidade"
+            >
+              <Minus size={14} />
+            </button>
+            <span className="dl-qty-count">{inCart.quantity}</span>
+            <button
+              type="button"
+              className="pm-qty-btn"
+              onClick={() => cart.updateQty(product.id, inCart.quantity + 1)}
+              aria-label="Aumentar quantidade"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="dl-add-btn"
+            onClick={onAddToCart}
+            aria-label={`Adicionar ${product.name} ao carrinho`}
+          >
+            <Plus size={14} aria-hidden />
+            Adicionar
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-// ───────────────────────── Product list ─────────────────────────
+function DeliveryProductThumb({ product }: { product: RestaurantProduct }) {
+  const [failed, setFailed] = useState(false);
+  if (product.image && !failed)
+    return (
+      <span className="pm-thumb">
+        <img src={product.image} alt="" width={80} height={80} loading="lazy" decoding="async" onError={() => setFailed(true)} />
+      </span>
+    );
+  return (
+    <span className="pm-thumb" aria-hidden>
+      {product.videoUrl ? <Play size={20} /> : <UtensilsCrossed size={20} strokeWidth={1.5} />}
+    </span>
+  );
+}
 
-function DeliveryProductList({
-  restaurant,
+// ───────────────────────── Tela de busca (Delivery) ─────────────────────────
+
+function DeliverySearchScreen({
   sections,
   loaded,
   cart,
-  deliveryConfig,
-  onGoToCart,
+  onOpen,
+  onAddToCart,
 }: {
-  restaurant: Restaurant;
   sections: Section[];
   loaded: boolean;
   cart: ReturnType<typeof useCart>;
-  deliveryConfig: DeliveryMenuConfig | null;
-  onGoToCart: () => void;
+  onOpen: OpenProduct;
+  onAddToCart: AddToCart;
 }) {
+  const [term, setTerm] = useState("");
+  const [category, setCategory] = useState("");
+  const deferred = useDeferredValue(term);
+  const needle = normalize(deferred);
+  const index = useMemo(
+    () =>
+      sections.flatMap((section) =>
+        section.items.map((product) => ({
+          product,
+          section: section.key,
+          text: normalize(`${product.name} ${product.description || ""} ${section.name}`),
+        })),
+      ),
+    [sections],
+  );
+  const searching = Boolean(needle || category);
+  const results = searching
+    ? index.filter((entry) => (!category || entry.section === category) && needle.split(/\s+/).every((word) => entry.text.includes(word)))
+    : [];
+
+  return (
+    <div className="pm-screen">
+      <div className="pm-search">
+        <label className="pm-search-field">
+          <span className="sr-only">Buscar produtos</span>
+          <Search size={15} aria-hidden />
+          <input
+            className="pm-input"
+            type="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            placeholder="Buscar produtos"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+          />
+          {term && (
+            <button type="button" className="pm-search-clear" onClick={() => setTerm("")} aria-label="Limpar busca">
+              <X size={15} />
+            </button>
+          )}
+        </label>
+        {sections.length > 0 && (
+          <>
+            <p className="pm-search-label">Categorias:</p>
+            <div className="pm-pills">
+              {sections.map((section) => (
+                <button
+                  key={section.key}
+                  type="button"
+                  className={`pm-pill ${category === section.key ? "is-active" : ""}`}
+                  aria-pressed={category === section.key}
+                  onClick={() => setCategory((current) => (current === section.key ? "" : section.key))}
+                >
+                  {section.name}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {searching && (
+        <div className="pm-results" aria-live="polite">
+          {!loaded ? (
+            <DeliveryProductSkeleton />
+          ) : results.length ? (
+            <>
+              <p className="pm-results-count">
+                {results.length} {results.length === 1 ? "produto encontrado" : "produtos encontrados"}
+              </p>
+              <DeliveryProductList
+                items={results.map((entry) => entry.product)}
+                cart={cart}
+                onOpen={onOpen}
+                onAddToCart={onAddToCart}
+              />
+            </>
+          ) : (
+            <p className="pm-empty">
+              <b>Nenhum produto encontrado</b>
+              {needle ? `Não há resultados para "${deferred.trim()}".` : "Esta categoria não tem produtos."}
+            </p>
+          )}
+        </div>
+      )}
+
+      <Signature />
+    </div>
+  );
+}
+
+// ───────────────────────── Carrinho (aba) ─────────────────────────
+
+function DeliveryCartScreen({
+  cart,
+  deliveryFeeCents,
+  minOrderCents,
+  onCheckout,
+  onBack,
+}: {
+  cart: ReturnType<typeof useCart>;
+  deliveryFeeCents: number | null;
+  minOrderCents: number;
+  onCheckout: () => void;
+  onBack: () => void;
+}) {
+  const totalCents = cart.subtotalCents + (deliveryFeeCents ?? 0);
+  const belowMin = minOrderCents > 0 && cart.subtotalCents < minOrderCents;
+
   return (
     <>
-      <header className="pm-restaurant" style={{ padding: "12px 16px" }}>
-        <div className="pm-restaurant-main" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {restaurant.brand.logo && (
-            <span className="pm-logo"><img src={restaurant.brand.logo} alt="" width={38} height={38} /></span>
-          )}
-          <span className="pm-restaurant-text">
-            <h1 className="pm-restaurant-name">{restaurant.name}</h1>
-            {deliveryConfig && (
-              <span className="pm-restaurant-meta" style={{ fontSize: 12, color: "var(--pm-muted, #888)" }}>
-                {deliveryConfig.deliveryEta && <span>⏱ {deliveryConfig.deliveryEta}</span>}
-                {deliveryConfig.feeMode === "taxa_por_bairro" ? <span>Taxa por bairro</span> : deliveryConfig.deliveryFeeCents === 0 ? <span>Entrega grátis</span> : <span>Taxa: {brl.format(deliveryConfig.deliveryFeeCents / 100)}</span>}
-                {deliveryConfig.deliveryArea && <span>{deliveryConfig.deliveryArea}</span>}
-              </span>
-            )}
-          </span>
-        </div>
-      </header>
+      <div className="pm-platform">
+        <button className="pm-platform-back" onClick={onBack}>
+          <ArrowLeft size={15} />
+          <span>Cardápio</span>
+        </button>
+        <span>Carrinho</span>
+      </div>
 
-      {!loaded ? (
-        <div style={{ padding: 40, textAlign: "center" }}><LoaderCircle size={20} className="pm-spin" /></div>
-      ) : !sections.length ? (
-        <p className="pm-empty"><b>O cardápio está sendo preparado</b></p>
+      {!cart.items.length ? (
+        <div className="pm-state">
+          <ShoppingBag size={32} strokeWidth={1.2} />
+          <h1 className="pm-state-title">Carrinho vazio</h1>
+          <p className="pm-state-text">Adicione produtos do cardápio para fazer seu pedido.</p>
+          <button type="button" className="pm-btn" onClick={onBack} style={{ marginTop: 12, width: "auto" }}>
+            Ver cardápio
+          </button>
+        </div>
       ) : (
-        <div className="pm-sections">
-          {sections.map((section) => (
-            <section key={section.key} className="pm-section">
-              <h2 className="pm-section-title">{section.name}</h2>
-              <ul className="pm-products">
-                {section.items.map((product) => {
-                  const price = productPrice(product);
-                  const inCart = cart.items.find((i) => i.productId === product.id);
-                  return (
-                    <li key={product.id}>
-                      <div className="pm-product" style={{ cursor: "default" }}>
-                        <span className="pm-product-info">
-                          <span className="pm-product-name">{product.name}</span>
-                          {product.description?.trim() && <span className="pm-product-desc">{product.description.trim()}</span>}
-                          {price && <span className="pm-price">{price}</span>}
-                        </span>
-                        {product.image && (
-                          <span className="pm-thumb"><img src={product.image} alt="" width={80} height={80} loading="lazy" /></span>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 16px 8px" }}>
-                        {inCart ? (
-                          <>
-                            <button type="button" className="pm-qty-btn" onClick={() => cart.updateQty(product.id, inCart.quantity - 1)}>
-                              <Minus size={14} />
-                            </button>
-                            <span style={{ minWidth: 20, textAlign: "center", fontWeight: 600 }}>{inCart.quantity}</span>
-                            <button type="button" className="pm-qty-btn" onClick={() => cart.updateQty(product.id, inCart.quantity + 1)}>
-                              <Plus size={14} />
-                            </button>
-                          </>
-                        ) : (
-                          <button type="button" className="pm-btn pm-btn--sm" onClick={() => cart.add(product)}>
-                            <Plus size={14} /> Adicionar
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
+        <div className="dl-cart-view">
+          <h2 className="dl-cart-title">Seu pedido</h2>
+          <ul className="dl-cart-items">
+            {cart.items.map((item) => (
+              <li key={item.productId} className="dl-cart-item">
+                {item.image && <img src={item.image} alt="" width={52} height={52} className="dl-cart-img" />}
+                <div className="dl-cart-item-info">
+                  <div className="dl-cart-item-name">{item.name}</div>
+                  {item.notes && <div className="dl-cart-item-notes">{item.notes}</div>}
+                  <div className="dl-cart-item-price">{brl.format(item.priceCents / 100)} × {item.quantity}</div>
+                </div>
+                <div className="dl-cart-item-controls">
+                  <div className="dl-qty-row">
+                    <button type="button" className="pm-qty-btn" onClick={() => cart.updateQty(item.productId, item.quantity - 1)}>
+                      <Minus size={14} />
+                    </button>
+                    <span className="dl-qty-count">{item.quantity}</span>
+                    <button type="button" className="pm-qty-btn" onClick={() => cart.updateQty(item.productId, item.quantity + 1)}>
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  <button type="button" className="dl-remove-btn" onClick={() => cart.remove(item.productId)} title="Remover item">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <div className="dl-cart-item-total">{brl.format((item.priceCents * item.quantity) / 100)}</div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="dl-cart-summary">
+            <div className="dl-cart-row">
+              <span>Subtotal</span>
+              <span>{brl.format(cart.subtotalCents / 100)}</span>
+            </div>
+            <div className="dl-cart-row">
+              <span>Taxa de entrega</span>
+              <span>{deliveryFeeCents === null ? "Calculado no checkout" : deliveryFeeCents === 0 ? "Grátis" : brl.format(deliveryFeeCents / 100)}</span>
+            </div>
+            <div className="dl-cart-row dl-cart-total">
+              <span>Total</span>
+              <span>{deliveryFeeCents === null ? `${brl.format(cart.subtotalCents / 100)} + frete` : brl.format(totalCents / 100)}</span>
+            </div>
+          </div>
+
+          {belowMin && (
+            <p className="dl-below-min">
+              Pedido mínimo: {brl.format(minOrderCents / 100)}. Adicione mais itens.
+            </p>
+          )}
+
+          <div className="dl-cart-actions">
+            <button type="button" className="pm-btn pm-btn--primary" disabled={belowMin} onClick={onCheckout}>
+              Continuar para entrega
+            </button>
+          </div>
         </div>
       )}
     </>
   );
 }
 
-// ───────────────────────── Cart view ─────────────────────────
+// ───────────────────────── Painel de detalhe do produto ─────────────────────────
 
-function CartView({
+function ProductDetailPanel({
+  product,
   cart,
-  deliveryFeeCents,
-  onCheckout,
-  minOrderCents,
+  onClose,
+  notify,
 }: {
+  product: RestaurantProduct;
   cart: ReturnType<typeof useCart>;
-  deliveryFeeCents: number | null;
-  onCheckout: () => void;
-  minOrderCents: number;
+  onClose: () => void;
+  notify: Notify;
 }) {
-  const totalCents = cart.subtotalCents + (deliveryFeeCents ?? 0);
-  const belowMin = minOrderCents > 0 && cart.subtotalCents < minOrderCents;
+  const [notes, setNotes] = useState("");
+  const [qty, setQty] = useState(1);
+  const price = productPrice(product);
+  const priceCents = parsePriceCents(product);
+  const inCart = cart.items.find((i) => i.productId === product.id);
 
-  if (!cart.items.length) {
-    return (
-      <div className="pm-state">
-        <ShoppingBag size={32} strokeWidth={1.2} />
-        <h1 className="pm-state-title">Carrinho vazio</h1>
-        <p className="pm-state-text">Adicione produtos do cardápio para fazer seu pedido.</p>
-      </div>
-    );
-  }
+  const handleAdd = () => {
+    for (let i = 0; i < qty; i++) {
+      cart.add(product, notes);
+    }
+    notify(`${qty}× ${product.name} adicionado${qty > 1 ? "s" : ""} ao carrinho`, "success");
+    onClose();
+  };
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Seu pedido</h2>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-        {cart.items.map((item) => (
-          <li key={item.productId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--pm-border, #eee)" }}>
-            {item.image && <img src={item.image} alt="" width={48} height={48} style={{ borderRadius: 6, objectFit: "cover" }} />}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500 }}>{item.name}</div>
-              <div style={{ fontSize: 13, color: "var(--pm-muted, #888)" }}>{brl.format(item.priceCents / 100)} × {item.quantity}</div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button type="button" className="pm-qty-btn" onClick={() => cart.updateQty(item.productId, item.quantity - 1)}>
-                <Minus size={14} />
-              </button>
-              <span style={{ minWidth: 20, textAlign: "center", fontWeight: 600 }}>{item.quantity}</span>
-              <button type="button" className="pm-qty-btn" onClick={() => cart.updateQty(item.productId, item.quantity + 1)}>
-                <Plus size={14} />
-              </button>
-              <button type="button" className="pm-qty-btn" onClick={() => cart.remove(item.productId)} title="Remover" style={{ marginLeft: 4 }}>
-                <Trash2 size={14} />
-              </button>
-            </div>
-            <div style={{ fontWeight: 600, minWidth: 70, textAlign: "right" }}>{brl.format((item.priceCents * item.quantity) / 100)}</div>
-          </li>
-        ))}
-      </ul>
-      <div style={{ marginTop: 16, fontSize: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <span>Subtotal</span><span>{brl.format(cart.subtotalCents / 100)}</span>
+    <Panel title={product.name} onClose={onClose}>
+      {product.videoUrl ? (
+        <div className="pm-detail-media">
+          <video src={product.videoUrl} poster={product.image || undefined} muted loop playsInline autoPlay className="rv-media" />
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <span>Taxa de entrega</span>
-          <span>{deliveryFeeCents === null ? "Calculado no checkout" : deliveryFeeCents === 0 ? "Grátis" : brl.format(deliveryFeeCents / 100)}</span>
+      ) : product.image ? (
+        <div className="pm-detail-media">
+          <img src={product.image} alt={product.name} />
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 16, marginTop: 8, paddingTop: 8, borderTop: "2px solid var(--pm-text, #000)" }}>
-          <span>Total</span><span>{deliveryFeeCents === null ? `${brl.format(cart.subtotalCents / 100)} + frete` : brl.format(totalCents / 100)}</span>
+      ) : null}
+
+      <div className="pm-block">
+        <h2 className="pm-detail-name">{product.name}</h2>
+        {product.description?.trim() && <p className="pm-detail-desc">{product.description.trim()}</p>}
+        {price && <p className="pm-detail-price">{price}</p>}
+      </div>
+
+      <div className="pm-block">
+        <label className="pm-field">
+          Observações
+          <textarea
+            className="pm-input"
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Alguma observação? (ex: sem cebola)"
+            style={{ resize: "vertical", height: 72 }}
+          />
+        </label>
+      </div>
+
+      <div className="pm-panel-footer">
+        <div className="dl-detail-footer">
+          <div className="dl-qty-row">
+            <button type="button" className="pm-qty-btn" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Diminuir">
+              <Minus size={16} />
+            </button>
+            <span className="dl-qty-count" style={{ fontSize: 16 }}>{qty}</span>
+            <button type="button" className="pm-qty-btn" onClick={() => setQty((q) => Math.min(99, q + 1))} aria-label="Aumentar">
+              <Plus size={16} />
+            </button>
+          </div>
+          <button type="button" className="pm-btn pm-btn--primary dl-detail-add-btn" onClick={handleAdd}>
+            <ShoppingBag size={16} aria-hidden />
+            {inCart ? "Adicionar mais" : "Adicionar"}
+            {priceCents > 0 && ` · ${brl.format((priceCents * qty) / 100)}`}
+          </button>
         </div>
       </div>
-      {belowMin && (
-        <p style={{ color: "var(--pm-danger, #c00)", fontSize: 13, marginTop: 8 }}>
-          Pedido mínimo: {brl.format(minOrderCents / 100)}. Adicione mais itens.
-        </p>
+    </Panel>
+  );
+}
+
+// ───────────────────────── Info do delivery ─────────────────────────
+
+function DeliveryInfoPanel({
+  restaurant,
+  deliveryConfig,
+  onClose,
+}: {
+  restaurant: Restaurant;
+  deliveryConfig: DeliveryMenuConfig | null;
+  onClose: () => void;
+}) {
+  const { settings, brand } = restaurant;
+  const open = useOpenStatus(settings.hours);
+  const today = useMemo(() => {
+    const name = new Intl.DateTimeFormat("en-US", { timeZone: RESTAURANT_TIME_ZONE, weekday: "short" }).format(new Date());
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name);
+  }, []);
+
+  return (
+    <Panel title={restaurant.name || "Informações"} onClose={onClose}>
+      {brand.cover && <img className="pm-info-cover" src={brand.cover} alt="" decoding="async" />}
+      <div className="pm-block">
+        <div className="pm-restaurant-main" style={{ gridTemplateColumns: "38px minmax(0, 1fr)" }}>
+          <RestaurantLogo restaurant={restaurant} />
+          <span className="pm-restaurant-text">
+            <h2 className="pm-restaurant-name">{restaurant.name}</h2>
+            <span className="pm-restaurant-meta">
+              {restaurant.establishmentType && (
+                <span className="pm-kind">
+                  <UtensilsCrossed size={11} aria-hidden />
+                  {restaurant.establishmentType}
+                </span>
+              )}
+              {open !== null && <StatusPill open={open} />}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      {deliveryConfig && (
+        <div className="pm-block">
+          <h3 className="pm-block-title">Entrega</h3>
+          <ul className="pm-info-list">
+            {deliveryConfig.deliveryEta && (
+              <li className="pm-info-row">
+                <Clock size={15} aria-hidden />
+                <span>Tempo estimado: {deliveryConfig.deliveryEta}</span>
+              </li>
+            )}
+            <li className="pm-info-row">
+              <Bike size={15} aria-hidden />
+              <span>
+                {deliveryConfig.feeMode === "taxa_por_bairro"
+                  ? "Taxa de entrega por bairro"
+                  : deliveryConfig.deliveryFeeCents === 0
+                  ? "Entrega grátis"
+                  : `Taxa de entrega: ${brl.format(deliveryConfig.deliveryFeeCents / 100)}`}
+              </span>
+            </li>
+            {deliveryConfig.deliveryArea && (
+              <li className="pm-info-row">
+                <MapPin size={15} aria-hidden />
+                <span>Área: {deliveryConfig.deliveryArea}</span>
+              </li>
+            )}
+            {deliveryConfig.minOrderCents > 0 && (
+              <li className="pm-info-row">
+                <ShoppingBag size={15} aria-hidden />
+                <span>Pedido mínimo: {brl.format(deliveryConfig.minOrderCents / 100)}</span>
+              </li>
+            )}
+          </ul>
+          {deliveryConfig.notes && (
+            <p className="pm-muted pm-small" style={{ marginTop: 8 }}>{deliveryConfig.notes}</p>
+          )}
+        </div>
       )}
-      <button type="button" className="pm-btn pm-btn--primary" disabled={belowMin} onClick={onCheckout} style={{ width: "100%", marginTop: 16 }}>
-        Continuar para entrega
-      </button>
-    </div>
+
+      <div className="pm-block">
+        <h3 className="pm-block-title">Horário de funcionamento</h3>
+        {hasHours(settings.hours) ? (
+          <ul className="pm-hours">
+            {WEEKDAYS.map((label, day) => (
+              <li key={label} className={day === today ? "is-today" : ""}>
+                <span>{label}</span>
+                <span>{formatRange(settings.hours?.[String(day)])}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="pm-muted pm-small">Horários não informados pelo estabelecimento.</p>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function formatRange(day?: { open: boolean; from: string; to: string }) {
+  return day?.open && day.from && day.to ? `${day.from} às ${day.to}` : "Fechado";
+}
+
+// ───────────────────────── Bottom Nav ─────────────────────────
+
+function DeliveryBottomNav({ tab, cartCount, onChange }: { tab: Tab; cartCount: number; onChange: (tab: Tab) => void }) {
+  const items: { key: Tab; label: string; icon: typeof BookOpen }[] = [
+    { key: "menu", label: "Cardápio", icon: BookOpen },
+    { key: "search", label: "Busca", icon: Search },
+    { key: "cart", label: "Carrinho", icon: ShoppingBag },
+  ];
+  return (
+    <nav className="pm-nav" aria-label="Navegação do delivery">
+      {items.map(({ key, label, icon: Icon }) => (
+        <button
+          key={key}
+          type="button"
+          className={`pm-nav-item ${tab === key ? "is-active" : ""}`}
+          aria-current={tab === key ? "page" : undefined}
+          onClick={() => onChange(key)}
+        >
+          <span className="dl-nav-icon-wrap">
+            <Icon size={16} strokeWidth={tab === key ? 2.2 : 1.7} aria-hidden />
+            {key === "cart" && cartCount > 0 && (
+              <span className="dl-nav-badge" aria-label={`${cartCount} itens no carrinho`}>{cartCount > 9 ? "9+" : cartCount}</span>
+            )}
+          </span>
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// ───────────────────────── Signature ─────────────────────────
+
+function Signature() {
+  return (
+    <p className="pm-signature">
+      Uma experiência <b>KARDAP</b>
+    </p>
   );
 }
 
@@ -654,8 +1378,9 @@ function CheckoutForm({
       } catch {}
     })();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount to pre-fill from saved profile
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   const [paymentMethod, setPaymentMethod] = useState(paymentMethods[0] || "");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -681,10 +1406,9 @@ function CheckoutForm({
       }
     }
   }, []);
+
   const submittedRef = useRef(false);
-
   const idempotencyKey = useRef(`del_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
-
   const totalCents = cart.subtotalCents + deliveryFeeCents;
 
   const handleSubmit = async (e: React.FormEvent) => {
