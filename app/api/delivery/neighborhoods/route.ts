@@ -28,7 +28,7 @@ async function fetchNeighborhoods(ibgeCode: string): Promise<{ name: string }[]>
     for (const s of subs) names.add(s.nome);
   }
 
-  const data = [...names].sort((a, b) => a.localeCompare(b, "pt-BR")).map((n) => ({ name: n }));
+  const data = Array.from(names).sort((a, b) => a.localeCompare(b, "pt-BR")).map((n) => ({ name: n }));
   cache.set(ibgeCode, { data, expiry: Date.now() + CACHE_TTL });
   return data;
 }
