@@ -11,6 +11,7 @@ import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  Bike,
   BookOpen,
   Check,
   ChevronRight,
@@ -102,6 +103,7 @@ import {
 } from "@/components/ui";
 import { KardapLogo } from "@/components/brand/logo";
 import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
+import { DeliveryPage } from "./delivery-page";
 import { MenuHero } from "@/components/menu/menu-hero";
 import { DishRow } from "@/components/menu/dish-row";
 import { MyPlanPage } from "@/components/billing/my-plan-page";
@@ -308,6 +310,12 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { label: "Cardápio", href: "/dashboard/cardapio", icon: BookOpen },
       { label: "Categorias", href: "/dashboard/categorias", icon: Tags },
       { label: "Produtos", href: "/dashboard/produtos", icon: UtensilsCrossed },
+    ],
+  },
+  {
+    group: "Operação",
+    items: [
+      { label: "Delivery", href: "/dashboard/delivery", icon: Bike },
     ],
   },
   {
@@ -599,6 +607,8 @@ function DashboardRoutes(props: DashboardProps) {
       return <QrPage {...props} />;
     case "/dashboard/avaliacoes":
       return <ReviewsPage {...props} />;
+    case "/dashboard/delivery":
+      return <DeliveryPage account={props.account} notify={props.notify} />;
     case "/dashboard/relatorios":
       return <ReportsPage {...props} />;
     case "/dashboard/personalizacao":
@@ -1750,7 +1760,7 @@ function ProductForm({
 }) {
   const start = useRef({
     name: product?.name || "",
-    cents: product ? productCents(product) : 0,
+    cents: product ? (productCents(product) || 0) : 0,
     categoryId: product?.categoryId || "",
     description: product?.description || "",
   });
@@ -2347,21 +2357,27 @@ function ReviewsPage({ settings, setSettings, notify, onSaved }: DashboardProps)
   const [saving, setSaving] = useState(false);
   const [fetchingDetails, setFetchingDetails] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchAbort = useRef<AbortController>();
   const saved = (settings.googleReviewUrl || "") === url.trim();
 
-  useEffect(() => { getGoogleBusiness().then(setBiz).catch(() => setBiz(null)); }, []);
+  useEffect(() => { getGoogleBusiness().then(setBiz).catch(() => setBiz(null)); return () => { clearTimeout(searchTimer.current); searchAbort.current?.abort(); }; }, []);
 
   const doSearch = (q: string) => {
     setQuery(q);
     setSearchErr("");
     clearTimeout(searchTimer.current);
+    searchAbort.current?.abort();
     if (q.trim().length < 3) { setResults([]); setSearching(false); return; }
     setSearching(true);
+    const abort = new AbortController();
+    searchAbort.current = abort;
     searchTimer.current = setTimeout(async () => {
       try {
         const r = await searchGooglePlaces(q.trim());
+        if (abort.signal.aborted) return;
         setResults(r);
       } catch (err: any) {
+        if (abort.signal.aborted) return;
         setSearchErr(err.message || "Erro na pesquisa.");
       }
       setSearching(false);
@@ -2408,7 +2424,9 @@ function ReviewsPage({ settings, setSettings, notify, onSaved }: DashboardProps)
     if (value) {
       try {
         const parsed = new URL(value);
-        if (!/^https?:$/.test(parsed.protocol)) throw new Error();
+        if (!/^https?:$/.test(parsed.protocol)) throw new Error("protocol");
+        const ok = /^(www\.)?(google\.(com|com\.br)|g\.page|goo\.gl|maps\.google\.(com|com\.br)|search\.google\.(com|com\.br))$/i;
+        if (!ok.test(parsed.hostname)) return setError("O link deve ser do Google (google.com, g.page ou maps.google.com).");
       } catch {
         return setError("Cole o link completo, começando com https://");
       }

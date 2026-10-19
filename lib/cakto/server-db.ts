@@ -54,11 +54,14 @@ export async function createCheckoutSession(session: Omit<CheckoutSessionRecord,
   await adminDb().collection("cakto_checkout_sessions").doc(session.token).set(record);
 }
 
-/** Recupera uma sessão de checkout pelo token opaco recebido no webhook. */
+/** Recupera uma sessão de checkout pelo token opaco recebido no webhook. Retorna null se expirada. */
 export async function getCheckoutSession(token: string): Promise<CheckoutSessionRecord | null> {
   if (!token || typeof token !== "string" || token.length > 100) return null;
   const doc = await adminDb().collection("cakto_checkout_sessions").doc(token).get();
-  return doc.exists ? (doc.data() as CheckoutSessionRecord) : null;
+  if (!doc.exists) return null;
+  const session = doc.data() as CheckoutSessionRecord;
+  if (session.expiresAt && Date.parse(session.expiresAt) < Date.now()) return null;
+  return session;
 }
 
 // ───────────────────────── Idempotência do webhook ─────────────────────────

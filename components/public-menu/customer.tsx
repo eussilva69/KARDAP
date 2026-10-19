@@ -258,7 +258,8 @@ export function AddressesPanel({ user, profile, loaded, onClose, notify }: Accou
     if (!draft.street.trim() || !draft.number.trim() || !draft.city.trim()) return setError("Preencha rua, número e cidade.");
     setError("");
     const clean = Object.fromEntries(Object.entries(draft).map(([k, v]) => [k, v.trim()])) as Omit<CustomerAddress, "id">;
-    if (await persist([...addresses, { id: crypto.randomUUID(), ...clean }], "Endereço salvo")) {
+    const id = (() => { try { return crypto.randomUUID(); } catch { return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); } })();
+    if (await persist([...addresses, { id, ...clean }], "Endereço salvo")) {
       setDraft(emptyAddress());
       setAdding(false);
     }

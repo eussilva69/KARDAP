@@ -41,7 +41,12 @@ export async function POST(req: NextRequest, { params }: { params: { restaurantI
       try {
         const parsed = new URL(reviewUrl);
         if (!/^https?:$/.test(parsed.protocol)) throw new Error();
-      } catch {
+        const ALLOWED_REVIEW_DOMAINS = /^(www\.)?(google\.(com|com\.br)|g\.page|goo\.gl|maps\.google\.(com|com\.br)|search\.google\.(com|com\.br))$/i;
+        if (!ALLOWED_REVIEW_DOMAINS.test(parsed.hostname)) {
+          throw Object.assign(new Error("O link de avaliação deve ser do Google (google.com, g.page ou maps.google.com)."), { status: 400, code: "invalid_domain" });
+        }
+      } catch (e) {
+        if ((e as { code?: string }).code === "invalid_domain") throw e;
         throw Object.assign(new Error("URL de avaliação inválida."), { status: 400, code: "invalid_url" });
       }
     }

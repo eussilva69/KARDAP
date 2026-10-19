@@ -1,0 +1,282 @@
+/**
+ * Serviço de delivery (servidor): cria pedidos validados, altera status e consulta configuração.
+ * Toda gravação passa por transação do Admin SDK — preços e totais são recalculados no servidor.
+ */
+import { adminDb } from "@/lib/firebase-admin";
+import { BillingError, confirmNativeOrder, entitlementsFrom, monthlyUsage } from "@/lib/billing/server";
+import type {
+  DeliveryAddress,
+  DeliveryCheckoutPayload,
+  DeliveryConfig,
+  DeliveryOrder,
+  DeliveryOrderItem,
+  DeliveryOrderStatus,
+  StatusHistoryEntry,
+} from "./types";
+import { canTransition, DEFAULT_DELIVERY_CONFIG, isDeliveryStatus, TERMINAL_STATUSES } from "./types";
+
+const restaurantRef = (id: string) => adminDb().collection("restaurantes").doc(id);
+
+// ───────────────────────── Configuração ─────────────────────────
+
+export async function getDeliveryConfig(restaurantId: string): Promise<DeliveryConfig> {
+  const snap = await restaurantRef(restaurantId).get();
+  if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
+  const raw = snap.get("delivery") as Partial<DeliveryConfig> | undefined;
+  return { ...DEFAULT_DELIVERY_CONFIG, ...raw };
+}
+
+export async function saveDeliveryConfig(restaurantId: string, uid: string, patch: Partial<DeliveryConfig>): Promise<DeliveryConfig> {
+  const db = adminDb();
+  const ref = restaurantRef(restaurantId);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
+    if (snap.get("ownerId") !== uid) {
+      const member = await tx.get(ref.collection("membros").doc(uid));
+      if (!member.exists) throw new BillingError("forbidden", 403, "Você não faz parte da equipe deste estabelecimento.");
+    }
+
+    const entitlements = entitlementsFrom(snap);
+    if (!entitlements.features.deliveryManagement) {
+      throw new BillingError("plan_required", 402, "O delivery está disponível a partir do plano Pro.");
+    }
+
+    const current: DeliveryConfig = { ...DEFAULT_DELIVERY_CONFIG, ...(snap.get("delivery") as Partial<DeliveryConfig> | undefined) };
+    const at = new Date().toISOString();
+
+    const safe: Partial<DeliveryConfig> = {};
+    if (typeof patch.enabled === "boolean") {
+      safe.enabled = patch.enabled;
+      if (patch.enabled && !current.enabled) safe.enabledAt = at;
+      if (!patch.enabled && current.enabled) safe.disabledAt = at;
+    }
+    if (typeof patch.deliveryFeeCents === "number" && Number.isFinite(patch.deliveryFeeCents) && patch.deliveryFeeCents >= 0) {
+      safe.deliveryFeeCents = Math.round(patch.deliveryFeeCents);
+    }
+    if (typeof patch.deliveryEta === "string") safe.deliveryEta = patch.deliveryEta.slice(0, 60);
+    if (typeof patch.deliveryArea === "string") safe.deliveryArea = patch.deliveryArea.slice(0, 200);
+    if (typeof patch.minOrderCents === "number" && Number.isFinite(patch.minOrderCents) && patch.minOrderCents >= 0) {
+      safe.minOrderCents = Math.round(patch.minOrderCents);
+    }
+    if (Array.isArray(patch.paymentMethods)) {
+      safe.paymentMethods = patch.paymentMethods.filter((m): m is string => typeof m === "string" && m.length <= 40).slice(0, 10);
+    }
+    if (typeof patch.notes === "string") safe.notes = patch.notes.slice(0, 500);
+
+    const next = { ...current, ...safe };
+    tx.update(ref, { delivery: next, updatedAt: at });
+    return next;
+  });
+}
+
+// ───────────────────────── Criar pedido (checkout público) ─────────────────────────
+
+function validateAddress(addr: unknown): DeliveryAddress {
+  if (!addr || typeof addr !== "object") throw new BillingError("invalid_address", 400, "Endereço de entrega inválido.");
+  const a = addr as Record<string, unknown>;
+  const str = (key: string, max: number, required: boolean) => {
+    const v = typeof a[key] === "string" ? (a[key] as string).trim().slice(0, max) : "";
+    if (required && !v) throw new BillingError("invalid_address", 400, `O campo "${key}" do endereço é obrigatório.`);
+    return v;
+  };
+  return {
+    cep: str("cep", 10, true),
+    street: str("street", 200, true),
+    number: str("number", 20, true),
+    complement: str("complement", 100, false) || undefined,
+    district: str("district", 100, true),
+    city: str("city", 100, true),
+    reference: str("reference", 200, false) || undefined,
+  };
+}
+
+function validateCustomer(cust: unknown): { name: string; phone: string } {
+  if (!cust || typeof cust !== "object") throw new BillingError("invalid_customer", 400, "Dados do cliente inválidos.");
+  const c = cust as Record<string, unknown>;
+  const name = typeof c.name === "string" ? c.name.trim().slice(0, 120) : "";
+  const phone = typeof c.phone === "string" ? c.phone.replace(/\D/g, "").slice(0, 15) : "";
+  if (!name) throw new BillingError("invalid_customer", 400, "Informe seu nome.");
+  if (phone.length < 10) throw new BillingError("invalid_customer", 400, "Informe um telefone válido com DDD.");
+  return { name, phone };
+}
+
+export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, customerUid?: string): Promise<{ orderId: string; orderNumber: number; duplicate: boolean }> {
+  const { restaurantId, idempotencyKey } = payload;
+  if (!restaurantId || typeof restaurantId !== "string") throw new BillingError("invalid_restaurant", 400, "Restaurante inválido.");
+  if (!idempotencyKey || idempotencyKey.length < 8) throw new BillingError("idempotency_required", 400, "Chave de idempotência obrigatória.");
+
+  const db = adminDb();
+  const ref = restaurantRef(restaurantId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
+
+  const config: DeliveryConfig = { ...DEFAULT_DELIVERY_CONFIG, ...(snap.get("delivery") as Partial<DeliveryConfig> | undefined) };
+  if (!config.enabled) throw new BillingError("delivery_disabled", 403, "Este estabelecimento não está aceitando pedidos de delivery no momento.");
+
+  const entitlements = entitlementsFrom(snap);
+  if (!entitlements.valid) throw new BillingError("subscription", 402, "O estabelecimento não possui assinatura ativa.");
+  if (!entitlements.features.deliveryManagement) throw new BillingError("plan_required", 402, "O plano do estabelecimento não inclui delivery.");
+
+  const customer = validateCustomer(payload.customer);
+  const address = validateAddress(payload.address);
+
+  if (!Array.isArray(payload.items) || !payload.items.length) throw new BillingError("empty_cart", 400, "Adicione pelo menos um produto ao carrinho.");
+  if (payload.items.length > 50) throw new BillingError("too_many_items", 400, "Limite de 50 itens por pedido.");
+
+  const paymentMethod = typeof payload.paymentMethod === "string" ? payload.paymentMethod.trim().slice(0, 40) : "";
+  if (!paymentMethod) throw new BillingError("invalid_payment", 400, "Selecione a forma de pagamento.");
+
+  const productIds = Array.from(new Set(payload.items.map((i) => i.productId)));
+  const productSnaps = await Promise.all(productIds.map((id) => ref.collection("produtos").doc(id).get()));
+  const productMap = new Map(productSnaps.filter((s) => s.exists).map((s) => [s.id, s.data()!]));
+
+  const items: DeliveryOrderItem[] = [];
+  let subtotalCents = 0;
+
+  for (const item of payload.items) {
+    const product = productMap.get(item.productId);
+    if (!product) throw new BillingError("product_not_found", 400, `Produto "${item.productId}" não encontrado ou indisponível.`);
+    if (product.available === false) throw new BillingError("product_unavailable", 400, `O produto "${product.name}" não está disponível no momento.`);
+
+    const qty = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
+    let unitCents = 0;
+    if (typeof product.priceCents === "number" && Number.isFinite(product.priceCents)) {
+      unitCents = product.priceCents;
+    } else {
+      const raw = String(product.price ?? "").replace(/\./g, "").replace(",", ".");
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) unitCents = Math.round(parsed * 100);
+    }
+
+    const totalCents = unitCents * qty;
+    subtotalCents += totalCents;
+    items.push({
+      productId: item.productId,
+      name: String(product.name || "").slice(0, 200),
+      quantity: qty,
+      unitPriceCents: unitCents,
+      totalCents,
+      notes: typeof item.notes === "string" ? item.notes.trim().slice(0, 300) : undefined,
+    });
+  }
+
+  if (config.minOrderCents > 0 && subtotalCents < config.minOrderCents) {
+    const min = (config.minOrderCents / 100).toFixed(2).replace(".", ",");
+    throw new BillingError("min_order", 400, `O pedido mínimo para delivery é R$ ${min}.`);
+  }
+
+  const deliveryFeeCents = config.deliveryFeeCents;
+  const totalCents = subtotalCents + deliveryFeeCents;
+
+  const orderNumber = await nextOrderNumber(restaurantId);
+
+  const at = new Date().toISOString();
+  const orderData: Omit<DeliveryOrder, "id"> = {
+    restaurantId,
+    orderNumber,
+    status: "pendente",
+    customer: { ...customer, uid: customerUid },
+    address,
+    items,
+    subtotalCents,
+    deliveryFeeCents,
+    discountCents: 0,
+    totalCents,
+    paymentMethod,
+    paymentStatus: "pendente",
+    notes: typeof payload.notes === "string" ? payload.notes.trim().slice(0, 500) : undefined,
+    origin: { source: "kardap_delivery", channel: "web", isNativeOrder: true },
+    statusHistory: [{ status: "pendente", at }],
+    createdAt: at,
+    updatedAt: at,
+  };
+
+  const result = await confirmNativeOrder({
+    restaurantId,
+    uid: "delivery_public",
+    source: "kardap_delivery",
+    idempotencyKey,
+    order: orderData,
+  });
+
+  return { orderId: result.orderId, orderNumber, duplicate: result.duplicate };
+}
+
+async function nextOrderNumber(restaurantId: string): Promise<number> {
+  const db = adminDb();
+  const counterRef = restaurantRef(restaurantId).collection("privado").doc("delivery_counter");
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(counterRef);
+    const current = Number(snap.get("lastOrderNumber")) || 0;
+    const next = current + 1;
+    tx.set(counterRef, { lastOrderNumber: next, updatedAt: new Date().toISOString() }, { merge: true });
+    return next;
+  });
+}
+
+// ───────────────────────── Alterar status (PDV / painel) ─────────────────────────
+
+export async function updateOrderStatus(
+  restaurantId: string,
+  orderId: string,
+  newStatus: DeliveryOrderStatus,
+  uid: string,
+  courierId?: string,
+): Promise<void> {
+  if (!isDeliveryStatus(newStatus)) throw new BillingError("invalid_status", 400, "Status inválido.");
+
+  const db = adminDb();
+  const ref = restaurantRef(restaurantId).collection("pedidos").doc(orderId);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new BillingError("not_found", 404, "Pedido não encontrado.");
+    if (snap.get("establishmentId") !== restaurantId) throw new BillingError("forbidden", 403, "Pedido não pertence a este estabelecimento.");
+
+    const currentStatus = snap.get("status") as DeliveryOrderStatus;
+    if (!canTransition(currentStatus, newStatus)) {
+      throw new BillingError("invalid_transition", 400, `Não é possível alterar de "${currentStatus}" para "${newStatus}".`);
+    }
+
+    const at = new Date().toISOString();
+    const history: StatusHistoryEntry = { status: newStatus, at, by: uid };
+    const update: Record<string, unknown> = {
+      status: newStatus,
+      updatedAt: at,
+      statusHistory: [...((snap.get("statusHistory") as StatusHistoryEntry[]) || []), history],
+    };
+
+    if (newStatus === "confirmado") {
+      update.confirmedAt = at;
+      update.confirmedBy = uid;
+    }
+    if (courierId && newStatus === "saiu_para_entrega") {
+      update.courierId = courierId;
+    }
+
+    tx.update(ref, update);
+  });
+}
+
+// ───────────────────────── Consulta pública (acompanhamento) ─────────────────────────
+
+export async function getPublicOrderStatus(restaurantId: string, orderId: string): Promise<{ status: DeliveryOrderStatus; orderNumber: number; statusHistory: StatusHistoryEntry[]; updatedAt: string } | null> {
+  const snap = await restaurantRef(restaurantId).collection("pedidos").doc(orderId).get();
+  if (!snap.exists || snap.get("establishmentId") !== restaurantId) return null;
+  if (snap.get("origin.source") !== "kardap_delivery") return null;
+  return {
+    status: snap.get("status"),
+    orderNumber: snap.get("orderNumber"),
+    statusHistory: snap.get("statusHistory") || [],
+    updatedAt: snap.get("updatedAt"),
+  };
+}
+
+// ───────────────────────── Delivery link ─────────────────────────
+
+export function deliverySlug(restaurantId: string, slug: string): string {
+  return `/r/${slug}/delivery`;
+}

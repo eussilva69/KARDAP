@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       console.warn("[Cakto Webhook] Assinatura inválida: evento recusado.");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-  } else if (!unsignedWebhooksAllowed()) {
+  } else if (process.env.NODE_ENV === "production" || !unsignedWebhooksAllowed()) {
     console.error("[Cakto Webhook] CAKTO_WEBHOOK_SECRET não configurado: evento recusado (nenhuma assinatura é ativada sem confirmação autêntica).");
     return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
   }
@@ -88,8 +88,16 @@ async function findRestaurantByEmail(email: string | undefined) {
   const db = adminDb();
   const users = await db.collection("usuarios").where("email", "==", normalized).limit(1).get();
   const ids = users.empty ? null : (users.docs[0].get("restaurantIds") as string[] | undefined);
+  if (ids && ids.length > 1) {
+    await recordSyncFailure("webhook_ambiguous_email", { email: normalized, restaurantIds: ids.slice(0, 5), note: "Mais de um restaurante para o mesmo email; pagamento não aplicado automaticamente." });
+    return null;
+  }
   if (ids?.length) return ids[0];
-  const owned = await db.collection("restaurantes").where("ownerEmail", "==", normalized).limit(1).get();
+  const owned = await db.collection("restaurantes").where("ownerEmail", "==", normalized).limit(2).get();
+  if (owned.docs.length > 1) {
+    await recordSyncFailure("webhook_ambiguous_email", { email: normalized, restaurantIds: owned.docs.map((d) => d.id), note: "Mais de um restaurante para o mesmo email; pagamento não aplicado automaticamente." });
+    return null;
+  }
   return owned.empty ? null : owned.docs[0].id;
 }
 

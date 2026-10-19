@@ -40,6 +40,7 @@ import { clearAccountStorage, linkedUid, readSsoSession, watchSsoState } from "@
 const Dashboard = dynamic(() => import("@/components/dashboard/dashboard"), { loading: () => <DashboardSkeleton /> });
 const AuthPage = dynamic(() => import("@/components/auth/auth-page"), { loading: () => <PanelLoading /> });
 const PublicMenu = dynamic(() => import("@/components/menu/public-menu"), { loading: () => <MenuSkeleton /> });
+const DeliveryMenu = dynamic(() => import("@/components/public-menu/delivery-menu"), { loading: () => <MenuSkeleton /> });
 const Onboarding = dynamic(() => import("@/components/site/onboarding"), { loading: () => <PanelLoading /> });
 const LegalPage = dynamic(() => import("@/components/site/legal-page"), { loading: () => <PanelLoading /> });
 const AdminPanel = dynamic(() => import("@/components/admin/admin-panel"), { loading: () => <PanelLoading /> });
@@ -546,13 +547,18 @@ export default function App() {
     // Só reage à mudança do valor: incluir cloudReady/persist reenviaria o mesmo dado a cada sincronização.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brand, storageReady]);
+  const settingsDebounce = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
     if (!storageReady) return;
     const serialized = JSON.stringify(settings);
     if (cloudReady && lastRemoteState.current.settings !== serialized) {
-      lastRemoteState.current.settings = serialized;
-      persist("settings", settings, setSettings);
+      clearTimeout(settingsDebounce.current);
+      settingsDebounce.current = setTimeout(() => {
+        lastRemoteState.current.settings = JSON.stringify(settings);
+        persist("settings", settings, setSettings);
+      }, 400);
     }
+    return () => clearTimeout(settingsDebounce.current);
     // Só reage à mudança do valor: incluir cloudReady/persist reenviaria o mesmo dado a cada sincronização.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, storageReady]);
@@ -563,7 +569,11 @@ export default function App() {
   const onLogin = useCallback(() => setSession(true), []);
 
   let page: React.ReactNode;
-  if (isPublicPath(path)) {
+  const isDeliveryPath = isPublicPath(path) && path.endsWith("/delivery");
+  if (isDeliveryPath) {
+    const deliverySlug = path.split("/")[2] || "";
+    page = <DeliveryMenu slug={deliverySlug} notify={notify} />;
+  } else if (isPublicPath(path)) {
     page = (
       <PublicMenu
         status={publicStatus}

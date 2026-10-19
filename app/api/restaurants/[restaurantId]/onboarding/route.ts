@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 
 const slugify = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 54) || "cardapio";
@@ -22,7 +23,11 @@ export async function PUT(request: NextRequest, { params }: { params: { restaura
       if (existing.empty || existing.docs[0].id === restaurant.id) break;
       slug = `${base}-${suffix}`;
     }
-    await restaurant.update({ name, slug, onboarding: { ...(body.onboarding || {}), completed: true, currentStep: 5, completedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() });
+    const raw = body.onboarding && typeof body.onboarding === "object" ? body.onboarding : {};
+    const ONBOARDING_FIELDS = ["currentStep", "selectedPlan", "draftData", "startedAt", "googlePlace", "manualReviewUrl"] as const;
+    const sanitized: Record<string, unknown> = {};
+    for (const key of ONBOARDING_FIELDS) if (key in raw) sanitized[key] = raw[key];
+    await restaurant.update({ name, slug, onboarding: { ...sanitized, completed: true, currentStep: 5, completedAt: new Date().toISOString() }, updatedAt: FieldValue.serverTimestamp() });
     return NextResponse.json({ slug });
   } catch {
     return NextResponse.json({ error: "Não foi possível concluir o onboarding" }, { status: 500 });

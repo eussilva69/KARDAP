@@ -28,6 +28,15 @@ const slugify = (value: string) =>
     .replace(/^-|-$/g, "")
     .slice(0, 54);
 
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+const phoneDigits = (formatted: string) => formatted.replace(/\D/g, "");
+const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+
 /** Guarda, para a primeira tela do painel, um aviso sobre algo que não deu certo na conclusão (não bloqueante). */
 function queueDashboardNotice(message: string, label?: string, href?: string) {
   try {
@@ -84,7 +93,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [uploadPct, setUploadPct] = useState(0);
   const suggestedSlug = slugify(name);
   const slug = menuSlug || suggestedSlug;
-  const draftCookieName = `kardap-onboarding-draft-${typeof window === "undefined" ? "new" : localStorage.getItem("kardap-restaurant-owner") || "new"}`;
+  const draftStorageKey = `kardap-onboarding-draft-${typeof window === "undefined" ? "new" : localStorage.getItem("kardap-restaurant-owner") || "new"}`;
   const totalSteps = STEPS.length;
 
   useEffect(() => {
@@ -92,15 +101,20 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   }, []);
 
   useEffect(() => {
-    const value = document.cookie.split("; ").find((item) => item.startsWith(`${draftCookieName}=`))?.split("=")[1];
-    if (value) {
+    let raw: string | undefined;
+    try { raw = localStorage.getItem(draftStorageKey) || undefined; } catch {}
+    if (!raw) {
+      raw = document.cookie.split("; ").find((item) => item.startsWith(`${draftStorageKey}=`))?.split("=")[1];
+      if (raw) raw = decodeURIComponent(raw);
+    }
+    if (raw) {
       try {
-        const draft = JSON.parse(decodeURIComponent(value));
+        const draft = JSON.parse(raw);
         setStep(Number(draft.step) || 1);
         if (isSelfServiceTrialPlan(draft.planId)) setPlanId(draft.planId);
         setName(draft.name || "");
         setKind(draft.kind || "Restaurante");
-        setPhone(draft.phone || "");
+        setPhone(formatPhone(draft.phone || ""));
         setEmail(draft.email || "");
         setMenuSlug(draft.menuSlug || "");
         setLogo(draft.logo || "");
@@ -112,17 +126,19 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         if (draft.selectedPlace) { setSelectedPlace(draft.selectedPlace); setPlaceConfirmed(true); }
         if (draft.manualMode) setManualMode(true);
       } catch {
-        document.cookie = `${draftCookieName}=; Max-Age=0; Path=/; SameSite=Lax`;
+        try { localStorage.removeItem(draftStorageKey); } catch {}
+        document.cookie = `${draftStorageKey}=; Max-Age=0; Path=/; SameSite=Lax`;
       }
     }
     setDraftReady(true);
-  }, [draftCookieName]);
+  }, [draftStorageKey]);
 
   useEffect(() => {
     if (!draftReady) return;
-    const draft = encodeURIComponent(JSON.stringify({ step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount, selectedPlace: placeConfirmed ? selectedPlace : null, manualMode }));
-    document.cookie = `${draftCookieName}=${draft}; Max-Age=${60 * 60 * 24 * 30}; Path=/; SameSite=Lax`;
-  }, [draftReady, draftCookieName, step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount, selectedPlace, placeConfirmed, manualMode]);
+    const draft = JSON.stringify({ step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount, selectedPlace: placeConfirmed ? selectedPlace : null, manualMode });
+    try { localStorage.setItem(draftStorageKey, draft); } catch {}
+    document.cookie = `${draftStorageKey}=; Max-Age=0; Path=/; SameSite=Lax`;
+  }, [draftReady, draftStorageKey, step, planId, name, kind, phone, email, menuSlug, logo, cover, logoSmall, coverSmall, review, tableCount, selectedPlace, placeConfirmed, manualMode]);
 
   const doPlaceSearch = (q: string) => {
     setPlaceQuery(q);
@@ -180,6 +196,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   const validateStep = () => {
     if (step === 2 && name.trim().length < 2) return "Informe o nome do estabelecimento.";
+    if (step === 2 && phone.trim() && phoneDigits(phone).length < 10) return "Informe o telefone completo com DDD (10 ou 11 dígitos).";
+    if (step === 2 && email.trim() && !isValidEmail(email.trim())) return "Informe um e-mail válido.";
     if (step === 4 && review.trim()) {
       try {
         if (!/^https?:$/.test(new URL(review.trim()).protocol)) throw new Error();
@@ -207,8 +225,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
       const payload = {
         name: name.trim(),
         establishmentType: kind,
-        businessPhone: phone,
-        businessEmail: email,
+        businessPhone: phoneDigits(phone),
+        businessEmail: email.trim(),
         brand: { logo, cover, logoSmall, coverSmall },
         setup: { tableCount: Number(tableCount) || 0 },
         onboarding: onboardingPayload,
@@ -259,7 +277,8 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         }
 
         localStorage.setItem("kardap-restaurant-slug", reserved);
-        document.cookie = `${draftCookieName}=; Max-Age=0; Path=/; SameSite=Lax`;
+        try { localStorage.removeItem(draftStorageKey); } catch {}
+        document.cookie = `${draftStorageKey}=; Max-Age=0; Path=/; SameSite=Lax`;
         if (tablesFailed && trialFailed) {
           queueDashboardNotice("Seu cardápio foi criado! Não conseguimos criar as mesas iniciais nem ativar o teste grátis agora.", "Ver meu plano", "/dashboard/plano");
         } else if (tablesFailed) {
@@ -428,7 +447,7 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <fieldset className="kd-onb-group">
                   <legend>Contato do estabelecimento</legend>
                   <div className="kd-form-grid">
-                    <TextField label="WhatsApp" optional type="tel" inputMode="tel" autoComplete="tel" placeholder="(11) 99999-9999" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    <TextField label="WhatsApp" optional type="tel" inputMode="numeric" autoComplete="tel" placeholder="(11) 99999-9999" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} />
                     <TextField
                       label="E-mail"
                       optional

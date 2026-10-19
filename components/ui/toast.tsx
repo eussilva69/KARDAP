@@ -15,6 +15,7 @@ export type ToastState = { id: number; message: string; tone: ToastTone; action?
  */
 export function Toaster({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void }) {
   const [paused, setPaused] = useState(false);
+  const [actionFired, setActionFired] = useState(false);
   const remaining = useRef(0);
   const startedAt = useRef(0);
 
@@ -22,6 +23,7 @@ export function Toaster({ toast, onDismiss }: { toast: ToastState; onDismiss: ()
     if (!toast) return;
     remaining.current = toast.tone === "error" ? 8000 : toast.action ? 6500 : 3800;
     setPaused(false);
+    setActionFired(false);
   }, [toast]);
 
   useEffect(() => {
@@ -51,7 +53,10 @@ export function Toaster({ toast, onDismiss }: { toast: ToastState; onDismiss: ()
         <button
           type="button"
           className="kd-toast-action"
+          disabled={actionFired}
           onClick={() => {
+            if (actionFired) return;
+            setActionFired(true);
             toast.action?.onAction();
             onDismiss();
           }}

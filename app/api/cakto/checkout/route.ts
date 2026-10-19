@@ -6,6 +6,7 @@ import { createCheckoutSession, type CheckoutKind } from "@/lib/cakto/server-db"
 import { PLAN_CATALOG, planRank, toDate } from "@/lib/billing/plans";
 import { authenticate } from "@/lib/billing/http";
 import { BillingError, requireManager } from "@/lib/billing/server";
+import { rateLimit } from "@/lib/sso/http";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -19,6 +20,7 @@ const DAY = 24 * 60 * 60 * 1000;
  */
 export async function POST(request: NextRequest) {
   try {
+    rateLimit(request, "cakto-checkout", 10, 60_000);
     const caller = await authenticate(request);
     const body = (await request.json().catch(() => ({}))) as { planId?: unknown; restaurantId?: unknown };
     const restaurantId = typeof body.restaurantId === "string" ? body.restaurantId : "";

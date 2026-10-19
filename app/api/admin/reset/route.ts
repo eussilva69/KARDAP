@@ -40,11 +40,11 @@ const RESTAURANT_SUBCOLLECTIONS = [
 ];
 
 function isProduction(): boolean {
+  if (process.env.NODE_ENV === "production") return true;
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "";
   if (projectId.startsWith("demo-")) return false;
   if (process.env.FIRESTORE_EMULATOR_HOST) return false;
-  const allowReset = process.env.ADMIN_ALLOW_RESET;
-  return allowReset !== "true";
+  return process.env.ADMIN_ALLOW_RESET !== "true";
 }
 
 async function getProtectedUids(): Promise<Set<string>> {

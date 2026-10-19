@@ -1,13 +1,6 @@
 rules_version = '2';
 
-// ATENÇÃO: estas são as regras restritivas propostas, AINDA NÃO PUBLICADAS.
-// Em produção, por decisão do responsável (riscos assumidos), vale esta regra aberta:
-//   match /{document=**} { allow read, write: if true; }
-// Enquanto ela estiver ativa, nenhuma proteção abaixo (admins, assinatura, suspensão, membros)
-// é imposta pelo servidor; /admin e os limites de plano só são checados no app.
-// Para adotar este arquivo: teste no emulador e rode `firebase deploy --only firestore:rules`.
-
-// Regras do Kardap.
+// Regras do Kardap — PUBLICAR com `firebase deploy --only firestore:rules`.
 // Princípios:
 //  - O cardápio público precisa ler restaurante, configurações, categorias, produtos e mesas sem login.
 //  - Só a equipe do restaurante (documento em membros/{uid}) altera os dados do restaurante.

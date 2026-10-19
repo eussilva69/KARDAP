@@ -127,7 +127,7 @@ export function withCors(req: NextRequest, res: NextResponse) {
   if (origin && isAllowedOrigin(origin)) {
     res.headers.set("Access-Control-Allow-Origin", origin);
     res.headers.set("Access-Control-Allow-Credentials", "true");
-    res.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
     res.headers.set("Access-Control-Allow-Headers", `content-type, ${CSRF_HEADER}`);
     res.headers.set("Access-Control-Max-Age", "600");
   }

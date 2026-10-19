@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { authenticate, errorResponse, json, readJson } from "@/lib/billing/http";
-import { checkPlanLimit, createTables } from "@/lib/billing/server";
+import { checkPlanLimit, createTables, requireManager } from "@/lib/billing/server";
 import { rateLimit } from "@/lib/sso/server";
 
 /**
@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: { restaurantId: string } }) {
   try {
-    await authenticate(req);
+    const caller = await authenticate(req);
+    await requireManager(params.restaurantId, caller.uid, "settings");
     return json(req, await checkPlanLimit(params.restaurantId, "tables", 1));
   } catch (error) {
     return errorResponse(req, "mesas", error);

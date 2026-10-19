@@ -34,8 +34,14 @@ function signingKey(): Buffer {
   if (process.env.FIREBASE_AUTH_EMULATOR_HOST && project.startsWith("demo-")) {
     return createHash("sha256").update(`kardap-sso-emulador:${project}`).digest();
   }
+  if (process.env.NODE_ENV === "production") {
+    throw new SsoError("sso_not_configured", 503, "SSO_SIGNING_SECRET obrigatório em produção.");
+  }
   const adminKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY || "";
-  if (adminKey) return createHmac("sha256", adminKey).update("kardap-sso-code-v1").digest();
+  if (adminKey) {
+    console.warn("[sso] SSO_SIGNING_SECRET não definido — usando fallback da chave do Admin SDK. Configure SSO_SIGNING_SECRET em produção.");
+    return createHmac("sha256", adminKey).update("kardap-sso-code-v1").digest();
+  }
   throw new SsoError("sso_not_configured", 503, "SSO não configurado no servidor.");
 }
 
