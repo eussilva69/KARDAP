@@ -32,6 +32,19 @@
 .kf a { color: inherit; }
 .kf a:focus-visible { outline: 2px solid var(--kf-ink); outline-offset: 3px; border-radius: 6px; }
 
+/* Acesso ao dashboard no cabeçalho das páginas públicas. */
+#header .aside a.button-secondary:hover,
+#header .aside a.button-secondary:focus-visible {
+  color: #fff !important;
+}
+#header .aside a.button-secondary:hover .frame,
+#header .aside a.button-secondary:focus-visible .frame,
+#header .aside a.button-secondary:hover .frame::before,
+#header .aside a.button-secondary:focus-visible .frame::before {
+  background: #000 !important;
+  border-color: #000 !important;
+}
+
 /* Mesma largura útil do conteúdo da landing (margem de 56 px em telas largas). */
 .kf-wrap { width: 100%; max-width: 1440px; margin: 0 auto; padding: 0 clamp(16px, 3.9vw, 56px); }
 

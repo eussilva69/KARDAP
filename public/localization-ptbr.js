@@ -169,6 +169,15 @@
         .kardap-brand img { display: block; object-fit: contain; }
         .kardap-brand__full { width: 138px; max-height: 48px; }
         .kardap-brand__mark { display: none !important; width: 46px; height: 46px; }
+        #header .aside a.button-secondary:hover,
+        #header .aside a.button-secondary:focus-visible { color: #fff !important; }
+        #header .aside a.button-secondary:hover .frame,
+        #header .aside a.button-secondary:focus-visible .frame,
+        #header .aside a.button-secondary:hover .frame::before,
+        #header .aside a.button-secondary:focus-visible .frame::before {
+          background: #000 !important;
+          border-color: #000 !important;
+        }
         @media (max-width: 767px) {
           a.logo.kardap-brand { width: 48px; height: 48px; }
           .kardap-brand__full { display: none !important; }
