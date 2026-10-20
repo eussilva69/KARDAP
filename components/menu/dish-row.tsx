@@ -92,11 +92,14 @@ export function DishRow({
   onOpen,
   autoplay,
   categoryLabel,
+  note,
 }: {
   dish: Dish;
   onOpen?: () => void;
   autoplay: boolean;
   categoryLabel?: string;
+  /** Linha extra abaixo do preço (o delivery mostra quantos já estão no carrinho). */
+  note?: React.ReactNode;
 }) {
   return (
     <li className="kd-dish">
@@ -113,6 +116,7 @@ export function DishRow({
         </h3>
         {dish.description && <p className="kd-dish-desc">{dish.description}</p>}
         <p className="kd-dish-price kd-num">{brl(productCents(dish))}</p>
+        {note}
       </div>
       <DishMedia dish={dish} autoplay={autoplay} />
     </li>

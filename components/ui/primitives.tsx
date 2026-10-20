@@ -363,9 +363,11 @@ export function SelectField({
   optional,
   className,
   children,
+  id: givenId,
   ...select
 }: FieldProps & React.SelectHTMLAttributes<HTMLSelectElement>) {
-  const id = useId();
+  const autoId = useId();
+  const id = givenId || autoId;
   return (
     <FieldFrame id={id} label={label} hint={hint} error={error} optional={optional} className={className}>
       <select

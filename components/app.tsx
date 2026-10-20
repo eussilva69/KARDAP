@@ -40,7 +40,7 @@ import { clearAccountStorage, linkedUid, readSsoSession, watchSsoState } from "@
 const Dashboard = dynamic(() => import("@/components/dashboard/dashboard"), { loading: () => <DashboardSkeleton /> });
 const AuthPage = dynamic(() => import("@/components/auth/auth-page"), { loading: () => <PanelLoading /> });
 const PublicMenu = dynamic(() => import("@/components/menu/public-menu"), { loading: () => <MenuSkeleton /> });
-const DeliveryMenu = dynamic(() => import("@/components/public-menu/delivery-menu"), { loading: () => <MenuSkeleton /> });
+const DeliveryMenu = dynamic(() => import("@/components/delivery/delivery-menu"), { loading: () => <MenuSkeleton /> });
 const Onboarding = dynamic(() => import("@/components/site/onboarding"), { loading: () => <PanelLoading /> });
 const LegalPage = dynamic(() => import("@/components/site/legal-page"), { loading: () => <PanelLoading /> });
 const AdminPanel = dynamic(() => import("@/components/admin/admin-panel"), { loading: () => <PanelLoading /> });
@@ -571,8 +571,24 @@ export default function App() {
   let page: React.ReactNode;
   const isDeliveryPath = isPublicPath(path) && path.endsWith("/delivery");
   if (isDeliveryPath) {
-    const deliverySlug = path.split("/")[2] || "";
-    page = <DeliveryMenu slug={deliverySlug} notify={notify} />;
+    // Mesmos dados do cardápio (restaurante, categorias, produtos e marca): o delivery é o cardápio com carrinho.
+    page = (
+      <DeliveryMenu
+        status={publicStatus}
+        slow={publicSlow}
+        onRetry={retry}
+        productsLoaded={publicProductsLoaded}
+        restaurantId={publicId}
+        slug={path.split("/")[2] || ""}
+        brand={publicRestaurant.brand}
+        settings={publicRestaurant.settings}
+        foods={publicFoods}
+        categories={publicCategories}
+        restaurantName={publicRestaurant.name}
+        suspended={publicRestaurant.suspended}
+        notify={notify}
+      />
+    );
   } else if (isPublicPath(path)) {
     page = (
       <PublicMenu

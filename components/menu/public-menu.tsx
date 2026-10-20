@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Bookmark, Check, Clapperboard, ConciergeBell, Receipt, Search, Star, UtensilsCrossed, X } from "lucide-react";
+import { Bookmark, Check, ConciergeBell, Receipt, Star } from "lucide-react";
 import { addPublicCall } from "@/lib/restaurant-db";
-import { elapsed, plural } from "@/lib/format";
+import { elapsed } from "@/lib/format";
 import { useNow, usePrefersReducedMotion, useRootPalette, useSaveData } from "@/lib/hooks";
 import { isDefaultPalette } from "@/lib/palette";
 import { Button } from "@/components/ui/primitives";
 import type { Brand, RestaurantSettings } from "@/components/dashboard/types";
 import { MenuHero } from "./menu-hero";
-import { DishRow, type Dish } from "./dish-row";
+import type { Dish } from "./dish-row";
+import { buildSections, MenuCatalog, type PublicCategory } from "./menu-catalog";
 import { CallSheet, type CallIntent } from "./call-sheet";
 import { MenuMessage, MenuSkeleton } from "./menu-states";
 import { ReelsRail } from "./reels/reels-rail";
@@ -23,14 +24,7 @@ const loadViewer = () => import("./reels/reels-viewer");
 const ReelsViewer = dynamic(() => loadViewer().then((m) => m.ReelsViewer), { ssr: false, loading: () => <div className="kd-reels" aria-busy="true" /> });
 const SavedSheet = dynamic(() => import("./reels/saved-sheet").then((m) => m.SavedSheet), { ssr: false });
 
-export type PublicCategory = { id: string; name: string; description?: string; order?: number; active?: boolean };
-type Section = { id: string; name: string; description?: string; dishes: Dish[] };
-
-const normalize = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
+export type { PublicCategory };
 
 /** Dois toques curtos no celular do cliente confirmando que o chamado saiu. */
 function playCallTone() {
@@ -50,35 +44,6 @@ function playCallTone() {
     });
     setTimeout(() => context.close(), 500);
   } catch {}
-}
-
-/**
- * Seções na ordem definida no painel, sem as categorias ocultas.
- * Sem acesso às categorias, agrupa pelo nome salvo em cada produto (comportamento anterior).
- */
-function buildSections(foods: Dish[], categories: PublicCategory[] | null): Section[] {
-  if (categories && categories.length) {
-    const hidden = new Set(categories.filter((c) => c.active === false).map((c) => c.id));
-    const known = new Set(categories.map((c) => c.id));
-    const sections: Section[] = categories
-      .filter((c) => c.active !== false)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        description: c.description,
-        dishes: foods.filter((f) => f.categoryId === c.id).map((f) => ({ ...f, category: c.name })),
-      }))
-      .filter((s) => s.dishes.length > 0);
-    const others = foods.filter((f) => !f.categoryId || (!known.has(f.categoryId) && !hidden.has(f.categoryId)));
-    if (others.length) sections.push({ id: "outros", name: "Outros", dishes: others });
-    return sections;
-  }
-  const groups = new Map<string, Dish[]>();
-  foods.forEach((f) => {
-    const key = String(f.category || "Outros").trim() || "Outros";
-    groups.set(key, [...(groups.get(key) || []), f]);
-  });
-  return Array.from(groups.entries()).map(([name, dishes], i) => ({ id: `secao-${i}`, name, dishes }));
 }
 
 export default function PublicMenu({
@@ -127,18 +92,10 @@ export default function PublicMenu({
   const [viewer, setViewer] = useState<{ mode: ReelsMode; list: Dish[]; index: number; key: number } | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const [lastCall, setLastCall] = useState<{ reason: string; at: number } | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [active, setActive] = useState("");
-  const navRef = useRef<HTMLElement>(null);
-  const chipsRef = useRef<HTMLDivElement>(null);
-  const searchButton = useRef<HTMLButtonElement>(null);
 
   const ready = status === "ready" && productsLoaded && categories !== undefined;
   const sections = useMemo(() => buildSections(foods, categories ?? null), [foods, categories]);
   const allDishes = useMemo(() => sections.flatMap((s) => s.dishes), [sections]);
-  const term = normalize(query.trim());
-  const results = searchOpen && term ? allDishes.filter((d) => normalize(d.name).includes(term) || normalize(d.description || "").includes(term)) : null;
   const videoDishes = useMemo(() => allDishes.filter((d) => d.videoUrl), [allDishes]);
   const liveDishes = useMemo(() => new Map(allDishes.filter((d) => d.id).map((d) => [d.id as string, d])), [allDishes]);
   // A lista do feed é fixada ao abrir (a ordem não muda enquanto a pessoa assiste), mas cada prato vem
@@ -218,48 +175,6 @@ export default function PublicMenu({
     if (lastCall && now - lastCall.at > 15 * 60_000) setLastCall(null);
   }, [now, lastCall]);
 
-  // Seção ativa conforme o scroll, sem listeners de scroll: a primeira seção na faixa superior da tela.
-  useEffect(() => {
-    if (!ready || results || typeof IntersectionObserver === "undefined") return;
-    const visible = new Map<string, boolean>();
-    const offset = (navRef.current?.offsetHeight || 56) + 8;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => visible.set(entry.target.id.slice(4), entry.isIntersecting));
-        const first = sections.find((s) => visible.get(s.id));
-        if (first) setActive(first.id);
-      },
-      { rootMargin: `-${offset}px 0px -55% 0px` },
-    );
-    sections.forEach((s) => {
-      const node = document.getElementById(`sec-${s.id}`);
-      if (node) observer.observe(node);
-    });
-    return () => observer.disconnect();
-  }, [ready, results, sections]);
-
-  // Mantém o chip da seção ativa visível na barra horizontal.
-  useEffect(() => {
-    const bar = chipsRef.current;
-    const chip = bar?.querySelector<HTMLElement>(`[data-id="${CSS.escape(active)}"]`);
-    if (!bar || !chip) return;
-    const left = chip.offsetLeft - bar.offsetLeft;
-    if (left < bar.scrollLeft || left + chip.offsetWidth > bar.scrollLeft + bar.clientWidth) {
-      bar.scrollTo({ left: Math.max(0, left - 16), behavior: reducedMotion ? "auto" : "smooth" });
-    }
-  }, [active, reducedMotion]);
-
-  const goTo = (id: string) => {
-    document.getElementById(`sec-${id}`)?.scrollIntoView({ block: "start", behavior: reducedMotion ? "auto" : "smooth" });
-    setActive(id);
-  };
-
-  const closeSearch = () => {
-    setSearchOpen(false);
-    setQuery("");
-    requestAnimationFrame(() => searchButton.current?.focus());
-  };
-
   const sendCall = useCallback(
     async (reason: string, tableLabel: string) => {
       if (!restaurantId) throw new Error("O cardápio ainda está conectando. Tente de novo em instantes.");
@@ -276,7 +191,6 @@ export default function PublicMenu({
 
   const billOn = settings.bill && billAllowed;
   const canCall = settings.waiter || billOn;
-  let running = 0;
 
   return (
     <div className={`kd-menu kd-menu-page ${canCall ? "has-bar" : ""} ${customColors ? "has-palette" : ""}`}>
@@ -304,114 +218,15 @@ export default function PublicMenu({
 
         <ReelsRail dishes={videoDishes} onOpen={(index) => openViewer("reels", videoDishes, index)} />
 
-        {sections.length === 0 ? (
-          <div className="kd-empty">
-            <span className="kd-empty-icon" aria-hidden>
-              <UtensilsCrossed size={22} />
-            </span>
-            <p className="kd-empty-title">Cardápio em preparação</p>
-            <p className="kd-empty-text">A equipe ainda está cadastrando os pratos. {settings.waiter ? "Se quiser, chame alguém para ver as opções do dia." : ""}</p>
-          </div>
-        ) : (
-          <>
-            <nav className="kd-menu-nav" aria-label="Seções do cardápio" ref={navRef}>
-              {searchOpen ? (
-                <div className="kd-menu-search">
-                  <Search size={18} aria-hidden />
-                  <input
-                    type="search"
-                    enterKeyHint="search"
-                    placeholder="Buscar prato ou bebida"
-                    aria-label="Buscar no cardápio"
-                    value={query}
-                    autoFocus
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Escape" && closeSearch()}
-                  />
-                  <button type="button" className="kd-icon-btn" onClick={closeSearch} aria-label="Fechar busca">
-                    <X size={18} />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <button ref={searchButton} type="button" className="kd-menu-search-btn" onClick={() => setSearchOpen(true)} aria-label="Buscar no cardápio">
-                    <Search size={18} />
-                  </button>
-                  {videoDishes.length > 0 && (
-                    <button type="button" className="kd-menu-search-btn" onClick={() => openViewer("reels", videoDishes, 0)} aria-label="Assistir os pratos em vídeo (Reels)">
-                      <Clapperboard size={18} />
-                    </button>
-                  )}
-                  <div className="kd-menu-chips" ref={chipsRef}>
-                    {sections.map((s) => (
-                      <a
-                        key={s.id}
-                        href={`#sec-${s.id}`}
-                        data-id={s.id}
-                        className={active === s.id ? "is-active" : ""}
-                        aria-current={active === s.id ? "true" : undefined}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          goTo(s.id);
-                        }}
-                      >
-                        {s.name}
-                      </a>
-                    ))}
-                  </div>
-                </>
-              )}
-            </nav>
-
-            {results ? (
-              <section className="kd-menu-results" aria-label="Resultados da busca">
-                <p className="kd-menu-results-count" role="status">
-                  {results.length ? `${plural(results.length, "resultado", "resultados")} para “${query.trim()}”` : `Nada encontrado para “${query.trim()}”`}
-                </p>
-                {results.length ? (
-                  <ul className="kd-dish-list">
-                    {results.map((dish, i) => (
-                      <DishRow
-                        key={dish.id || `${dish.name}-${i}`}
-                        dish={dish}
-                        categoryLabel={dish.category}
-                        autoplay={autoplay}
-                        onOpen={() => openDish(results, i)}
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="kd-empty kd-empty--compact">
-                    <p className="kd-empty-text">Tente outra palavra, como o nome de um ingrediente.</p>
-                    <Button variant="secondary" size="sm" onClick={closeSearch}>
-                      Ver o cardápio completo
-                    </Button>
-                  </div>
-                )}
-              </section>
-            ) : (
-              sections.map((section) => {
-                const start = running;
-                running += section.dishes.length;
-                return (
-                  <section key={section.id} id={`sec-${section.id}`} className="kd-menu-section" aria-labelledby={`sec-${section.id}-title`}>
-                    <header className="kd-menu-section-head">
-                      <h2 id={`sec-${section.id}-title`} className="kd-menu-section-title">
-                        {section.name}
-                      </h2>
-                      {section.description && <p>{section.description}</p>}
-                    </header>
-                    <ul className="kd-dish-list">
-                      {section.dishes.map((dish, j) => (
-                        <DishRow key={dish.id || `${dish.name}-${j}`} dish={dish} autoplay={autoplay} onOpen={() => openDish(allDishes, start + j)} />
-                      ))}
-                    </ul>
-                  </section>
-                );
-              })
-            )}
-          </>
-        )}
+        <MenuCatalog
+          sections={sections}
+          allDishes={allDishes}
+          autoplay={autoplay}
+          reducedMotion={reducedMotion}
+          emptyText={`A equipe ainda está cadastrando os pratos. ${settings.waiter ? "Se quiser, chame alguém para ver as opções do dia." : ""}`}
+          onOpenDish={openDish}
+          onOpenReels={videoDishes.length > 0 ? () => openViewer("reels", videoDishes, 0) : undefined}
+        />
       </div>
 
       {canCall && (

@@ -11,12 +11,15 @@ export function MenuHero({
   brand,
   table,
   preview = false,
+  subtitle,
   children,
 }: {
   name: string;
   brand: Brand;
   table?: string;
   preview?: boolean;
+  /** Linha abaixo do nome quando não há mesa (o delivery mostra prazo e status de funcionamento). */
+  subtitle?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   const Title = preview ? "p" : "h1";
@@ -51,7 +54,7 @@ export function MenuHero({
               </span>
             </p>
           ) : (
-            <p className="kd-menu-table is-unknown">Cardápio digital</p>
+            <p className="kd-menu-table is-unknown">{subtitle ?? "Cardápio digital"}</p>
           )}
         </div>
       </div>

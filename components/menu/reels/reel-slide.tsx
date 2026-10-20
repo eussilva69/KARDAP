@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useRef, useState } from "react";
-import { Bookmark, ConciergeBell, Heart, LoaderCircle, Play, Send } from "lucide-react";
+import { Bookmark, ConciergeBell, Heart, LoaderCircle, Play, Send, ShoppingBag } from "lucide-react";
 import { brl, initial, productCents } from "@/lib/format";
 import { pauseVideo, playExclusiveReporting, releaseVideo } from "@/lib/video-playback";
 import type { Dish } from "../dish-row";
@@ -34,6 +34,8 @@ export type ReelSlideProps = {
   restaurantName: string;
   logo: string;
   canCall: boolean;
+  /** "cart": o botão "Pedir" adiciona ao carrinho (delivery) em vez de chamar a equipe. */
+  callKind?: "waiter" | "cart";
   onTap: () => void;
   onHold: (holding: boolean) => void;
   onLike: (dish: Dish, value?: boolean) => void;
@@ -65,6 +67,7 @@ export const ReelSlide = memo(function ReelSlide({
   restaurantName,
   logo,
   canCall,
+  callKind = "waiter",
   onTap,
   onHold,
   onLike,
@@ -302,8 +305,14 @@ export const ReelSlide = memo(function ReelSlide({
               <span className="kd-reel-act-label">{saved ? "Salvo" : "Salvar"}</span>
             </button>
             {canCall && (
-              <button type="button" className="kd-reel-act" aria-label="Chamar a equipe para fazer o pedido" onClick={() => onCall(dish)} tabIndex={tab}>
-                <ConciergeBell size={27} aria-hidden />
+              <button
+                type="button"
+                className="kd-reel-act"
+                aria-label={callKind === "cart" ? `Adicionar ${dish.name} ao carrinho` : "Chamar a equipe para fazer o pedido"}
+                onClick={() => onCall(dish)}
+                tabIndex={tab}
+              >
+                {callKind === "cart" ? <ShoppingBag size={27} aria-hidden /> : <ConciergeBell size={27} aria-hidden />}
                 <span className="kd-reel-act-label">Pedir</span>
               </button>
             )}

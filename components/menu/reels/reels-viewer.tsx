@@ -46,6 +46,7 @@ export function ReelsViewer({
   restaurant,
   engagement,
   canCall,
+  callKind,
   onCall,
   onClose,
   onShowSaved,
@@ -57,6 +58,8 @@ export function ReelsViewer({
   restaurant: RestaurantRef;
   engagement: Engagement;
   canCall: boolean;
+  /** Ação do botão "Pedir": chamar a equipe (cardápio da mesa) ou adicionar ao carrinho (delivery). */
+  callKind?: "waiter" | "cart";
   onCall: (dish: Dish) => void;
   onClose: () => void;
   onShowSaved: () => void;
@@ -275,6 +278,7 @@ export function ReelsViewer({
                 restaurantName={restaurant.name}
                 logo={restaurant.logo}
                 canCall={canCall}
+                callKind={callKind}
                 onTap={onTap}
                 onHold={onHold}
                 onLike={onLike}
