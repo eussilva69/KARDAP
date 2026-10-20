@@ -241,7 +241,7 @@ function DeliveryConfigPanel({
         <div style={{ padding: "0 16px 16px" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 28, fontWeight: 700 }}>{usage.used}</span>
-            <span style={{ color: "var(--kd-muted)" }}>
+            <span style={{ color: "var(--k-muted)" }}>
               {usage.limit !== null ? `de ${usage.limit} pedidos próprios` : "pedidos próprios (ilimitado)"}
             </span>
             <Badge tone={usageTone}>
@@ -249,11 +249,11 @@ function DeliveryConfigPanel({
             </Badge>
           </div>
           {usage.limit !== null && (
-            <div style={{ height: 6, borderRadius: 3, background: "var(--kd-border)", overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 3, width: `${Math.min(100, usage.percent)}%`, background: usage.level === "full" ? "var(--kd-danger)" : usage.level.startsWith("warn") ? "var(--kd-warning)" : "var(--kd-accent)" }} />
+            <div style={{ height: 6, borderRadius: 3, background: "var(--k-line)", overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 3, width: `${Math.min(100, usage.percent)}%`, background: usage.level === "full" ? "var(--k-danger)" : usage.level.startsWith("warn") ? "var(--k-warning)" : "var(--k-primary)" }} />
             </div>
           )}
-          <p style={{ fontSize: 12, color: "var(--kd-muted)", marginTop: 6 }}>
+          <p style={{ fontSize: 12, color: "var(--k-muted)", marginTop: 6 }}>
             Pedidos próprios compartilhados entre delivery, PDV e mesas. Pedidos de iFood e outros marketplaces não contam.
           </p>
         </div>
@@ -269,13 +269,13 @@ function DeliveryConfigPanel({
           }
         />
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-          <p style={{ fontSize: 13, color: "var(--kd-muted)", margin: 0 }}>
+          <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
             {feeMode === "taxa_fixa" ? `Taxa fixa · ${brl(config.deliveryFeeCents)}` : "Taxa por bairro"}
             {config.deliveryEta ? ` · ${config.deliveryEta}` : ""}
             {config.minOrderCents > 0 ? ` · Mínimo ${brl(config.minOrderCents)}` : ""}
           </p>
           {config.paymentMethods.length > 0 && (
-            <p style={{ fontSize: 13, color: "var(--kd-muted)", margin: 0 }}>
+            <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
               {config.paymentMethods.map((m) => PAYMENT_METHOD_LABELS[m] || m).join(", ")}
             </p>
           )}
@@ -358,7 +358,7 @@ function DeliverySetupModal({
       busy={saving}
       footer={
         <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-          <Button variant="ghost" onClick={step === 0 ? onClose : () => setStep((s) => (s - 1) as Step)} disabled={saving}>
+          <Button variant="secondary" onClick={step === 0 ? onClose : () => setStep((s) => (s - 1) as Step)} disabled={saving}>
             {step === 0 ? "Cancelar" : "Voltar"}
           </Button>
           <Button
@@ -373,7 +373,7 @@ function DeliverySetupModal({
       }
     >
       {/* stepper */}
-      <div style={{ display: "flex", gap: 0, marginBottom: 24, borderRadius: 8, overflow: "hidden", border: "1px solid var(--kd-border)" }}>
+      <div style={{ display: "flex", gap: 0, marginBottom: 24, borderRadius: 8, overflow: "hidden", border: "1px solid var(--k-line)" }}>
         {stepLabels.map((label, i) => (
           <button
             key={label}
@@ -386,10 +386,10 @@ function DeliverySetupModal({
               fontSize: 12,
               fontWeight: 600,
               border: "none",
-              borderRight: i < 2 ? "1px solid var(--kd-border)" : "none",
+              borderRight: i < 2 ? "1px solid var(--k-line)" : "none",
               cursor: "pointer",
-              background: i === step ? "var(--kd-accent)" : "transparent",
-              color: i === step ? "#fff" : i < step ? "var(--kd-accent)" : "var(--kd-muted)",
+              background: i === step ? "var(--k-primary)" : "transparent",
+              color: i === step ? "#fff" : i < step ? "var(--k-primary)" : "var(--k-muted)",
               transition: "background 0.15s",
             }}
           >
@@ -400,7 +400,7 @@ function DeliverySetupModal({
 
       {step === 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ fontSize: 14, color: "var(--kd-muted)", marginBottom: 4 }}>
+          <p style={{ fontSize: 14, color: "var(--k-muted)", marginBottom: 4 }}>
             Como você cobra a taxa de entrega?
           </p>
           {(["taxa_fixa", "taxa_por_bairro"] as FeeMode[]).map((mode) => (
@@ -412,7 +412,7 @@ function DeliverySetupModal({
                 gap: 12,
                 padding: "14px 16px",
                 borderRadius: 8,
-                border: `2px solid ${feeMode === mode ? "var(--kd-accent)" : "var(--kd-border)"}`,
+                border: `2px solid ${feeMode === mode ? "var(--k-primary)" : "var(--k-line)"}`,
                 cursor: "pointer",
               }}
             >
@@ -428,7 +428,7 @@ function DeliverySetupModal({
                 <p style={{ fontWeight: 600, margin: 0, fontSize: 14 }}>
                   {mode === "taxa_fixa" ? "Taxa fixa" : "Taxa por bairro"}
                 </p>
-                <p style={{ fontSize: 12, color: "var(--kd-muted)", margin: "2px 0 0" }}>
+                <p style={{ fontSize: 12, color: "var(--k-muted)", margin: "2px 0 0" }}>
                   {mode === "taxa_fixa"
                     ? "Todos os clientes pagam o mesmo valor de entrega."
                     : "Cada bairro tem uma taxa diferente. Configure os bairros na seção de áreas abaixo."}
@@ -460,7 +460,7 @@ function DeliverySetupModal({
 
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ fontSize: 14, color: "var(--kd-muted)", marginBottom: 4 }}>
+          <p style={{ fontSize: 14, color: "var(--k-muted)", marginBottom: 4 }}>
             Quais formas de pagamento você aceita na entrega?
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -474,9 +474,9 @@ function DeliverySetupModal({
                   style={{
                     padding: "8px 16px",
                     borderRadius: 20,
-                    border: `2px solid ${on ? "var(--kd-accent)" : "var(--kd-border)"}`,
-                    background: on ? "var(--kd-accent)" : "var(--kd-surface, var(--kd-card-bg, #fff))",
-                    color: on ? "#fff" : "var(--kd-text)",
+                    border: `2px solid ${on ? "var(--k-primary)" : "var(--k-line)"}`,
+                    background: on ? "var(--k-primary)" : "var(--k-surface)",
+                    color: on ? "#fff" : "var(--k-ink)",
                     cursor: "pointer",
                     fontSize: 13,
                     fontWeight: 600,
@@ -490,7 +490,7 @@ function DeliverySetupModal({
             })}
           </div>
           {methods.length === 0 && (
-            <p style={{ fontSize: 12, color: "var(--kd-danger)", margin: 0 }}>
+            <p style={{ fontSize: 12, color: "var(--k-danger)", margin: 0 }}>
               Selecione ao menos uma forma de pagamento.
             </p>
           )}
