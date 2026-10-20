@@ -17,11 +17,13 @@ async function loadCities(): Promise<CityResult[]> {
   );
   if (!res.ok) throw new Error(`IBGE API ${res.status}`);
   const raw: IbgeCity[] = await res.json();
-  cachedCities = raw.map((c) => ({
-    ibgeCode: String(c.id),
-    name: c.nome,
-    uf: c.microrregiao.mesorregiao.UF.sigla,
-  }));
+  cachedCities = raw
+    .filter((c) => c.microrregiao?.mesorregiao?.UF?.sigla)
+    .map((c) => ({
+      ibgeCode: String(c.id),
+      name: c.nome,
+      uf: c.microrregiao.mesorregiao.UF.sigla,
+    }));
   cacheExpiry = Date.now() + CACHE_TTL;
   return cachedCities;
 }

@@ -104,6 +104,7 @@ import {
 import { KardapLogo } from "@/components/brand/logo";
 import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
 import { DeliveryPage } from "./delivery-page";
+import { FinancialPage } from "./financial-page";
 import { MenuHero } from "@/components/menu/menu-hero";
 import { DishRow } from "@/components/menu/dish-row";
 import { MyPlanPage } from "@/components/billing/my-plan-page";
@@ -316,6 +317,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: "Operação",
     items: [
       { label: "Delivery", href: "/dashboard/delivery", icon: Bike },
+      { label: "Financeiro", href: "/dashboard/financeiro", icon: CreditCard },
     ],
   },
   {
@@ -609,6 +611,8 @@ function DashboardRoutes(props: DashboardProps) {
       return <ReviewsPage {...props} />;
     case "/dashboard/delivery":
       return <DeliveryPage account={props.account} notify={props.notify} />;
+    case "/dashboard/financeiro":
+      return <FinancialPage notify={props.notify} />;
     case "/dashboard/relatorios":
       return <ReportsPage {...props} />;
     case "/dashboard/personalizacao":

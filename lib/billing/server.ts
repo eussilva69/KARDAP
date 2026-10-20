@@ -242,11 +242,14 @@ export async function confirmNativeOrder(input: {
 }): Promise<ConfirmResult> {
   if (!isNativeSource(input.source)) throw new BillingError("invalid_source", 400, "Origem do pedido inválida para um pedido próprio.");
   const source: NativeOrderSource = input.source;
-  await requireFeature(input.restaurantId, input.uid, "orderManagement").catch((error) => {
-    // Plano sem pedidos próprios (Start): mensagem da franquia, que é o que a pessoa vê no PDV.
-    if (error instanceof BillingError && error.code === "plan_required") throw new BillingError("quota_exceeded", 402, quotaMessage(0, 0), { used: 0, limit: 0 });
-    throw error;
-  });
+  const publicDeliveryOrder = input.uid === "delivery_public" && source === "kardap_delivery";
+  if (!publicDeliveryOrder) {
+    await requireFeature(input.restaurantId, input.uid, "orderManagement").catch((error) => {
+      // Plano sem pedidos próprios (Start): mensagem da franquia, que é o que a pessoa vê no PDV.
+      if (error instanceof BillingError && error.code === "plan_required") throw new BillingError("quota_exceeded", 402, quotaMessage(0, 0), { used: 0, limit: 0 });
+      throw error;
+    });
+  }
   const id = orderDocId(input.orderId, input.idempotencyKey, "n");
   const data = sanitizeOrder(input.order);
   const db = adminDb();
@@ -278,13 +281,14 @@ export async function confirmNativeOrder(input: {
 
       const at = new Date(now).toISOString();
       const status = typeof data.status === "string" && data.status && data.status !== "rascunho" && data.status.length <= 40 ? data.status : "confirmado";
+      const origin = typeof data.origin === "object" && data.origin && !Array.isArray(data.origin) ? { ...(data.origin as Record<string, unknown>), source, isNativeOrder: true } : { source, isNativeOrder: true };
       tx.set(
         orderRef,
         {
           ...data,
           status,
           establishmentId: input.restaurantId,
-          origin: { source, isNativeOrder: true },
+          origin,
           quota: { consumed: true, periodId: period.periodId, consumedAt: at },
           confirmedAt: at,
           confirmedBy: input.uid,

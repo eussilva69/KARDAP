@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 8800",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -11,6 +11,7 @@
     "test:sso": "node scripts/e2e-sso.mjs",
     "test:reels": "node scripts/e2e-reels.mjs",
     "test:billing": "node scripts/test-billing.mjs",
+    "test:financial": "node scripts/test-financial.mjs",
     "test:plans": "node scripts/e2e-plans.mjs",
     "test:onboarding": "node scripts/e2e-onboarding.mjs",
     "seo:landing": "node scripts/seo-landing.mjs",

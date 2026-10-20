@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
-import { AlertTriangle, ArrowLeft, Bug, Copy, ExternalLink, LayoutDashboard, LoaderCircle, LogOut, RotateCw, Search, ShieldAlert, ShieldCheck, Store, Trash2, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Bug, CircleDollarSign, Copy, ExternalLink, LayoutDashboard, LoaderCircle, LogOut, RotateCw, Search, ShieldAlert, ShieldCheck, Store, Trash2, Wallet } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/auth";
 import { friendlyError } from "@/lib/async";
 import { brl, plural } from "@/lib/format";
@@ -27,6 +27,7 @@ import {
   type RestaurantDetail,
 } from "@/lib/admin-db";
 import { KardapLogo } from "@/components/brand/logo";
+import { FinancialDashboard } from "./financial-dashboard";
 import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
 import { PLAN_ORDER, PlanComparison } from "@/components/plans/plan-cards";
 import {
@@ -193,6 +194,7 @@ const SECTIONS = [
   { href: "/admin", label: "Visão geral", icon: LayoutDashboard },
   { href: "/admin/restaurantes", label: "Restaurantes", icon: Store },
   { href: "/admin/planos", label: "Planos", icon: Wallet },
+  { href: "/admin/financeiro", label: "Financeiro", icon: CircleDollarSign },
   { href: "/admin/debug", label: "Debug", icon: Bug },
 ];
 
@@ -266,6 +268,8 @@ function AdminApp({ path, identity, notify }: { path: string; identity: AdminIde
               <RestaurantsPage rows={rows} />
             ) : section === "/admin/planos" ? (
               <PlansAdminPage rows={rows} notify={notify} />
+            ) : section === "/admin/financeiro" ? (
+              <FinancialDashboard notify={notify} />
             ) : section === "/admin/debug" ? (
               <SystemResetPage notify={notify} />
             ) : (

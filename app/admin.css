@@ -257,4 +257,90 @@
 .kd-admin-features { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px var(--k-s4); margin: 0 0 var(--k-s4); padding: 0; border: 0; }
 .kd-admin-features legend { margin-bottom: var(--k-s2); }
 .kd-admin-feature { display: flex; align-items: center; gap: 8px; font-size: var(--k-fs-sm); }
+
+/* ==========================================================================
+   Kardap · Dashboard Financeiro
+   ========================================================================== */
+
+/* ─── Layout geral ─── */
+.kd-fin { display: flex; flex-direction: column; gap: var(--k-s5); }
+.kd-fin__header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--k-s3); flex-wrap: wrap; }
+.kd-fin__title { display: flex; align-items: center; gap: 10px; font-size: 1.5rem; font-weight: 800; margin: 0 0 4px; }
+.kd-fin__subtitle { color: var(--k-muted); font-size: var(--k-fs-sm); margin: 0; }
+
+/* ─── Filtros de período ─── */
+.kd-fin__filters { display: flex; align-items: center; gap: var(--k-s3); flex-wrap: wrap; }
+.kd-fin__filter-group { display: flex; gap: 4px; background: var(--k-surface-2); border-radius: var(--k-r-md); padding: 3px; }
+.kd-fin__period-btn { padding: 5px 14px; border-radius: calc(var(--k-r-md) - 2px); font-size: var(--k-fs-sm); font-weight: 500; border: none; background: transparent; color: var(--k-muted); cursor: pointer; transition: background 0.15s, color 0.15s; }
+.kd-fin__period-btn--active { background: var(--k-surface); color: var(--k-text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+/* ─── Tabs ─── */
+.kd-fin__tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--k-border); }
+.kd-fin__tab { padding: 8px 18px; font-size: var(--k-fs-sm); font-weight: 500; color: var(--k-muted); background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.kd-fin__tab--active { color: #F7EA48; border-bottom-color: #F7EA48; }
+
+/* ─── Seção de conteúdo ─── */
+.kd-fin__section { display: flex; flex-direction: column; gap: var(--k-s4); }
+
+/* ─── KPI grid ─── */
+.kd-fin__kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--k-s3); }
+.kd-fin-kpi { display: flex; align-items: center; gap: 14px; padding: var(--k-s4); background: var(--k-surface); border: 1px solid var(--k-border); border-radius: var(--k-r-lg); }
+.kd-fin-kpi__icon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--k-r-md); background: var(--k-surface-2); color: var(--k-muted); flex-shrink: 0; }
+.kd-fin-kpi__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kd-fin-kpi__label { font-size: 11px; font-weight: 500; color: var(--k-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.kd-fin-kpi__value { font-size: 1.35rem; font-weight: 800; color: var(--k-text); line-height: 1.1; }
+.kd-fin-kpi__sub { font-size: 11px; color: var(--k-muted); }
+
+/* tones */
+.kd-fin-kpi--success .kd-fin-kpi__icon { background: rgba(34,197,94,.12); color: #22c55e; }
+.kd-fin-kpi--success .kd-fin-kpi__value { color: #22c55e; }
+.kd-fin-kpi--warning .kd-fin-kpi__icon { background: rgba(249,115,22,.12); color: #f97316; }
+.kd-fin-kpi--warning .kd-fin-kpi__value { color: #f97316; }
+.kd-fin-kpi--danger .kd-fin-kpi__icon { background: rgba(239,68,68,.12); color: #ef4444; }
+.kd-fin-kpi--danger .kd-fin-kpi__value { color: #ef4444; }
+.kd-fin-kpi--brand .kd-fin-kpi__icon { background: rgba(247,234,72,.15); color: #F7EA48; }
+.kd-fin-kpi--brand .kd-fin-kpi__value { color: #F7EA48; }
+
+/* ─── Barra de distribuição ─── */
+.kd-fin__distribution { display: flex; height: 24px; border-radius: var(--k-r-md); overflow: hidden; background: var(--k-surface-2); margin-bottom: 10px; }
+.kd-fin__dist-bar { height: 100%; transition: width 0.4s ease; }
+.kd-fin__dist-bar--gateway { background: #ef4444; }
+.kd-fin__dist-bar--kardap { background: #F7EA48; }
+.kd-fin__dist-bar--restaurant { background: #22c55e; }
+.kd-fin__dist-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--k-fs-sm); color: var(--k-muted); }
+.kd-fin__dist-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.kd-fin__dist-dot--gateway { background: #ef4444; }
+.kd-fin__dist-dot--kardap { background: #F7EA48; }
+.kd-fin__dist-dot--restaurant { background: #22c55e; }
+
+/* ─── Tabela financeira ─── */
+.kd-fin-table th, .kd-fin-table td { font-size: var(--k-fs-sm); padding: 10px 14px; }
+.kd-fin-table tbody tr:hover { background: var(--k-surface-2); }
+
+/* ─── Estados ─── */
+.kd-fin-loading { display: flex; align-items: center; gap: 10px; padding: var(--k-s5); color: var(--k-muted); font-size: var(--k-fs-sm); }
+.kd-fin-empty { padding: var(--k-s5); color: var(--k-muted); font-size: var(--k-fs-sm); text-align: center; }
+
+/* ─── Configurações ─── */
+.kd-fin-example { background: var(--k-surface-2); border-radius: var(--k-r-md); padding: var(--k-s3) var(--k-s4); font-size: var(--k-fs-sm); }
+.kd-fin-example ul { margin: 8px 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+
+/* ─── Saldo grid ─── */
+.kd-fin__balance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--k-s3); }
+.kd-fin-bal { display: flex; flex-direction: column; gap: 4px; padding: var(--k-s3) var(--k-s4); background: var(--k-surface); border: 1px solid var(--k-border); border-radius: var(--k-r-md); }
+.kd-fin-bal__label { font-size: 11px; font-weight: 500; color: var(--k-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.kd-fin-bal__value { font-size: 1.2rem; font-weight: 800; color: var(--k-text); }
+
+/* ─── Modal financeiro ─── */
+.kd-fin-modal { max-width: 480px; width: 100%; }
+
+/* ─── Responsivo ─── */
+@media (max-width: 767px) {
+  .kd-fin__kpi-grid { grid-template-columns: 1fr 1fr; }
+  .kd-fin__tabs { overflow-x: auto; }
+  .kd-fin__tab { white-space: nowrap; }
+}
+@media (max-width: 479px) {
+  .kd-fin__kpi-grid { grid-template-columns: 1fr; }
+}
 .kd-admin-feature select { min-height: 32px; padding: 0 6px; border: 1px solid var(--k-line-strong); border-radius: var(--k-r-sm); background: var(--k-surface); color: var(--k-ink); font: inherit; font-size: var(--k-fs-sm); }

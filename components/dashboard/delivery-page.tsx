@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bike, Check, Copy, ExternalLink, Link2, LoaderCircle, ShoppingBag } from "lucide-react";
+import { Bike, Check, Copy, ExternalLink, Link2 } from "lucide-react";
 import { getRestaurantId } from "@/lib/restaurant-db";
 import { friendlyError } from "@/lib/async";
 import { brl } from "@/lib/format";
@@ -14,9 +14,11 @@ import {
   Callout,
   Card,
   CardHead,
+  Modal,
   PageHeader,
   Skeleton,
   Switch,
+  TextArea,
   TextField,
   type BadgeTone,
 } from "@/components/ui";
@@ -155,22 +157,18 @@ function DeliveryConfigPanel({
   const { config, deliveryUrl } = state;
   const [copied, setCopied] = useState(false);
 
-  const [feeCents, setFeeCents] = useState(String((config.deliveryFeeCents / 100).toFixed(2).replace(".", ",")));
-  const [eta, setEta] = useState(config.deliveryEta);
-  const [area, setArea] = useState(config.deliveryArea);
-  const [minOrderCents, setMinOrderCents] = useState(String(config.minOrderCents > 0 ? (config.minOrderCents / 100).toFixed(2).replace(".", ",") : ""));
-  const [methods, setMethods] = useState<string[]>(config.paymentMethods);
-  const [notes, setNotes] = useState(config.notes || "");
+  const [showSetup, setShowSetup] = useState(false);
   const feeMode: FeeMode = config.feeMode || "taxa_fixa";
 
   const fullUrl = deliveryUrl ? `${typeof window !== "undefined" ? window.location.origin : ""}${deliveryUrl}` : null;
 
-  const toggleEnabled = async () => {
+  const handleSetupSave = async (patch: Partial<DeliveryConfig>) => {
     setSaving(true);
     try {
-      const next = await saveDeliveryConfig(restaurantId, { enabled: !config.enabled });
+      const next = await saveDeliveryConfig(restaurantId, patch);
       onUpdate(next);
-      notify(next.enabled ? "Delivery ativado!" : "Delivery desativado.");
+      notify("Configurações do delivery salvas.");
+      setShowSetup(false);
     } catch (err) {
       notify(friendlyError(err, "Não foi possível salvar."), "error");
     } finally {
@@ -178,22 +176,12 @@ function DeliveryConfigPanel({
     }
   };
 
-  const saveSettings = async () => {
+  const toggleEnabled = async () => {
     setSaving(true);
     try {
-      const parseFee = Number(feeCents.replace(",", ".")) || 0;
-      const parseMin = Number(minOrderCents.replace(",", ".")) || 0;
-      const next = await saveDeliveryConfig(restaurantId, {
-        deliveryFeeCents: Math.round(parseFee * 100),
-        deliveryEta: eta.trim(),
-        deliveryArea: area.trim(),
-        minOrderCents: Math.round(parseMin * 100),
-        paymentMethods: methods,
-        notes: notes.trim(),
-        feeMode: config.feeMode || "taxa_fixa",
-      });
+      const next = await saveDeliveryConfig(restaurantId, { enabled: !config.enabled });
       onUpdate(next);
-      notify("Configurações do delivery salvas.");
+      notify(next.enabled ? "Delivery ativado!" : "Delivery desativado.");
     } catch (err) {
       notify(friendlyError(err, "Não foi possível salvar."), "error");
     } finally {
@@ -211,10 +199,6 @@ function DeliveryConfigPanel({
     } catch {
       notify("Não foi possível copiar. Selecione e copie manualmente.", "error");
     }
-  };
-
-  const toggleMethod = (method: string) => {
-    setMethods((prev) => prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method]);
   };
 
   const usageTone: BadgeTone = usage.level === "full" ? "signal" : usage.level === "warn90" ? "signal" : usage.level === "warn70" ? "outline" : "neutral";
@@ -276,46 +260,36 @@ function DeliveryConfigPanel({
       </Card>
 
       <Card style={{ marginBottom: 16 }}>
-        <CardHead title="Configurações do delivery" />
-        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-          {feeMode === "taxa_fixa" && (
-            <TextField label="Taxa de entrega (R$)" value={feeCents} onChange={(e) => setFeeCents(e.target.value)} placeholder="0,00" inputMode="decimal" />
+        <CardHead
+          title="Configurações do delivery"
+          action={
+            <Button size="sm" variant="secondary" onClick={() => setShowSetup(true)}>
+              Editar
+            </Button>
+          }
+        />
+        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <p style={{ fontSize: 13, color: "var(--kd-muted)", margin: 0 }}>
+            {feeMode === "taxa_fixa" ? `Taxa fixa · ${brl(config.deliveryFeeCents)}` : "Taxa por bairro"}
+            {config.deliveryEta ? ` · ${config.deliveryEta}` : ""}
+            {config.minOrderCents > 0 ? ` · Mínimo ${brl(config.minOrderCents)}` : ""}
+          </p>
+          {config.paymentMethods.length > 0 && (
+            <p style={{ fontSize: 13, color: "var(--kd-muted)", margin: 0 }}>
+              {config.paymentMethods.map((m) => PAYMENT_METHOD_LABELS[m] || m).join(", ")}
+            </p>
           )}
-          <TextField label="Tempo estimado de entrega" value={eta} onChange={(e) => setEta(e.target.value)} placeholder="30-45 min" />
-          <TextField label="Área de entrega" value={area} onChange={(e) => setArea(e.target.value)} placeholder="Até 5 km do centro" />
-          <TextField label="Pedido mínimo (R$)" value={minOrderCents} onChange={(e) => setMinOrderCents(e.target.value)} placeholder="0,00" inputMode="decimal" />
-
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>Formas de pagamento</label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => toggleMethod(key)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px solid var(--kd-border)",
-                    background: methods.includes(key) ? "var(--kd-accent)" : "transparent",
-                    color: methods.includes(key) ? "#fff" : "inherit",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <TextField label="Observações" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Informações extras para o cliente" />
-
-          <Button onClick={saveSettings} disabled={saving} icon={saving ? <LoaderCircle size={14} className="kd-spin" /> : <Check size={14} />}>
-            Salvar configurações
-          </Button>
         </div>
       </Card>
+
+      {showSetup && (
+        <DeliverySetupModal
+          config={config}
+          saving={saving}
+          onSave={handleSetupSave}
+          onClose={() => setShowSetup(false)}
+        />
+      )}
 
       <DeliveryAreasManager
         restaurantId={restaurantId}
@@ -334,5 +308,194 @@ function DeliveryConfigPanel({
         }}
       />
     </div>
+  );
+}
+
+const STEPS = ["Modalidade", "Detalhes", "Pagamento"] as const;
+type Step = 0 | 1 | 2;
+
+function DeliverySetupModal({
+  config,
+  saving,
+  onSave,
+  onClose,
+}: {
+  config: DeliveryConfig;
+  saving: boolean;
+  onSave: (patch: Partial<DeliveryConfig>) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [step, setStep] = useState<Step>(0);
+  const [feeMode, setFeeMode] = useState<FeeMode>(config.feeMode || "taxa_fixa");
+  const [feeCents, setFeeCents] = useState(String((config.deliveryFeeCents / 100).toFixed(2).replace(".", ",")));
+  const [eta, setEta] = useState(config.deliveryEta);
+  const [area, setArea] = useState(config.deliveryArea);
+  const [minOrder, setMinOrder] = useState(String(config.minOrderCents > 0 ? (config.minOrderCents / 100).toFixed(2).replace(".", ",") : ""));
+  const [notes, setNotes] = useState(config.notes || "");
+  const [methods, setMethods] = useState<string[]>(config.paymentMethods);
+
+  const toggleMethod = (m: string) => setMethods((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
+
+  const handleSave = async () => {
+    await onSave({
+      feeMode,
+      deliveryFeeCents: feeMode === "taxa_fixa" ? Math.round((Number(feeCents.replace(",", ".")) || 0) * 100) : config.deliveryFeeCents,
+      deliveryEta: eta.trim(),
+      deliveryArea: area.trim(),
+      minOrderCents: Math.round((Number(minOrder.replace(",", ".")) || 0) * 100),
+      paymentMethods: methods,
+      notes: notes.trim(),
+    });
+  };
+
+  const stepLabels: typeof STEPS = STEPS;
+  const isLast = step === 2;
+
+  return (
+    <Modal
+      title="Configurar delivery"
+      onClose={onClose}
+      busy={saving}
+      footer={
+        <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+          <Button variant="ghost" onClick={step === 0 ? onClose : () => setStep((s) => (s - 1) as Step)} disabled={saving}>
+            {step === 0 ? "Cancelar" : "Voltar"}
+          </Button>
+          <Button
+            variant="primary"
+            loading={saving && isLast}
+            icon={isLast ? <Check size={15} /> : undefined}
+            onClick={isLast ? handleSave : () => setStep((s) => (s + 1) as Step)}
+          >
+            {isLast ? "Salvar" : "Continuar"}
+          </Button>
+        </div>
+      }
+    >
+      {/* stepper */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 24, borderRadius: 8, overflow: "hidden", border: "1px solid var(--kd-border)" }}>
+        {stepLabels.map((label, i) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => setStep(i as Step)}
+            disabled={saving}
+            style={{
+              flex: 1,
+              padding: "8px 4px",
+              fontSize: 12,
+              fontWeight: 600,
+              border: "none",
+              borderRight: i < 2 ? "1px solid var(--kd-border)" : "none",
+              cursor: "pointer",
+              background: i === step ? "var(--kd-accent)" : "transparent",
+              color: i === step ? "#fff" : i < step ? "var(--kd-accent)" : "var(--kd-muted)",
+              transition: "background 0.15s",
+            }}
+          >
+            {i < step ? `✓ ${label}` : `${i + 1}. ${label}`}
+          </button>
+        ))}
+      </div>
+
+      {step === 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ fontSize: 14, color: "var(--kd-muted)", marginBottom: 4 }}>
+            Como você cobra a taxa de entrega?
+          </p>
+          {(["taxa_fixa", "taxa_por_bairro"] as FeeMode[]).map((mode) => (
+            <label
+              key={mode}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 12,
+                padding: "14px 16px",
+                borderRadius: 8,
+                border: `2px solid ${feeMode === mode ? "var(--kd-accent)" : "var(--kd-border)"}`,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="radio"
+                name="feeMode"
+                value={mode}
+                checked={feeMode === mode}
+                onChange={() => setFeeMode(mode)}
+                style={{ marginTop: 2 }}
+              />
+              <div>
+                <p style={{ fontWeight: 600, margin: 0, fontSize: 14 }}>
+                  {mode === "taxa_fixa" ? "Taxa fixa" : "Taxa por bairro"}
+                </p>
+                <p style={{ fontSize: 12, color: "var(--kd-muted)", margin: "2px 0 0" }}>
+                  {mode === "taxa_fixa"
+                    ? "Todos os clientes pagam o mesmo valor de entrega."
+                    : "Cada bairro tem uma taxa diferente. Configure os bairros na seção de áreas abaixo."}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {step === 1 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {feeMode === "taxa_fixa" && (
+            <TextField
+              label="Taxa de entrega (R$)"
+              value={feeCents}
+              onChange={(e) => setFeeCents(e.target.value)}
+              placeholder="0,00"
+              inputMode="decimal"
+              hint="Use 0,00 para entrega grátis."
+            />
+          )}
+          <TextField label="Tempo estimado" value={eta} onChange={(e) => setEta(e.target.value)} placeholder="30–45 min" />
+          <TextField label="Área de atendimento" value={area} onChange={(e) => setArea(e.target.value)} placeholder="Até 5 km do centro" hint="Texto exibido no checkout para o cliente." />
+          <TextField label="Pedido mínimo (R$)" value={minOrder} onChange={(e) => setMinOrder(e.target.value)} placeholder="0,00" inputMode="decimal" hint="Deixe em branco para não ter mínimo." />
+          <TextArea label="Observações" optional rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Informações extras para o cliente" maxLength={500} />
+        </div>
+      )}
+
+      {step === 2 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ fontSize: 14, color: "var(--kd-muted)", marginBottom: 4 }}>
+            Quais formas de pagamento você aceita na entrega?
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => {
+              const on = methods.includes(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleMethod(key)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 20,
+                    border: `2px solid ${on ? "var(--kd-accent)" : "var(--kd-border)"}`,
+                    background: on ? "var(--kd-accent)" : "var(--kd-surface, var(--kd-card-bg, #fff))",
+                    color: on ? "#fff" : "var(--kd-text)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {on && <span style={{ marginRight: 4 }}>✓</span>}{label}
+                </button>
+              );
+            })}
+          </div>
+          {methods.length === 0 && (
+            <p style={{ fontSize: 12, color: "var(--kd-danger)", margin: 0 }}>
+              Selecione ao menos uma forma de pagamento.
+            </p>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }
