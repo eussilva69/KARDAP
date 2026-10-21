@@ -1,5 +1,5 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from "firebase/app";
-import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from "firebase/firestore";
 
 // Chaves públicas do projeto Firebase. As regras do Firestore continuam sendo
 // responsáveis por definir quem pode ler e alterar os dados.
@@ -39,7 +39,11 @@ export const EMULATOR_HOST = "127.0.0.1";
 let db: Firestore | undefined;
 export const getDb = () => {
   if (db) return db;
-  db = getFirestore(getFirebaseApp());
+  // persistentLocalCache: serve dados do IndexedDB instantaneamente em recarregamentos e F5.
+  // Não aumenta leituras no Firestore — apenas acelera a entrega local.
+  db = initializeFirestore(getFirebaseApp(), {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  });
   if (useEmulators) connectFirestoreEmulator(db, EMULATOR_HOST, 8080);
   return db;
 };

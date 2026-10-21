@@ -18,6 +18,10 @@ type TrackingData = {
   orderNumber: number;
   statusHistory: { status: string; at: string; by?: string }[];
   updatedAt: string;
+  paymentStatus?: string;
+  operationalReady?: boolean;
+  payment?: { statusDetail?: string };
+  cancelReason?: string;
 };
 
 /** Pedido enviado: acompanha o status consultando a API a cada 8 segundos. */
@@ -66,6 +70,7 @@ export function OrderTracking({
   const status = tracking?.status || "pendente";
   const cancelled = status === "cancelado" || status === "recusado";
   const delivered = status === "entregue";
+  const waitingRestaurant = tracking?.operationalReady === true && status === "pendente";
   const current = Math.max(0, STEPS.findIndex((s) => s.status === status));
   const timeOf = (step: string) => {
     const entry = tracking?.statusHistory?.find((h) => h.status === step);
@@ -80,11 +85,11 @@ export function OrderTracking({
         <span className={`kd-sheet-done-icon ${cancelled ? "is-cancelled" : ""}`} aria-hidden>
           {cancelled ? <X size={30} strokeWidth={2.6} /> : <Check size={30} strokeWidth={2.6} />}
         </span>
-        <h1>{delivered ? "Pedido entregue!" : cancelled ? (status === "recusado" ? "Pedido recusado" : "Pedido cancelado") : "Pedido enviado!"}</h1>
+        <h1>{delivered ? "Pedido entregue!" : cancelled ? (status === "recusado" ? "Pedido recusado" : "Pedido cancelado") : waitingRestaurant ? "Aguardando confirmação do restaurante" : "Pedido enviado!"}</h1>
         <p>
           Pedido <b className="kd-num">#{String(orderNumber).padStart(3, "0")}</b> · {restaurantName}
         </p>
-        {cancelled && <p className="kd-muted">{status === "recusado" ? "O restaurante não pôde aceitar seu pedido no momento." : "Este pedido foi cancelado."}</p>}
+        {cancelled && <p className="kd-muted">{tracking?.cancelReason || (status === "recusado" ? "O restaurante não pôde aceitar seu pedido no momento." : "Este pedido foi cancelado.")}</p>}
       </header>
 
       {!cancelled && (

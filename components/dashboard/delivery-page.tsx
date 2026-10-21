@@ -271,7 +271,7 @@ function DeliveryConfigPanel({
         />
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
           <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
-            {feeMode === "taxa_fixa" ? `Taxa fixa · ${brl(config.deliveryFeeCents)}` : "Taxa por bairro"}
+            {feeMode === "taxa_fixa" ? `Taxa fixa · ${brl(config.deliveryFeeCents)}` : feeMode === "area_mapa" ? "Taxa por área no mapa" : "Taxa por bairro"}
             {config.deliveryEta ? ` · ${config.deliveryEta}` : ""}
             {config.minOrderCents > 0 ? ` · Mínimo ${brl(config.minOrderCents)}` : ""}
           </p>
@@ -396,18 +396,20 @@ function DeliverySetupModal({
       {step === 0 && (
         <fieldset className="kd-dl-fieldset">
           <legend className="kd-muted">Como você cobra a taxa de entrega?</legend>
-          {(["taxa_fixa", "taxa_por_bairro"] as FeeMode[]).map((mode) => (
+          {(["taxa_fixa", "taxa_por_bairro", "area_mapa"] as FeeMode[]).map((mode) => (
             <RadioCard
               key={mode}
               name="feeMode"
               value={mode}
               checked={feeMode === mode}
               onChange={setFeeMode}
-              title={mode === "taxa_fixa" ? "Taxa fixa" : "Taxa por bairro"}
+              title={mode === "taxa_fixa" ? "Taxa fixa" : mode === "area_mapa" ? "Área no mapa" : "Taxa por bairro"}
               description={
                 mode === "taxa_fixa"
                   ? "Todos os clientes pagam o mesmo valor de entrega."
-                  : "Cada bairro tem uma taxa diferente. Configure os bairros na seção de áreas abaixo."
+                  : mode === "area_mapa"
+                    ? "Calcule por distância e áreas personalizadas. Configure o mapa na seção de áreas abaixo."
+                    : "Cada bairro tem uma taxa diferente. Configure os bairros na seção de áreas abaixo."
               }
             />
           ))}

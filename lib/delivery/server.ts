@@ -2,6 +2,7 @@
  * Serviço de delivery (servidor): cria pedidos validados, altera status e consulta configuração.
  * Toda gravação passa por transação do Admin SDK — preços e totais são recalculados no servidor.
  */
+import { createHash } from "crypto";
 import { adminDb } from "@/lib/firebase-admin";
 import { BillingError, confirmNativeOrder, entitlementsFrom, monthlyUsage } from "@/lib/billing/server";
 import type {
@@ -20,6 +21,9 @@ import type {
 import { canTransition, DEFAULT_DELIVERY_CONFIG, isDeliveryStatus, slugifyNeighborhood } from "./types";
 import { findServedCity, resolveDeliveryFee } from "./match";
 import { isDeliveryChannel, orderChannel } from "@/lib/orders/channels";
+import { shouldActivateOrder } from "./checkout-lifecycle";
+import { resolveMapDeliveryFee, sanitizeMapConfig } from "./map-areas";
+import { geocodeAddress, placeAddress } from "./geo";
 
 const restaurantRef = (id: string) => adminDb().collection("restaurantes").doc(id);
 
@@ -79,9 +83,10 @@ export async function saveDeliveryConfig(restaurantId: string, uid: string, patc
       safe.paymentMethods = patch.paymentMethods.filter((m): m is string => typeof m === "string" && m.length <= 40).slice(0, 10);
     }
     if (typeof patch.notes === "string") safe.notes = patch.notes.slice(0, 500);
-    if (typeof patch.feeMode === "string" && (patch.feeMode === "taxa_fixa" || patch.feeMode === "taxa_por_bairro")) {
+    if (typeof patch.feeMode === "string" && (patch.feeMode === "taxa_fixa" || patch.feeMode === "taxa_por_bairro" || patch.feeMode === "area_mapa")) {
       safe.feeMode = patch.feeMode;
     }
+    if (patch.mapConfig !== undefined) safe.mapConfig = sanitizeMapConfig(patch.mapConfig);
     if (Array.isArray(patch.servedCities)) safe.servedCities = sanitizeCities(patch.servedCities);
     if (patch.defaultNeighborhoodFeeCents === null) safe.defaultNeighborhoodFeeCents = null;
     else if (typeof patch.defaultNeighborhoodFeeCents === "number" && Number.isFinite(patch.defaultNeighborhoodFeeCents) && patch.defaultNeighborhoodFeeCents >= 0) {
@@ -133,11 +138,22 @@ export async function calculateDeliveryFee(
   district: string,
   uf?: string,
   ibgeCode?: string,
+  geoInput?: { placeId?: string; street?: string; number?: string; cep?: string },
 ): Promise<DeliveryFeeResult> {
   const snap = await restaurantRef(restaurantId).get();
   if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
 
   const config = configOf(snap);
+  if ((config.feeMode || "taxa_fixa") === "area_mapa") {
+    const mapConfig = sanitizeMapConfig(config.mapConfig);
+    let destination = geoInput?.placeId ? (await placeAddress(geoInput.placeId).catch(() => null))?.location : null;
+    if (!destination) {
+      const full = [geoInput?.street, geoInput?.number, district, city, uf, geoInput?.cep, "Brasil"].filter(Boolean).join(", ");
+      destination = (await geocodeAddress(full).catch(() => null))?.location || null;
+    }
+    if (!destination) return { feeCents: 0, feeMode: "area_mapa", cityName: city, neighborhoodName: null, matched: false, reason: "Não foi possível localizar este endereço no mapa. Confira rua, número e CEP." };
+    return resolveMapDeliveryFee(mapConfig, destination, city);
+  }
   const address = { city, district, uf, ibgeCode: ibgeCode && IBGE_CODE.test(ibgeCode) ? ibgeCode : undefined };
   const served = findServedCity(config.servedCities || [], address);
 
@@ -301,6 +317,7 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
 
   const paymentMethod = typeof payload.paymentMethod === "string" ? payload.paymentMethod.trim().slice(0, 40) : "";
   if (!paymentMethod) throw new BillingError("invalid_payment", 400, "Selecione a forma de pagamento.");
+  if (!config.paymentMethods.includes(paymentMethod)) throw new BillingError("payment_disabled", 400, "Esta forma de pagamento não está habilitada pelo restaurante.");
 
   const productIds = Array.from(new Set(payload.items.map((i) => i.productId)));
   const productSnaps = await Promise.all(productIds.map((id) => ref.collection("produtos").doc(id).get()));
@@ -341,19 +358,17 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
     throw new BillingError("min_order", 400, `O pedido mínimo para delivery é R$ ${min}.`);
   }
 
-  const feeResult = await calculateDeliveryFee(restaurantId, address.city, address.district, address.uf);
+  const feeResult = await calculateDeliveryFee(restaurantId, address.city, address.district, address.uf, undefined, { placeId: address.placeId, street: address.street, number: address.number, cep: address.cep });
   if (!feeResult.matched) {
     throw new BillingError("address_not_served", 400, feeResult.reason || "Endereço fora da área de entrega.");
   }
   const deliveryFeeCents = feeResult.feeCents;
   const totalCents = subtotalCents + deliveryFeeCents;
 
-  const orderNumber = await nextOrderNumber(restaurantId);
-
   const at = new Date().toISOString();
   const orderData: Omit<DeliveryOrder, "id"> = {
     restaurantId,
-    orderNumber,
+    orderNumber: 0,
     status: "pendente",
     customer: { ...customer, uid: customerUid },
     address,
@@ -364,6 +379,7 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
     totalCents,
     paymentMethod,
     paymentStatus: "pendente",
+    operationalReady: false,
     notes: typeof payload.notes === "string" ? payload.notes.trim().slice(0, 500) : undefined,
     feeCalculation: {
       feeMode: feeResult.feeMode,
@@ -373,6 +389,9 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
       matchType: feeResult.matchType,
       usedDefaultFee: feeResult.usedDefaultFee,
       feeCents: feeResult.feeCents,
+      distanceKm: feeResult.distanceKm,
+      mapAreaId: feeResult.mapAreaId,
+      mapAreaName: feeResult.mapAreaName,
     },
     origin: { source: "kardap_delivery", channel: "web", isNativeOrder: true },
     statusHistory: [{ status: "pendente", at }],
@@ -380,17 +399,53 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
     updatedAt: at,
   };
 
-  const result = await confirmNativeOrder({
+  const orderId = `n_${createHash("sha256").update(idempotencyKey).digest("hex").slice(0, 32)}`;
+  const orderRef = ref.collection("pedidos").doc(orderId);
+  const counterRef = ref.collection("privado").doc("delivery_counter");
+  const prepared = await db.runTransaction(async (tx) => {
+    const [existing, counter] = await Promise.all([tx.get(orderRef), tx.get(counterRef)]);
+    if (existing.exists) return { orderNumber: Number(existing.get("orderNumber") || 0), duplicate: true };
+    const orderNumber = (Number(counter.get("lastOrderNumber")) || 0) + 1;
+    tx.set(counterRef, { lastOrderNumber: orderNumber, updatedAt: at }, { merge: true });
+    tx.set(orderRef, withoutUndefined({ ...orderData, orderNumber, establishmentId: restaurantId, checkout: { state: "prepared", idempotencyKey }, quota: { consumed: false } }));
+    return { orderNumber, duplicate: false };
+  });
+
+  if (shouldActivateOrder(paymentMethod, "pendente")) await activateDeliveryOrder(restaurantId, orderId, "delivery_public");
+  return { orderId, orderNumber: prepared.orderNumber, duplicate: prepared.duplicate };
+}
+
+/** Origem sugerida para o editor, derivada do endereço oficial já vinculado à loja. */
+export async function getDeliveryMapOrigin(restaurantId: string): Promise<{ location: { lat: number; lng: number }; placeId?: string; label?: string } | null> {
+  const snap = await restaurantRef(restaurantId).get();
+  if (!snap.exists) return null;
+  const config = configOf(snap);
+  if (config.mapConfig?.storeLocation) return { location: config.mapConfig.storeLocation, placeId: config.mapConfig.storePlaceId };
+  const business = snap.get("googleBusiness") as { placeId?: string; address?: string } | undefined;
+  let address = business?.placeId ? await placeAddress(business.placeId).catch(() => null) : null;
+  if (!address?.location && business?.address) address = await geocodeAddress(business.address).catch(() => null);
+  return address?.location ? { location: address.location, placeId: business?.placeId || address.placeId, label: business?.address || address.formatted } : null;
+}
+
+/** Libera um checkout preparado para a fila operacional e consome a franquia uma única vez. */
+export async function activateDeliveryOrder(restaurantId: string, orderId: string, actor = "payment_webhook"): Promise<void> {
+  const orderRef = restaurantRef(restaurantId).collection("pedidos").doc(orderId);
+  const snap = await orderRef.get();
+  if (!snap.exists || snap.get("origin.source") !== "kardap_delivery") throw new BillingError("not_found", 404, "Pedido não encontrado.");
+  if (snap.get("operationalReady") === true && snap.get("quota.consumed") === true) return;
+  const at = new Date().toISOString();
+  await confirmNativeOrder({
     restaurantId,
     uid: "delivery_public",
     source: "kardap_delivery",
-    idempotencyKey,
+    orderId,
     // O Firestore recusa campos undefined (cliente sem login não tem uid; complemento, referência e observações são
     // opcionais): sem esta limpeza, todo pedido de cliente anônimo falhava com erro 500.
-    order: withoutUndefined(orderData),
+    order: withoutUndefined({ ...snap.data(), status: "pendente", operationalReady: true, checkout: { ...(snap.get("checkout") || {}), state: "submitted", submittedAt: at }, statusHistory: [{ status: "pendente", at, by: actor }] }),
   });
-
-  return { orderId: result.orderId, orderNumber, duplicate: result.duplicate };
+  // `confirmNativeOrder` confirma consumo de franquia, não aceite operacional.
+  // O aceite só será registrado quando o restaurante mudar para `confirmado`.
+  await orderRef.set({ confirmedAt: null, confirmedBy: null }, { merge: true });
 }
 
 /** Cópia sem chaves undefined (em qualquer nível), no formato que o Firestore aceita. */
@@ -406,19 +461,6 @@ function withoutUndefined<T>(value: T): T {
   return value;
 }
 
-async function nextOrderNumber(restaurantId: string): Promise<number> {
-  const db = adminDb();
-  const counterRef = restaurantRef(restaurantId).collection("privado").doc("delivery_counter");
-
-  return db.runTransaction(async (tx) => {
-    const snap = await tx.get(counterRef);
-    const current = Number(snap.get("lastOrderNumber")) || 0;
-    const next = current + 1;
-    tx.set(counterRef, { lastOrderNumber: next, updatedAt: new Date().toISOString() }, { merge: true });
-    return next;
-  });
-}
-
 // ───────────────────────── Alterar status (PDV / painel) ─────────────────────────
 
 export async function updateOrderStatus(
@@ -427,7 +469,10 @@ export async function updateOrderStatus(
   newStatus: DeliveryOrderStatus,
   uid: string,
   courierId?: string,
+  reason?: string,
 ): Promise<void> {
+  const safeReason = typeof reason === "string" ? reason.trim().slice(0, 300) : "";
+  if (newStatus === "recusado" && safeReason.length < 3) throw new BillingError("reason_required", 400, "Informe o motivo da recusa.");
   if (!isDeliveryStatus(newStatus)) throw new BillingError("invalid_status", 400, "Status inválido.");
 
   const db = adminDb();
@@ -458,14 +503,37 @@ export async function updateOrderStatus(
     if (courierId && newStatus === "saiu_para_entrega") {
       update.courierId = courierId;
     }
+    if ((newStatus === "recusado" || newStatus === "cancelado") && safeReason) update.cancelReason = safeReason;
 
     tx.update(ref, update);
   });
+
+  // Recusa/cancelamento de pedido já pago inicia o estorno no provedor. O webhook
+  // continua sendo a fonte de verdade para a conclusão financeira do estorno.
+  if (newStatus === "recusado" || newStatus === "cancelado") {
+    const cancelled = await ref.get();
+    const paymentId = String(cancelled.get("payment.paymentId") || "");
+    if (cancelled.get("paymentStatus") === "pago" && paymentId) {
+      const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+      if (!accessToken) throw new BillingError("refund_not_configured", 503, "Pedido recusado, mas o estorno precisa de configuração do Mercado Pago.");
+      const response = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}/refunds`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "X-Idempotency-Key": `kardap_refund_${orderId}` },
+        body: "{}",
+      });
+      const at = new Date().toISOString();
+      if (!response.ok) {
+        await ref.set({ refund: { status: "failed", requestedAt: at }, updatedAt: at }, { merge: true });
+        throw new BillingError("refund_failed", 502, "Pedido recusado. Não foi possível iniciar o estorno automaticamente; verifique o financeiro.");
+      }
+      await ref.set({ refund: { status: "pending", requestedAt: at, paymentId }, updatedAt: at }, { merge: true });
+    }
+  }
 }
 
 // ───────────────────────── Consulta pública (acompanhamento) ─────────────────────────
 
-export async function getPublicOrderStatus(restaurantId: string, orderId: string): Promise<{ status: DeliveryOrderStatus; orderNumber: number; statusHistory: StatusHistoryEntry[]; updatedAt: string; paymentStatus?: string } | null> {
+export async function getPublicOrderStatus(restaurantId: string, orderId: string): Promise<{ status: DeliveryOrderStatus; orderNumber: number; statusHistory: StatusHistoryEntry[]; updatedAt: string; paymentStatus?: string; operationalReady: boolean; payment?: Record<string, unknown>; cancelReason?: string } | null> {
   const snap = await restaurantRef(restaurantId).collection("pedidos").doc(orderId).get();
   if (!snap.exists || snap.get("establishmentId") !== restaurantId) return null;
   if (snap.get("origin.source") !== "kardap_delivery") return null;
@@ -475,6 +543,9 @@ export async function getPublicOrderStatus(restaurantId: string, orderId: string
     statusHistory: snap.get("statusHistory") || [],
     updatedAt: snap.get("updatedAt"),
     paymentStatus: snap.get("paymentStatus"),
+    operationalReady: snap.get("operationalReady") === true,
+    payment: snap.get("payment") || undefined,
+    cancelReason: snap.get("cancelReason") || undefined,
   };
 }
 

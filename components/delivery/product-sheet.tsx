@@ -4,6 +4,7 @@ import { useId, useRef, useState } from "react";
 import { Minus, Plus, ShoppingBag, Trash2, X } from "lucide-react";
 import { brl, productCents } from "@/lib/format";
 import { useDialog } from "@/lib/hooks";
+import { currentPreloadBudget, pickVideoSource } from "@/lib/video-playback";
 import { Button, TextArea } from "@/components/ui/primitives";
 import type { Dish } from "@/components/menu/dish-row";
 import { MAX_QTY } from "./use-cart";
@@ -73,6 +74,8 @@ export function ProductSheet({
 
   const unit = productCents(dish);
   const image = dish.image || dish.imageThumb || dish.videoPoster || "";
+  // Versão do vídeo pela rede, escolhida ao abrir a folha.
+  const [videoSource] = useState(() => pickVideoSource(dish, currentPreloadBudget()));
   // A miniatura (já baixada na lista) aparece enquanto a foto grande carrega.
   const thumb = dish.imageThumb && dish.imageThumb !== image ? ({ "--kd-thumb": `url("${dish.imageThumb}")` } as React.CSSProperties) : undefined;
   const editing = Boolean(initial);
@@ -88,7 +91,7 @@ export function ProductSheet({
           {dish.videoUrl ? (
             <div className="kd-product-media">
               <video
-                src={dish.videoUrl}
+                src={videoSource}
                 poster={dish.videoPoster || image || undefined}
                 muted
                 loop

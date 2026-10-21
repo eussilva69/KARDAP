@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import { parseManagedPath, parseOriginalPath, reductionPercent, videoPaths } from "../src/contract.ts";
 import { decideClaim, decidePublish } from "../src/pipeline.ts";
 import { parseCloudEvent } from "../src/server.ts";
+import { loadConfig } from "../src/config.ts";
 
 const R = "rest00000000000000a1";
 const P = "prod00000000000000b2";
@@ -20,6 +21,21 @@ describe("caminhos", () => {
     assert.throws(() => videoPaths(R, P, "a/b", "mp4"));
     assert.equal(parseOriginalPath(`restaurantes/${R}/produtos/${P}/videos/original/vid0000000001.exe`), null);
     assert.equal(parseOriginalPath(`restaurantes/${R}/produtos/videos/legado.mp4`), null);
+  });
+  test("versões extras: caminho próprio, reconhecidas só em videos/optimized", () => {
+    const p = videoPaths(R, P, "vid0000000001", "mp4");
+    assert.equal(p.variant("540p"), `restaurantes/${R}/produtos/${P}/videos/optimized/vid0000000001.540p.mp4`);
+    assert.deepEqual(parseManagedPath(p.variant("av1")), { restaurantId: R, productId: P, videoId: "vid0000000001", kind: "variant" });
+    assert.equal(parseManagedPath(p.optimized)?.kind, "optimized");
+    assert.equal(parseOriginalPath(p.variant("360p")), null, "versão não dispara processamento");
+    assert.equal(parseManagedPath(`restaurantes/${R}/produtos/${P}/videos/original/vid0000000001.540p.mp4`), null);
+    assert.equal(parseManagedPath(`restaurantes/${R}/produtos/${P}/videos/optimized/vid0000000001.1080p.mp4`), null);
+  });
+  test("VIDEO_VARIANTS: desligado por padrão, só tipos conhecidos", () => {
+    const env = { STORAGE_BUCKET: "kardap-test.firebasestorage.app" };
+    assert.deepEqual(loadConfig(env).variants, []);
+    assert.deepEqual(loadConfig({ ...env, VIDEO_VARIANTS: "540p, 360p,540p" }).variants, ["540p", "360p"]);
+    assert.throws(() => loadConfig({ ...env, VIDEO_VARIANTS: "1080p" }), /VIDEO_VARIANTS/);
   });
   test("redução percentual real, inclusive negativa", () => {
     assert.equal(reductionPercent(1000, 380), 62);

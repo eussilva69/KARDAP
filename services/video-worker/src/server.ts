@@ -14,7 +14,7 @@ import { runCleanup } from "./cleanup.ts";
 import { loadConfig } from "./config.ts";
 import { createBlobStore, createVideoRepo, initFirebase } from "./firebase.ts";
 import { createLogger } from "./log.ts";
-import { encode, makeThumbnail, planFor, probe, validateOutput, type MediaTools } from "./media.ts";
+import { encode, encodeVariant, hasEncoder, makeThumbnail, planFor, probe, validateOutput, type MediaTools } from "./media.ts";
 import { handleObjectFinalized, type Deps, type StorageEvent } from "./pipeline.ts";
 
 const FINALIZED = "google.cloud.storage.object.v1.finalized";
@@ -65,6 +65,7 @@ function readBody(req: IncomingMessage, max = 1024 * 1024) {
 function main() {
   const config = loadConfig();
   const log = createLogger({ service: "video-worker" });
+  if (config.variants.length) log.info("versões extras ligadas", { variants: config.variants });
   const { db, bucket } = initFirebase(config.bucket);
   const tools: MediaTools = { ffmpeg: config.ffmpegPath, ffprobe: config.ffprobePath, timeoutMs: config.ffmpegTimeoutMs };
   const deps: Deps = {
@@ -76,8 +77,10 @@ function main() {
       probe: (file) => probe(tools, file),
       plan: (p) => planFor(p),
       encode: (input, output, plan, settings, strategy) => encode(tools, input, output, plan, settings, strategy),
-      validate: (file, source, expected) => validateOutput(tools, file, source, expected),
+      validate: (file, source, expected, codec) => validateOutput(tools, file, source, expected, codec),
       thumbnail: (input, output, plan, duration, tmp) => makeThumbnail(tools, input, output, plan, duration, tmp),
+      variant: (input, output, plan, kind, settings) => encodeVariant(tools, input, output, plan, kind, settings),
+      canEncode: (kind) => hasEncoder(tools, kind === "av1" ? "libsvtav1" : "libx264"),
     },
     now: () => Date.now(),
     newId: () => randomUUID(),

@@ -5,6 +5,8 @@ import { json, errorResponse, preflight } from "@/lib/billing/http";
 import { BillingError } from "@/lib/billing/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { processPaymentWebhook, settleTransaction } from "@/lib/financial/server";
+import { activateDeliveryOrder } from "@/lib/delivery/server";
+import { mercadoPagoStatus } from "@/lib/delivery/checkout-lifecycle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,15 +39,6 @@ function paymentIdFrom(req: NextRequest, body: Record<string, unknown>) {
   const data = body.data && typeof body.data === "object" ? (body.data as Record<string, unknown>) : {};
   const id = queryId || data.id || body.payment_id;
   return typeof id === "string" || typeof id === "number" ? String(id) : "";
-}
-
-function internalStatus(status: unknown): "aprovado" | "recusado" | "cancelado" | "estornado" | "chargeback" | "pendente" {
-  if (status === "approved") return "aprovado";
-  if (status === "rejected") return "recusado";
-  if (status === "cancelled") return "cancelado";
-  if (status === "refunded") return "estornado";
-  if (status === "charged_back") return "chargeback";
-  return "pendente";
 }
 
 export async function POST(req: NextRequest) {
@@ -82,10 +75,12 @@ export async function POST(req: NextRequest) {
     const eventRef = adminDb().collection("webhook_events").doc(eventId);
     if ((await eventRef.get()).exists) return json(req, { ok: true, duplicate: true });
 
-    const status = internalStatus(payment.status);
+    const status = mercadoPagoStatus(payment.status);
     const result = await processPaymentWebhook({ event: action, payment_id: paymentId, order_id: orderId, restaurant_id: restaurantId, gateway: "mercado_pago", gross_amount_cents: receivedCents, gateway_fee_cents: payment.fee_details?.reduce((sum, fee) => sum + Math.round(Number(fee.amount || 0) * 100), 0), status, timestamp: String(payment.date_approved || payment.date_created || new Date().toISOString()) });
     if (status === "aprovado" && result.transaction_id) await settleTransaction(result.transaction_id);
-    await orderRef.set({ paymentStatus: status === "aprovado" ? "pago" : "pendente", payment: { provider: "mercado_pago", paymentId, status: String(payment.status || "pending"), statusDetail: payment.status_detail || null, amountCents: receivedCents, updatedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() }, { merge: true });
+    const paymentStatus = status === "aprovado" ? "pago" : status === "recusado" ? "recusado" : status === "cancelado" ? "cancelado" : status === "estornado" || status === "chargeback" ? "estornado" : "pendente";
+    await orderRef.set({ paymentStatus, payment: { provider: "mercado_pago", paymentId, status: String(payment.status || "pending"), statusDetail: payment.status_detail || null, amountCents: receivedCents, updatedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() }, { merge: true });
+    if (status === "aprovado") await activateDeliveryOrder(restaurantId, orderId);
     await eventRef.set({ provider: "mercado_pago", payment_id: paymentId, restaurant_id: restaurantId, order_id: orderId, action, processed_at: new Date().toISOString() });
     return json(req, { ok: true, ...result });
   } catch (error) {

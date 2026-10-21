@@ -14,15 +14,22 @@
     "test:billing": "node scripts/test-billing.mjs",
     "test:financial": "node scripts/test-financial.mjs",
     "test:delivery-areas": "node --test --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-delivery-areas.mjs",
+    "test:delivery-checkout": "node --test --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-delivery-checkout.mjs",
+    "test:delivery-map": "node --test --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-delivery-map-areas.mjs",
     "test:plans": "node scripts/e2e-plans.mjs",
     "test:onboarding": "node scripts/e2e-onboarding.mjs",
     "seo:landing": "node scripts/seo-landing.mjs",
     "migrate:plans": "node scripts/migrate-plans.mjs",
     "demo:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/demo/seed-demo.mjs",
-    "demo:audit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/demo/audit-demo.mjs"
+    "demo:audit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/demo/audit-demo.mjs",
+    "seed:neighborhoods": "node scripts/seed-neighborhoods.mjs",
+    "seed:neighborhoods:force": "node scripts/seed-neighborhoods.mjs --force",
+    "seed:neighborhoods:list": "node scripts/seed-neighborhoods.mjs --list"
   },
   "dependencies": {
+    "@googlemaps/js-api-loader": "^2.1.3",
     "@hookform/resolvers": "^3.9.0",
+    "@mercadopago/sdk-react": "^1.0.7",
     "@opentelemetry/api": "^1.9.1",
     "firebase": "^13.0.0",
     "firebase-admin": "^14.5.0",
@@ -35,6 +42,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.66.7",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

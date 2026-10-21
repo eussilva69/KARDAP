@@ -66,8 +66,9 @@ de quem compartilhou.
 
 ## Desempenho no celular
 
-- Só o vídeo do prato na tela toca. O anterior e o próximo existem com `preload="metadata"`; o próximo passa a
-  `auto` só depois que o atual começou a tocar e com conexão boa (sem economia de dados, sem 2G/3G).
+- Só o vídeo do prato na tela toca. Até ele ter folga para tocar (5 s baixados à frente), nenhum outro baixa.
+  Depois, o próximo e o anterior baixam conforme a rede (tabela em `docs/VIDEOS.md`, "Reprodução no cardápio").
+  Medição: `npm run perf:reels`.
 - Slides a mais de 2 posições são só o espaço reservado. Vídeos que saem do alcance interrompem o download e liberam
   o decodificador.
 - Cada slide é memorizado e isolado com `contain: strict`. Trocar de prato renderiza poucos slides.
@@ -78,7 +79,10 @@ de quem compartilhou.
 - Aba em segundo plano pausa o vídeo.
 - Com "reduzir movimento" ou economia de dados, nada toca sozinho: o vídeo começa parado e um toque inicia.
 - Som: começa sem som (exigência dos navegadores para tocar sozinho). Se o navegador recusar o som fora de um toque
-  (iPhone), o vídeo continua sem som e aparece "Toque no alto-falante para ouvir o som".
+  (iPhone), o vídeo continua sem som e aparece "Toque no alto-falante para ouvir o som". Se recusar tocar sozinho
+  mesmo sem som (iPhone em economia de energia), o vídeo fica parado com o ícone de play e um toque inicia.
+- Vídeo com problema não trava o feed: arquivo inexistente ou inválido fica na capa; falha de rede tenta de novo
+  algumas vezes (ver `docs/VIDEOS.md`).
 - O login (`firebase/auth`) só é carregado quando a pessoa abre o feed, a lista de salvos ou curte. Quem só olha o
   cardápio não baixa esse código.
 

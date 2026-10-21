@@ -1,9 +1,9 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, ConciergeBell, Heart, LoaderCircle, Play, Send, ShoppingBag } from "lucide-react";
 import { brl, initial, productCents } from "@/lib/format";
-import { pauseVideo, playExclusiveReporting, releaseVideo, reportStall } from "@/lib/video-playback";
+import { currentPreloadBudget, pauseVideo, pickVideoSource, playExclusiveReporting, releaseVideo, reportStall } from "@/lib/video-playback";
 import type { Dish } from "../dish-row";
 
 const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
@@ -11,14 +11,19 @@ const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFra
 const LONG_CAPTION = 90;
 const HOLD_MS = 250;
 const DOUBLE_TAP_MS = 300;
-/** Segundos do próximo vídeo baixados de antemão: começa na hora sem baixar o arquivo inteiro de quem não desliza. */
-const AHEAD_SECONDS = 3;
+/**
+ * Folga do vídeo na tela (segundos já baixados à frente do ponto atual) a partir da qual os vizinhos podem baixar.
+ * Antes disso eles dividiriam a conexão com ele, e numa rede lenta o atual travaria.
+ */
+const SAFE_AHEAD_SECONDS = 5;
 /** Falhas de rede: novas tentativas em 1 s, 2 s e 4 s; depois fica a capa. */
 const MAX_RETRIES = 3;
 const RETRY_MS = 1000;
 /** Tocando, sem chegar nenhum dado por este tempo e com rede: recarrega (conta como tentativa). */
 const STUCK_MS = 10_000;
 
+/** "none": ainda sem o primeiro quadro · "first": mostra o primeiro quadro · "safe": tem folga para tocar. */
+export type Readiness = "none" | "first" | "safe";
 type Gesture = { x: number; y: number; moved: boolean; held: boolean; timer?: ReturnType<typeof setTimeout> };
 type Burst = { id: number; x: number; y: number; tilt: number };
 
@@ -49,8 +54,8 @@ export type ReelSlideProps = {
   onShare: (dish: Dish) => void;
   onSave: (dish: Dish) => void;
   onCall: (dish: Dish) => void;
-  /** O slide atual já tem o primeiro quadro (ou não tem vídeo que dê para tocar): os vizinhos podem baixar. */
-  onReady: (index: number) => void;
+  /** Quanto o slide atual já tem (ver `Readiness`): define o que os vizinhos podem baixar. */
+  onReady: (index: number, level: Readiness) => void;
   onSoundBlocked: () => void;
   /** O navegador recusou tocar sozinho mesmo sem som: fica parado com o ícone de play, um toque inicia. */
   onAutoplayBlocked: () => void;
@@ -99,6 +104,9 @@ export const ReelSlide = memo(function ReelSlide({
   /** O vídeo não carregou (sem rede, arquivo indisponível): fica a capa, sem o "carregando" eterno. */
   const [failed, setFailed] = useState(false);
   const poster = dish.videoPoster || dish.image || "";
+  // Versão do vídeo (540p, AV1...) escolhida pela rede quando o elemento é criado; fixa enquanto ele existir.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const source = useMemo(() => pickVideoSource(dish, currentPreloadBudget()), [dish.videoUrl, dish.video, near]);
   const hasVideo = Boolean(dish.videoUrl) && !failed;
   // Vídeo horizontal numa tela em pé: aparece inteiro (sem corte) sobre a própria capa desfocada.
   const landscape = Boolean(dish.video && dish.video.width > dish.video.height);
@@ -130,7 +138,8 @@ export const ReelSlide = memo(function ReelSlide({
   const startPlayback = useCallback(
     (el: HTMLVideoElement) => {
       const soundWanted = !el.muted;
-      // O pré-carregamento limitado (ver abaixo) pode ter deixado "metadata": no slide atual, baixa normalmente.
+      // Vindo de vizinho ou de pausa, pode estar em "metadata": tocando, baixa normalmente (o React só atualiza o
+      // atributo no próximo render).
       if (el.preload !== "auto") el.preload = "auto";
       playExclusiveReporting(el).then((result) => {
         if (result === "muted" && soundWanted) onSoundBlocked();
@@ -183,27 +192,34 @@ export const ReelSlide = memo(function ReelSlide({
     cancelRetry.current = () => clearTimeout(timer);
   }, [reload]);
 
-  // O slide atual sem vídeo tocável, ou com o primeiro quadro já baixado (era o próximo), libera os vizinhos.
+  // Slide atual: diz aos vizinhos quanto podem baixar (regras em `preloadFor`, reels-viewer). "first": já mostra o
+  // primeiro quadro. "safe": tem folga (SAFE_AHEAD_SECONDS baixados à frente ou o arquivo inteiro) ou não há o que
+  // baixar agora (sem vídeo tocável; parado, o resto vem ao tocar).
   useEffect(() => {
+    const el = video.current;
     if (!active) return;
-    const el = video.current;
-    if (!hasVideo || (el && el.readyState >= 2)) onReady(index);
-  }, [active, hasVideo, near, index, onReady]);
-
-  // Próximo da fila com pré-carregamento completo: só os primeiros segundos. Depois de baixá-los, volta a
-  // "metadata" e o navegador para de baixar (o resto vem quando ele virar o atual).
-  useEffect(() => {
-    const el = video.current;
-    if (!el || active || preload !== "auto") return;
-    const enough = () => {
+    if (!hasVideo || !el) {
+      onReady(index, "safe");
+      return;
+    }
+    const check = () => {
+      if (el.readyState < 2) return;
       const b = el.buffered;
-      const target = Math.min(AHEAD_SECONDS, (el.duration || Infinity) - 0.25);
-      if (b.length && b.start(0) <= 0.25 && b.end(0) >= target) el.preload = "metadata";
+      let ahead = 0;
+      for (let i = 0; i < b.length; i++) if (b.start(i) <= el.currentTime + 0.1 && b.end(i) > el.currentTime) ahead = b.end(i) - el.currentTime;
+      const whole = b.length > 0 && el.duration > 0 && b.end(b.length - 1) >= el.duration - 0.25;
+      if (ahead < SAFE_AHEAD_SECONDS && !whole && playRef.current) {
+        onReady(index, "first");
+        return;
+      }
+      onReady(index, "safe");
+      events.forEach((name) => el.removeEventListener(name, check));
     };
-    el.addEventListener("progress", enough);
-    enough();
-    return () => el.removeEventListener("progress", enough);
-  }, [active, preload, near, hasVideo]);
+    const events = ["progress", "loadeddata", "pause"];
+    events.forEach((name) => el.addEventListener(name, check));
+    check();
+    return () => events.forEach((name) => el.removeEventListener(name, check));
+  }, [active, hasVideo, near, index, onReady]);
 
   // Ao sair do slide: volta ao começo (como no Instagram) e recolhe a legenda.
   useEffect(() => {
@@ -369,7 +385,7 @@ export const ReelSlide = memo(function ReelSlide({
             {hasVideo && near && (
               <video
                 ref={video}
-                src={dish.videoUrl}
+                src={source}
                 poster={landscape ? undefined : poster || undefined}
                 muted
                 loop
@@ -379,7 +395,6 @@ export const ReelSlide = memo(function ReelSlide({
                 controlsList="nodownload noplaybackrate"
                 aria-hidden
                 tabIndex={-1}
-                onLoadedData={() => active && onReady(index)}
                 onError={recover}
               />
             )}

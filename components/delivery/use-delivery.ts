@@ -26,10 +26,11 @@ const hasCities = (config: DeliveryMenuConfig) => config.hasServedCities ?? conf
 
 /** A taxa só é conhecida antes do endereço na taxa fixa ou quando não há cidades cadastradas. */
 export const flatFee = (config: DeliveryMenuConfig | null) =>
-  config && (config.feeMode === "taxa_fixa" || !hasCities(config)) ? config.deliveryFeeCents : null;
+  config && (config.feeMode === "taxa_fixa" || (config.feeMode !== "area_mapa" && !hasCities(config))) ? config.deliveryFeeCents : null;
 
 /** Mesmo critério do servidor (calculateDeliveryFee): sem cidades cadastradas, vale a taxa fixa em qualquer modo. */
 export function feeLabel(config: DeliveryMenuConfig, long = false) {
+  if (config.feeMode === "area_mapa") return long ? "Taxa calculada pela localização" : "Taxa por distância";
   if (flatFee(config) === null) return long ? "Taxa de entrega por bairro" : "Taxa por bairro";
   if (config.deliveryFeeCents === 0) return "Entrega grátis";
   return `${long ? "Taxa de entrega" : "Taxa"}: ${brl(config.deliveryFeeCents)}`;
@@ -69,25 +70,25 @@ export type FeeState = { feeCents: number | null; loading: boolean; matched: boo
  * Guarda a lista de bairros atendidos da cidade, que a API só devolve enquanto o bairro não é reconhecido.
  * O valor aqui é só a prévia: o servidor recalcula a taxa ao criar o pedido.
  */
-export function useDeliveryFee(restaurantId: string, config: DeliveryMenuConfig, city: string, district: string, uf: string, ibgeCode = "") {
+export function useDeliveryFee(restaurantId: string, config: DeliveryMenuConfig, city: string, district: string, uf: string, ibgeCode = "", address: { placeId?: string; street?: string; number?: string; cep?: string } = {}) {
   const { deliveryFeeCents: flatFeeCents } = config;
-  const anyCity = hasCities(config);
+  const needsAddress = config.feeMode === "area_mapa" || hasCities(config);
   const [state, setState] = useState<FeeState>({ feeCents: flatFeeCents, loading: false, matched: true });
   const [neighborhoods, setNeighborhoods] = useState<{ city: string; list: { name: string; slug: string }[] }>({ city: "", list: [] });
   const lastQuery = useRef("");
 
   useEffect(() => {
-    if (!anyCity) {
+    if (!needsAddress) {
       setState({ feeCents: flatFeeCents, loading: false, matched: true });
       return;
     }
-    const q = `${city}|${district}|${uf}|${ibgeCode}`;
+    const q = `${city}|${district}|${uf}|${ibgeCode}|${address.placeId || ""}|${address.street || ""}|${address.number || ""}|${address.cep || ""}`;
     // Voltou ao último endereço calculado antes de a nova consulta sair: o resultado anterior continua valendo.
     if (q === lastQuery.current) {
       setState((s) => (s.loading ? { ...s, loading: false } : s));
       return;
     }
-    if (!city) {
+    if (!city || (config.feeMode === "area_mapa" && !address.placeId && (!address.street || !address.number))) {
       lastQuery.current = q;
       setState({ feeCents: null, loading: false, matched: true });
       return;
@@ -96,7 +97,7 @@ export function useDeliveryFee(restaurantId: string, config: DeliveryMenuConfig,
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ restaurantId, city, district, uf, ibgeCode });
+        const params = new URLSearchParams({ restaurantId, city, district, uf, ibgeCode, placeId: address.placeId || "", street: address.street || "", number: address.number || "", cep: address.cep || "" });
         const res = await fetch(`/api/delivery/fee?${params}`);
         const data = await res.json();
         if (cancelled) return;
@@ -114,12 +115,12 @@ export function useDeliveryFee(restaurantId: string, config: DeliveryMenuConfig,
       } catch (err) {
         if (!cancelled) setState({ feeCents: null, loading: false, matched: false, reason: (err as Error)?.message || "Não foi possível calcular a taxa de entrega agora. Tente de novo." });
       }
-    }, 500);
+    }, config.feeMode === "area_mapa" ? 800 : 500);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [restaurantId, anyCity, city, district, uf, ibgeCode, flatFeeCents]);
+  }, [restaurantId, needsAddress, city, district, uf, ibgeCode, flatFeeCents, config.feeMode, address.placeId, address.street, address.number, address.cep]);
 
   const served = neighborhoods.city === city.trim().toLowerCase() ? neighborhoods.list : [];
   return { ...state, servedNeighborhoods: served };

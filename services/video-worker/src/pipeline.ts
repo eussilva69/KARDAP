@@ -18,13 +18,15 @@ import {
   videoPaths,
   type OriginalRef,
   type ProductVideoDoc,
+  type PublishedVariant,
   type PublishedVideo,
   type VideoErrorCode,
   type VideoStrategy,
+  type VideoVariantKind,
 } from "./contract.ts";
 import type { Config } from "./config.ts";
 import type { Logger } from "./log.ts";
-import { MediaError, type EncodeSettings, type Plan, type Probe, type Thumbnail, type Validation } from "./media.ts";
+import { MediaError, variantCodec, variantPlan, type EncodeSettings, type Plan, type Probe, type Thumbnail, type Validation } from "./media.ts";
 
 export type StorageEvent = {
   bucket: string;
@@ -37,6 +39,9 @@ export type StorageEvent = {
 
 /** Arquivos gerados são imutáveis (caminho novo a cada vídeo): podem ficar em cache por 1 ano. */
 export const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
+
+/** Versão extra que não sai pelo menos 15% menor que a principal não compensa o armazenamento: é descartada. */
+export const MAX_VARIANT_RATIO = 0.85;
 
 export class NotFoundError extends Error {}
 
@@ -109,6 +114,8 @@ export type ProcessedVideo = {
   height: number;
   duration: number;
   processingMs: number;
+  /** Versões extras publicadas (vazio quando desligadas ou nenhuma compensou). */
+  variants: PublishedVariant[];
 };
 
 export type VideoRepo = {
@@ -132,8 +139,12 @@ export type MediaOps = {
   probe(file: string): Promise<Probe>;
   plan(probe: Probe): Plan;
   encode(input: string, output: string, plan: Plan, settings: EncodeSettings, strategy: VideoStrategy): Promise<void>;
-  validate(file: string, source: Probe, expected: { width: number; height: number }): Promise<Validation>;
+  validate(file: string, source: Probe, expected: { width: number; height: number }, codec?: "h264" | "av1"): Promise<Validation>;
   thumbnail(input: string, output: string, plan: Plan, duration: number, tmp: (name: string) => string): Promise<Thumbnail>;
+  /** Codifica uma versão extra (ver `variantPlan`). */
+  variant(input: string, output: string, plan: Plan, kind: VideoVariantKind, settings: EncodeSettings): Promise<void>;
+  /** O FFmpeg instalado consegue gerar esta versão? */
+  canEncode(kind: VideoVariantKind): Promise<boolean>;
 };
 
 export type Deps = {
@@ -193,7 +204,9 @@ export async function handleObjectFinalized(event: StorageEvent, deps: Deps): Pr
   const work = await mkdtemp(join(tmpdir(), `video-${ref.videoId}-`));
   const at = (name: string) => join(work, name);
   const paths = videoPaths(ref.restaurantId, ref.productId, ref.videoId, ref.ext);
-  let uploadedOutputs = false;
+  /** Arquivos já enviados nesta tentativa: saem juntos se o resultado for descartado ou falhar. */
+  const uploaded: string[] = [];
+  const removeUploaded = () => Promise.allSettled(uploaded.map((path) => deps.blobs.remove(path)));
   try {
     const input = at(`original.${ref.ext}`);
     await deps.blobs.download(event.name, event.generation, input);
@@ -226,15 +239,44 @@ export async function handleObjectFinalized(event: StorageEvent, deps: Deps): Pr
       }
     }
 
+    const mainPlan: Plan = { ...plan, width: checked.width, height: checked.height };
     const thumbFile = at("thumbnail.webp");
-    const thumb = await deps.media.thumbnail(input, thumbFile, { ...plan, width: checked.width, height: checked.height }, checked.duration, at);
+    const thumb = await deps.media.thumbnail(input, thumbFile, mainPlan, checked.duration, at);
+
+    // Versões extras, sempre a partir do original (não da principal, que já perdeu qualidade). São opcionais:
+    // uma falha não derruba o vídeo, e a que não sair bem menor que a principal é descartada.
+    const variants: { kind: VideoVariantKind; file: string; width: number; height: number; size: number }[] = [];
+    for (const kind of deps.config.variants) {
+      const variantFile = at(`variant-${kind}.mp4`);
+      const variant = variantPlan(mainPlan, kind);
+      if (!variant) continue;
+      if (!(await deps.media.canEncode(kind))) {
+        log.warn("codificador da versão indisponível no FFmpeg; versão pulada", { kind });
+        continue;
+      }
+      try {
+        await deps.media.variant(input, variantFile, variant, kind, settings);
+        const v = await deps.media.validate(variantFile, source, { width: variant.width, height: variant.height }, variantCodec(kind));
+        if (v.size > checked.size * MAX_VARIANT_RATIO) {
+          log.info("versão descartada: não ficou menor que a principal", { kind, size: v.size, main: checked.size });
+          continue;
+        }
+        variants.push({ kind, file: variantFile, width: v.width, height: v.height, size: v.size });
+      } catch (error) {
+        log.warn("versão extra falhou; o vídeo segue sem ela", { kind, error });
+      }
+    }
 
     const metadata = { kardapGenerated: "1", videoId: ref.videoId, restaurantId: ref.restaurantId, productId: ref.productId };
-    const [optimized, thumbnail] = await Promise.all([
-      deps.blobs.upload(output, paths.optimized, { contentType: "video/mp4", cacheControl: IMMUTABLE_CACHE, metadata }),
-      deps.blobs.upload(thumbFile, paths.thumbnail, { contentType: "image/webp", cacheControl: IMMUTABLE_CACHE, metadata }),
+    const upload = (file: string, destination: string, contentType: string) => {
+      uploaded.push(destination);
+      return deps.blobs.upload(file, destination, { contentType, cacheControl: IMMUTABLE_CACHE, metadata });
+    };
+    const [optimized, thumbnail, ...variantUploads] = await Promise.all([
+      upload(output, paths.optimized, "video/mp4"),
+      upload(thumbFile, paths.thumbnail, "image/webp"),
+      ...variants.map((v) => upload(v.file, paths.variant(v.kind), "video/mp4")),
     ]);
-    uploadedOutputs = true;
 
     const result: ProcessedVideo = {
       strategy,
@@ -249,14 +291,13 @@ export async function handleObjectFinalized(event: StorageEvent, deps: Deps): Pr
       height: checked.height,
       duration: checked.duration,
       processingMs: deps.now() - started,
+      variants: variants.map((v, i) => ({ kind: v.kind, codec: variantCodec(v.kind), width: v.width, height: v.height, size: v.size, path: paths.variant(v.kind), url: variantUploads[i].url })),
     };
 
     const published = await deps.repo.publish(ref, attemptId, result);
     if (!published.ok) {
       // Outra tentativa com posse válida grava nos mesmos caminhos: não apagar nesse caso.
-      if (published.reason !== "lease_lost") {
-        await Promise.all([deps.blobs.remove(paths.optimized), deps.blobs.remove(paths.thumbnail)]);
-      }
+      if (published.reason !== "lease_lost") await removeUploaded();
       if (published.reason === "product_not_found") await deps.repo.markFailed(ref, attemptId, "product_not_found", "produto excluído durante o processamento");
       log.info("resultado descartado", { reason: published.reason });
       return { status: 200, outcome: `discarded_${published.reason}` };
@@ -274,13 +315,14 @@ export async function handleObjectFinalized(event: StorageEvent, deps: Deps): Pr
       height: result.height,
       duration: result.duration,
       thumbnail: thumb,
+      variants: result.variants.map((v) => ({ kind: v.kind, width: v.width, height: v.height, size: v.size })),
       processingMs: result.processingMs,
     });
     return { status: 200, outcome: "ready" };
   } catch (error) {
     const code: VideoErrorCode = error instanceof NotFoundError ? "stale" : error instanceof MediaError ? error.code : "processing_failed";
     const detail = String((error as Error)?.message ?? error).slice(0, 500);
-    if (uploadedOutputs) await Promise.allSettled([deps.blobs.remove(paths.optimized), deps.blobs.remove(paths.thumbnail)]);
+    await removeUploaded();
     if (code === "stale" || isPermanent(code) || decision.attempts >= deps.config.maxAttempts) {
       await deps.repo.markFailed(ref, attemptId, code, detail);
       log.error("falha no processamento", { code, detail, attempts: decision.attempts, final: true });
@@ -296,7 +338,7 @@ export async function handleObjectFinalized(event: StorageEvent, deps: Deps): Pr
 
 /** Apaga os arquivos do vídeo anterior do mesmo produto, conferindo que pertencem a ele. */
 async function removePrevious(previous: PublishedVideo, ref: OriginalRef, deps: Deps, log: Logger) {
-  for (const path of [previous.optimizedPath, previous.thumbnailPath]) {
+  for (const path of [previous.optimizedPath, previous.thumbnailPath, ...(previous.variants ?? []).map((v) => v.path)]) {
     const parsed = path ? parseManagedPath(path) : null;
     if (!parsed || parsed.restaurantId !== ref.restaurantId || parsed.productId !== ref.productId || parsed.videoId !== previous.id) {
       log.warn("arquivo do vídeo anterior fora do padrão; mantido", { path });

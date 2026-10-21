@@ -45,7 +45,7 @@ export async function runCleanup(db: Firestore, bucket: Bucket, config: Config, 
     const product = await restaurantRef.collection("produtos").doc(v.productId).get();
     const current = (product.data()?.video as PublishedVideo | undefined)?.id;
     if (current === d.id) continue; // segurança extra: nunca apaga o que está no ar
-    await Promise.all([remove(v.originalPath), remove(v.optimizedPath), remove(v.thumbnailPath)]);
+    await Promise.all([remove(v.originalPath), remove(v.optimizedPath), remove(v.thumbnailPath), ...(v.variantPaths ?? []).map(remove)]);
     await d.ref.delete();
     summary.purgedVideos++;
   }

@@ -86,6 +86,21 @@ export default function DeliveryMenu({
   const [viewer, setViewer] = useState<{ mode: ReelsMode; list: Dish[]; index: number; key: number } | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const menuScroll = useRef(0);
+  const recoveryKey = `kardap:delivery-checkout:${restaurantId}`;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(recoveryKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { order?: { orderId: string; orderNumber: number; totalCents?: number }; payment?: import("./payment-step").OnlinePaymentData | null; step?: Step };
+      if (!saved.order || (saved.step !== "payment" && saved.step !== "done")) return;
+      setOrder(saved.order);
+      setOnlinePayment(saved.payment || null);
+      setStep(saved.step);
+    } catch {
+      localStorage.removeItem(recoveryKey);
+    }
+  }, [recoveryKey]);
 
   const ready = status === "ready" && productsLoaded && categories !== undefined;
   const sections = useMemo(() => buildSections(foods, categories ?? null), [foods, categories]);
@@ -303,7 +318,8 @@ export default function DeliveryMenu({
               setSheet({ kind: "cart" });
             }}
             onSuccess={(result) => {
-              setOrder({ orderId: result.orderId, orderNumber: result.orderNumber, totalCents: result.totalCents });
+              const nextOrder = { orderId: result.orderId, orderNumber: result.orderNumber, totalCents: result.totalCents };
+              setOrder(nextOrder);
               cart.clear();
               try {
                 window.history.replaceState(null, "");
@@ -311,8 +327,10 @@ export default function DeliveryMenu({
               if (result.payment) {
                 setOnlinePayment(result.payment);
                 setStep("payment");
+                localStorage.setItem(recoveryKey, JSON.stringify({ order: nextOrder, payment: result.payment, step: "payment" }));
               } else {
                 setStep("done");
+                localStorage.setItem(recoveryKey, JSON.stringify({ order: nextOrder, payment: null, step: "done" }));
               }
             }}
           />
@@ -331,6 +349,7 @@ export default function DeliveryMenu({
             onPaid={() => {
               setOnlinePayment(null);
               setStep("done");
+              localStorage.setItem(recoveryKey, JSON.stringify({ order, payment: null, step: "done" }));
             }}
           />
         </div>
@@ -346,6 +365,7 @@ export default function DeliveryMenu({
             menuHref={`/r/${slug}`}
             onNewOrder={() => {
               setOrder(null);
+              localStorage.removeItem(recoveryKey);
               menuScroll.current = 0;
               setStep("menu");
             }}

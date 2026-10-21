@@ -19,10 +19,11 @@ import {
   TextField,
   newSessionToken,
 } from "@/components/ui";
-import type { DeliveryConfig, FeeMode, NeighborhoodEntry, ServedCity } from "@/lib/delivery/types";
-import { slugifyNeighborhood } from "@/lib/delivery/types";
+import type { DeliveryConfig, DeliveryMapConfig, FeeMode, NeighborhoodEntry, ServedCity } from "@/lib/delivery/types";
+import { DEFAULT_DELIVERY_CONFIG, slugifyNeighborhood } from "@/lib/delivery/types";
 import { neighborhoodKey } from "@/lib/delivery/match";
 import { fetchOsmNeighborhoods, mergeNeighborhoods, type SourcedNeighborhood } from "@/lib/delivery/osm";
+import { DeliveryMapEditor } from "./delivery-map-editor";
 
 type Notify = (message: string, tone?: "success" | "error") => void;
 type Rows = Record<string, NeighborhoodEntry>;
@@ -137,9 +138,7 @@ export function DeliveryAreasManager({
         />
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
           <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
-            {feeMode === "taxa_fixa"
-              ? `Taxa fixa · ${brl(config.deliveryFeeCents)}`
-              : "Taxa por bairro"}
+            {feeMode === "taxa_fixa" ? `Taxa fixa · ${brl(config.deliveryFeeCents)}` : feeMode === "area_mapa" ? "Taxa por área no mapa" : "Taxa por bairro"}
           </p>
           <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
             {servedCities.length === 0 ? (
@@ -171,7 +170,7 @@ export function DeliveryAreasManager({
 
 // ───────────────────────── Modal Unificado de Configuração ─────────────────────────
 
-const MODAL_STEPS = ["Modalidade", "Cidades e bairros"] as const;
+const MODAL_STEPS = ["Modalidade", "Configurar áreas"] as const;
 type ModalStep = 0 | 1;
 
 function DeliveryAreasModal({
@@ -197,6 +196,7 @@ function DeliveryAreasModal({
   const [flat, setFlat] = useState(centsToInput(config.deliveryFeeCents));
   const [feeSaving, setFeeSaving] = useState(false);
   const [feeErrors, setFeeErrors] = useState<{ flat?: string }>({});
+  const [mapConfig, setMapConfig] = useState<DeliveryMapConfig>(() => JSON.parse(JSON.stringify(config.mapConfig || DEFAULT_DELIVERY_CONFIG.mapConfig)));
 
   const flatCents = parseMoney(flat);
   const feeDirty =
@@ -292,7 +292,7 @@ function DeliveryAreasModal({
   const cityEditorDirtyRef = useRef<boolean>(false);
 
   const handleStepChange = async (nextStep: ModalStep) => {
-    if (step === 0 && feeDirty) {
+    if (step === 0 && feeDirty && mode !== "area_mapa") {
       const ok = await saveFeeSettings(false);
       if (!ok) return;
     }
@@ -300,11 +300,17 @@ function DeliveryAreasModal({
   };
 
   const handleFinishModal = async () => {
-    if (feeDirty) {
+    if (mode !== "area_mapa" && feeDirty) {
       const ok = await saveFeeSettings(false);
       if (!ok) return;
     }
-    if (cityEditorDirtyRef.current) {
+    if (mode === "area_mapa") {
+      if (!mapConfig.storeLocation) return notify("Defina a localização da loja no mapa.", "error");
+      if (![...mapConfig.distanceBands, ...mapConfig.customAreas].some((area) => area.enabled)) return notify("Adicione pelo menos uma faixa ou área ativa.", "error");
+      const ok = await onConfigUpdate({ feeMode: "area_mapa", mapConfig });
+      if (!ok) return;
+    }
+    if (mode !== "area_mapa" && cityEditorDirtyRef.current) {
       const ok = await cityEditorSaveRef.current();
       if (!ok) return;
     }
@@ -337,8 +343,10 @@ function DeliveryAreasModal({
                 loading={feeSaving}
                 onClick={async () => {
                   if (feeDirty) {
-                    const ok = await saveFeeSettings();
-                    if (!ok) return;
+                    if (mode !== "area_mapa") {
+                      const ok = await saveFeeSettings();
+                      if (!ok) return;
+                    }
                   }
                   setStep(1);
                 }}
@@ -397,6 +405,14 @@ function DeliveryAreasModal({
                 title="Taxa por bairro"
                 description="Cada bairro com o seu valor específico."
               />
+              <RadioCard
+                name="kd-fee-mode"
+                value="area_mapa"
+                checked={mode === "area_mapa"}
+                onChange={setMode}
+                title="Área no mapa"
+                description="Faixas por distância e áreas personalizadas no Google Maps."
+              />
             </div>
           </fieldset>
 
@@ -410,9 +426,13 @@ function DeliveryAreasModal({
               hint="Use 0,00 para entrega grátis. Você pode adicionar cidades para restringir as entregas."
               onChange={(e) => setFlat(e.target.value)}
             />
-          ) : (
+          ) : mode === "taxa_por_bairro" ? (
             <p className="kd-hint" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--k-muted)" }}>
               As taxas e os bairros atendidos são configurados individualmente na próxima etapa (Cidades e bairros).
+            </p>
+          ) : (
+            <p className="kd-hint" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--k-muted)" }}>
+              Na próxima etapa você posiciona a loja, cria faixas e testa qualquer ponto antes de salvar.
             </p>
           )}
 
@@ -428,6 +448,7 @@ function DeliveryAreasModal({
 
       {step === 1 && (
         <div className="kd-areas-modal-step">
+          {mode === "area_mapa" ? <DeliveryMapEditor restaurantId={restaurantId} value={mapConfig} onChange={setMapConfig} /> : <>
           {/* Seletor de Cidades Cadastradas */}
           {servedCities.length > 0 && (
             <div>
@@ -517,6 +538,7 @@ function DeliveryAreasModal({
               </p>
             )
           )}
+          </>}
         </div>
       )}
     </Modal>

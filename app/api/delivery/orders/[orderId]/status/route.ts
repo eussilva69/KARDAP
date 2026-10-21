@@ -31,10 +31,11 @@ export async function POST(req: NextRequest, { params }: { params: { orderId: st
     const restaurantId = String(body.restaurantId || "");
     const newStatus = String(body.status || "") as DeliveryOrderStatus;
     const courierId = typeof body.courierId === "string" ? body.courierId : undefined;
+    const reason = typeof body.reason === "string" ? body.reason : undefined;
     // Só a equipe do próprio estabelecimento (com permissão de pedidos) altera o status: sem isto, qualquer conta
     // logada mudaria pedidos de outro restaurante informando o restaurantId dele.
     await requireFeature(restaurantId, caller.uid, "orderManagement");
-    await updateOrderStatus(restaurantId, params.orderId, newStatus, caller.uid, courierId);
+    await updateOrderStatus(restaurantId, params.orderId, newStatus, caller.uid, courierId, reason);
     return json(req, { ok: true, status: newStatus });
   } catch (error) {
     return errorResponse(req, "delivery status update", error);

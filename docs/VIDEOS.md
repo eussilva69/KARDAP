@@ -95,13 +95,76 @@ As regras do Firestore impedem o navegador de gravar `processing`, `retrying` ou
 ## Reprodução no cardápio
 
 - Lista: o vídeo só existe enquanto a linha está perto da tela e é desmontado (com o download interrompido) ao se
-  afastar; só toca visível e um de cada vez. Antes de carregar, aparece a capa WebP.
-- Tela cheia (estilo Reels): só o prato visível toca (`autoPlay`/`muted`/`playsInline`/`loop`, quando o navegador
-  permite). O anterior e o próximo existem com `preload="metadata"`; o próximo passa a `preload="auto"` só depois que
-  o atual começou a tocar e se a conexão não for 2G/3G nem estiver em economia de dados. Os demais não são criados.
+  afastar; só toca visível e um de cada vez. Antes de carregar, aparece a capa WebP. Com o feed em tela cheia aberto,
+  os vídeos da lista também saem (`useFeedOpen`) e voltam quando ele fecha: escondidos atrás do feed, eles dividiam a
+  conexão com o vídeo da tela.
+- Tela cheia (estilo Reels): só o prato visível toca (`muted`/`playsInline`/`loop`, quando o navegador permite).
+  Existem no máximo três elementos `<video>` (anterior, atual, próximo); os demais slides são só o espaço reservado.
+- Prioridade de download (`preloadFor` em `components/menu/reels/reels-viewer.tsx`):
+
+  | Situação do atual | Atual | Próximo | Anterior |
+  | --- | --- | --- | --- |
+  | Sem o primeiro quadro | `auto` | nada | nada |
+  | Com o primeiro quadro, sem folga, rede boa (orçamento `full`) | `auto` | `metadata` | nada |
+  | Com folga, rede boa | `auto` | `auto` | `metadata` |
+  | Sem folga, rede fraca (`light`: `effectiveType` 3G ou 2 travadas no último minuto) | `auto` | nada | nada |
+  | Com folga, rede fraca | `auto` | `metadata` | nada |
+  | Economia de dados ou 2G (`minimal`) | `auto` | nada | nada |
+  | Parado (sem reprodução automática ou pausado) | `metadata` | `metadata` | como acima |
+
+  "Folga": 5 s já baixados à frente do ponto em que o vídeo está, ou o arquivo inteiro. Com rede boa, `metadata`
+  no próximo deixa a troca imediata. Com rede fraca, até o `metadata` custa caro (o Chrome baixou ~320 KB em 6 s num
+  4G de 1,6 Mbps, e o vídeo da tela travou mais), então o próximo espera a folga: a troca fica mais lenta, mas o
+  vídeo que a pessoa está vendo trava menos. O orçamento (`usePreloadBudget` em
+  `lib/video-playback.ts`) usa `navigator.connection` quando existe e, em qualquer navegador (inclusive iPhone), as
+  travadas do vídeo na tela; sem travadas por um minuto, volta ao normal.
+
+  Testado e descartado: limitar o próximo aos primeiros segundos trocando `preload` de `auto` para `metadata` no meio
+  do download. O Chrome ignora a troca e baixa o arquivo inteiro (medido com `npm run perf:reels`). Limitar de verdade
+  exige servir o vídeo em segmentos (HLS ou MP4 fragmentado), ver "HLS: por que não agora".
+- Falhas: arquivo inexistente, corrompido ou em formato que o aparelho não toca (`MEDIA_ERR_SRC_NOT_SUPPORTED`,
+  `MEDIA_ERR_DECODE`) fica na capa, sem novas tentativas. Falha de rede tenta de novo no mesmo elemento, no ponto em
+  que estava, em 1 s, 2 s e 4 s (sem rede, espera a conexão voltar); depois fica a capa. Vídeo que deveria tocar e
+  passa 10 s sem receber nenhum dado (conexão pendurada, sem erro) conta como falha de rede. Voltar a tocar zera as
+  tentativas.
+- O navegador que recusa tocar sozinho mesmo sem som (iPhone em economia de energia) deixa o vídeo parado com o
+  ícone de play; um toque inicia.
 - A capa fica sempre por baixo do vídeo (sem tela preta). Vídeo horizontal aparece inteiro sobre a própria capa
   desfocada, sem corte.
 - Com movimento reduzido ou economia de dados, o vídeo só toca quando o cliente pede.
+- O cardápio (`/r/...`) abre a conexão com `firebasestorage.googleapis.com` (`<link rel="preconnect">`) enquanto o
+  JavaScript e o Firestore carregam.
+
+## Medição
+
+`npm run perf:reels` (`scripts/perf-reels.mjs`) mede a reprodução num celular emulado contra os emuladores do Firebase
+(mesmos pré-requisitos de `docs/TESTES.md`). Compila o app em `.next-perf` (não mexe na `.next` do `npm run dev`) e
+serve os vídeos de um servidor próprio que faz o papel do Firebase Storage: Range, `Cache-Control: immutable`, banda
+compartilhada e latência de cada perfil (wifi, 4G rápido, 4G lento, 3G). Os bytes contados são os que o aparelho
+recebeu. Cenários: abertura e trocas em cada rede, rolagem rápida por 25 pratos, voltar, queda de conexão, vídeo
+inexistente e arquivo inválido, autoplay recusado, reduzir movimento, 90 trocas seguidas (memória), `navigator.connection`
+em 3G, lista do cardápio e troca de restaurante. `PERF_ONLY=<regex>` roda só alguns; `PERF_BUILD=0` reaproveita o
+build; `KARDAP_DIST_DIR` escolhe a pasta do build (útil para comparar duas versões). `PERF_MEDIA_DIR` aponta para
+vídeos já processados pelo worker (com um `manifest.json` de tamanhos e versões) em vez dos crus de `public/`, e
+`PERF_VARIANTS=1` publica as versões extras nos produtos, como o worker com `VIDEO_VARIANTS` ligado.
+
+Versões extras, uma rodada por cenário, mesmos vídeos processados pelo worker (principal ~1,7 Mbps), mesmo build:
+
+| Cenário | Só a principal (hoje) | Com 540p/360p |
+| --- | --- | --- |
+| Wi-Fi e 4G rápido | principal, sem travadas | igual (principal) |
+| 3G (`effectiveType` "3g"): tempo travado | 22,5 s | 17,1 s |
+| 3G: dados de vídeo | 3,32 MB | 2,78 MB |
+| 3G: prato fora do cache, troca → primeiro quadro | 2.300 ms | 1.800 ms |
+| 4G lento sem `navigator.connection` (iPhone): tempo travado | 9,5 s | 8,2 s |
+| 4G lento: pratos fora do cache, troca → primeiro quadro | 2.100 a 2.200 ms | 1.170 a 1.280 ms |
+
+No 4G lento sem aviso da rede, o feed começa com a principal e passa para a 540p depois de duas travadas; um prato
+que a lista já tinha baixado na principal perde esse cache quando a troca acontece.
+
+`scripts/perf/video-probe.js` é a sonda usada na página (tempo até o primeiro quadro por prato, travadas, vídeos
+tocando ao mesmo tempo, tarefas longas). Também dá para colar no console do navegador e ler
+`window.__kdProbe.snapshot()`.
 
 ## Implantação no Google Cloud
 
@@ -230,8 +293,95 @@ O arquivo antigo continua no Storage; o produto troca de URL só depois que a ve
 | `DAILY_VIDEO_QUOTA` | 30 | vídeos por estabelecimento em 24 h (0 = sem limite) |
 | `ORIGINAL_RETENTION_DAYS` | 7 | dias que originais com falha ou cancelados ficam guardados |
 | `CLEANUP_MAX_FILES` | 2000 | arquivos verificados por execução da limpeza |
+| `VIDEO_VARIANTS` | (vazio) | versões extras de cada vídeo: `540p`, `360p`, `av1` (ex.: `540p,360p,av1`). Vazio = só a principal. Ver "Versões extras" |
 
 Limites do envio (painel, regras e worker): 200 MB, 2 minutos, MP4/MOV/WebM.
+
+## Versões extras (540p, 360p, AV1)
+
+Desligadas por padrão: cada versão soma processamento e armazenamento (ver "Custos"). Para ligar, implante o
+worker com `VIDEO_VARIANTS=540p,360p` (ou com `av1`). Vídeos novos passam a ter as versões; os antigos continuam
+funcionando só com a principal até a migração abaixo.
+
+O que o worker faz, depois de validar a principal:
+
+1. Para cada versão ligada, codifica **a partir do original** (não da principal, que já perdeu qualidade):
+   - `540p` e `360p`: H.264, mesmo CRF da principal, teto de 2 Mbps e 900 kbps, AAC 80 e 64 kbps, mesma proporção;
+     se o vídeo enviado já for desse tamanho ou menor, a versão não é gerada (nunca amplia);
+   - `av1`: SVT-AV1 (preset 8, CRF 38) no tamanho da principal, com AAC, em MP4. Se o FFmpeg instalado não tiver o
+     `libsvtav1`, a versão é pulada com aviso no log.
+2. Valida cada uma como a principal (abre, codec e dimensões esperados, duração, `faststart`, decodifica começo e
+   fim) e **descarta a que não sair pelo menos 15% menor que a principal** (`MAX_VARIANT_RATIO`).
+3. Uma versão que falhar não derruba o vídeo: ele é publicado sem ela.
+4. Publica tudo junto, na mesma transação da principal, em `produto.video.variants` (`kind`, `codec`, `width`,
+   `height`, `size`, `path`, `url`). O campo `video` só é gravado pelo worker (regras do Firestore), então ninguém
+   aponta o cardápio para outro arquivo. Os arquivos ficam em `.../videos/optimized/{videoId}.{540p|360p|av1}.mp4`,
+   com o mesmo `Cache-Control: immutable` e as mesmas regras de leitura da principal.
+5. Ao substituir o vídeo do produto, no descarte (cancelado) e na limpeza diária, as versões saem junto
+   (`variantPaths` no registro do vídeo).
+
+Medido com o código do worker nos três vídeos reais de `public/` (10 s cada, SSIM contra o original no tamanho da
+principal; 1 = idêntico):
+
+| Versão | Tamanho vs principal | SSIM | Codificação (6 núcleos) |
+| --- | --- | --- | --- |
+| Principal H.264 720p | 1,95 a 2,32 MB | 0,984 a 0,987 | ~4 s |
+| 540p H.264 | −34% a −35% | 0,978 a 0,981 | 3,3 a 4,0 s |
+| 360p H.264 | −61% | 0,964 a 0,971 | 2,3 a 2,4 s |
+| AV1 720p | −41% a −44% | 0,982 a 0,986 | 3,8 a 4,0 s |
+| VP9 720p (avaliado e descartado) | −27% | 0,933 a 0,969 | ~12 s |
+
+VP9 ficou de fora: pior qualidade que o H.264 com pouca economia e 3x mais lento. AV1 vale a pena onde o aparelho
+decodifica por hardware (iPhone 15 Pro em diante, Macs M3, Androids recentes); em celular simples a decodificação por
+software gasta bateria e pode engasgar.
+
+### Qual versão o cardápio toca
+
+`pickVideoSource` (`lib/video-playback.ts`), decidido uma vez quando o player é criado:
+
+| Onde / rede | Versão |
+| --- | --- |
+| Economia de dados ou 2G (`minimal`) | a menor |
+| Rede fraca (`light`) | a maior resolução com bitrate médio até 1,3 Mbps (em geral 540p) |
+| Rede boa (`full`) | a maior resolução; AV1 se o aparelho decodifica com eficiência, senão a principal |
+
+A lista do cardápio usa a mesma regra do feed: quem toca num prato continua do que a lista já baixou (cache).
+Testado e descartado: a lista sempre na menor versão. Economiza ~27% ao rolar a lista, mas quebra esse cache, e
+numa rede lenta que o navegador ainda não identificou (iPhone, antes das primeiras travadas) o primeiro vídeo do
+feed passava de imediato para 1 a 2 s (medido).
+
+"Decodifica com eficiência": `navigator.mediaCapabilities.decodingInfo` responde `supported`, `smooth` e
+`powerEfficient` para AV1 720p. Sem a API, ou sem versões no produto, toca a principal (`videoUrl`), como antes.
+
+### Migração dos vídeos já publicados
+
+Os originais são apagados depois do processamento, então a migração parte da versão otimizada publicada:
+
+```bash
+node scripts/reprocess-legacy-videos.mjs --versoes                       # simula: lista o que seria processado
+node scripts/reprocess-legacy-videos.mjs --versoes --aplicar --max=20    # processa até 20
+```
+
+Para cada produto com vídeo otimizado e sem versões, o script grava o arquivo otimizado como um original novo (objeto
+novo, sem o metadado `kardapGenerated`, senão o worker o ignoraria). O worker remonta a principal **sem
+recomprimir** (já é H.264 compatível; coberto por teste), gera as versões a partir dela e só troca o vídeo do produto
+depois de validar tudo; aí apaga os arquivos do anterior. As versões saem de um arquivo já comprimido, então perdem um
+pouco mais que as de um envio novo. Cada vídeo conta na cota diária do estabelecimento (`DAILY_VIDEO_QUOTA`, 30):
+rode em lotes com `--max` e `--restaurante`, ou aumente a cota durante a migração.
+
+### HLS: por que não agora
+
+Avaliado e adiado. Os vídeos têm de 10 s a 2 min e as versões MP4 escolhidas ao criar o player já dão a maior parte do
+ganho em rede fraca, mantendo o cache HTTP, as requisições por faixa (Range) e o gerenciamento de players do feed.
+HLS exigiria:
+
+- playlists com URLs absolutas e token de cada segmento: as URLs de download do Firebase Storage codificam o
+  caminho num único trecho (`/o/restaurantes%2F...`), então caminhos relativos na playlist não funcionam;
+- ~15 a 60 objetos por vídeo (segmentos de 2 s em 3 qualidades), com mais operações cobradas no Storage;
+- `hls.js` (~60 KB comprimido) no Chrome do Android e do computador; só Safari toca HLS nativo;
+- reescrever o gerenciamento de players (MSE em vez de `src`).
+
+Faz sentido rever se os vídeos ficarem longos (vários minutos), quando trocar de qualidade no meio do vídeo pesa mais.
 
 ## Logs e acompanhamento
 
@@ -255,6 +405,10 @@ Tudo é cobrado por uso e o worker fica com zero instâncias quando não há ví
 - **Cloud Scheduler:** um job diário.
 - **Cloud Storage:** armazenamento e transferência, que caem com a compressão; o original é apagado após o sucesso.
 - **Firestore:** cerca de uma dezena de leituras/escritas por vídeo, mais a consulta da limpeza diária.
+- **Versões extras (`VIDEO_VARIANTS`, desligadas por padrão):** medido nos vídeos de exemplo, `540p,360p` soma
+  ~145% ao tempo de codificação da principal e ~104% ao armazenamento (0,65 + 0,39 do tamanho da principal); com
+  `av1`, mais ~95% de tempo e ~57% de armazenamento. A transferência cai para quem recebe uma versão menor (lista do
+  cardápio, rede fraca, aparelhos com AV1), e transferência costuma pesar mais que armazenamento na conta.
 
 Consulte os preços atuais em <https://cloud.google.com/pricing> antes de ativar. Cloud Run e Eventarc exigem o
 projeto no plano Blaze (com faturamento).
@@ -278,3 +432,15 @@ memória com as mesmas funções de decisão do adaptador real; o comportamento 
 O worker grava cada saída em caminho próprio por vídeo e o produto guarda `video.optimizedPath`. Para HLS ou várias
 resoluções, basta gerar outros arquivos ao lado (ex.: `.../videos/hls/{videoId}/master.m3u8`) e acrescentar um campo ao
 resumo publicado; o envio, os eventos e os status não mudam.
+
+## Próximos passos (dependem de aprovação)
+
+1. **Ligar as versões extras** (`VIDEO_VARIANTS=540p,360p`, opcionalmente `av1`) e rodar a migração
+   (`--versoes`) em lotes. Custos na seção "Custos"; ganhos medidos em "Medição".
+2. **Conferir o AV1 na imagem do Cloud Run.** O `Dockerfile` usa o FFmpeg do Debian bookworm; se ele não tiver o
+   `libsvtav1` (ou tiver uma versão antiga), o worker pula o AV1 e registra no log. Testar num ambiente de
+   homologação antes de ligar `av1` em produção; se faltar, a alternativa é a imagem `node:24-trixie-slim`.
+3. **Teto de bitrate da principal** (`MAX_VIDEO_BITRATE`, padrão 4M). Com CRF 25 os vídeos de exemplo saem com
+   1,6 a 1,9 Mbps, abaixo do teto; baixar o teto só muda vídeos com muito movimento. Avaliar com vídeos reais dos
+   restaurantes antes de mexer.
+4. **HLS:** ver "HLS: por que não agora".

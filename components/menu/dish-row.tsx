@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Play } from "lucide-react";
 import { brl, productCents } from "@/lib/format";
 import { useInView } from "@/lib/hooks";
-import { pauseVideo, playExclusive, releaseVideo } from "@/lib/video-playback";
+import { currentPreloadBudget, pauseVideo, pickVideoSource, playExclusive, releaseVideo, useFeedOpen, type VideoSourceInfo } from "@/lib/video-playback";
 
 export type Dish = {
   id?: string;
@@ -20,8 +20,8 @@ export type Dish = {
   videoUrl?: string;
   /** Capa WebP gerada na otimização (vídeos novos). */
   videoPoster?: string;
-  /** Dimensões do vídeo otimizado (vídeos novos). */
-  video?: { width: number; height: number } | null;
+  /** Resumo do vídeo otimizado (vídeos novos): dimensões e, quando geradas, as versões extras (`pickVideoSource`). */
+  video?: VideoSourceInfo["video"];
   /** Curtidas nos Reels (contador mantido junto com cada curtida, ver lib/reels.ts). */
   likes?: number;
 };
@@ -42,29 +42,36 @@ export function DishMedia({ dish, autoplay, onClick }: { dish: Dish; autoplay: b
     },
     [nearRef, visibleRef],
   );
+  // Com o feed em tela cheia aberto, a lista fica atrás dele: o vídeo sai e volta quando o feed fecha.
+  const covered = useFeedOpen();
+  const mounted = near && !covered;
   // Na lista basta a versão pequena (400 px): a foto principal (1200 px) fica para a tela cheia.
   const poster = dish.videoPoster || dish.imageThumb || dish.image || "";
+  // A mesma versão do vídeo que o feed em tela cheia usaria nesta rede: quem toca no prato continua do que a lista já
+  // baixou (cache). Com rede fraca ou economia de dados, as duas usam a versão menor.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const source = useMemo(() => pickVideoSource(dish, currentPreloadBudget()), [dish.videoUrl, dish.video, mounted]);
 
   useEffect(() => {
     const el = video.current;
     if (!el) return;
     if (autoplay && visible) playExclusive(el);
     else pauseVideo(el);
-  }, [autoplay, visible, near]);
+  }, [autoplay, visible, mounted]);
 
-  // Ao sair de perto da tela, o elemento é desmontado: cancela o download antes.
+  // Ao sair de perto da tela (ou ficar coberto), o elemento é desmontado: cancela o download antes.
   useEffect(() => {
     const el = video.current;
     return () => releaseVideo(el);
-  }, [near]);
+  }, [mounted]);
 
   if (!dish.image && !dish.videoUrl) return null;
   return (
     <span ref={setRefs} className="kd-dish-media" onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onKeyDown={onClick ? (e) => (e.key === "Enter" || e.key === " ") && onClick() : undefined}>
-      {dish.videoUrl && near ? (
+      {dish.videoUrl && mounted ? (
         <video
           ref={video}
-          src={poster ? dish.videoUrl : `${dish.videoUrl}#t=0.1`}
+          src={poster ? source : `${source}#t=0.1`}
           poster={poster || undefined}
           muted
           loop

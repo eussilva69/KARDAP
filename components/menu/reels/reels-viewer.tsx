@@ -5,9 +5,9 @@ import { ChevronLeft, Clapperboard, RotateCcw, Volume2, VolumeX } from "lucide-r
 import { productCents } from "@/lib/format";
 import { useDialog } from "@/lib/hooks";
 import { shareDish } from "@/lib/reels";
-import { usePreloadBudget, type PreloadBudget } from "@/lib/video-playback";
+import { holdFeedOpen, usePreloadBudget, type PreloadBudget } from "@/lib/video-playback";
 import type { Dish } from "../dish-row";
-import { ReelSlide } from "./reel-slide";
+import { ReelSlide, type Readiness } from "./reel-slide";
 import { SaveSheet } from "./save-sheet";
 import { ShareSheet } from "./share-sheet";
 import type { Engagement, RestaurantRef } from "./use-engagement";
@@ -17,18 +17,24 @@ type Toast = { id: number; text: string; action?: { label: string; run: () => vo
 type Preload = "auto" | "metadata" | "none";
 
 /**
- * Prioridade de download. Até o vídeo da tela ter o primeiro quadro, só ele baixa (nada disputa a conexão com
- * ele). Depois: com rede boa, os primeiros segundos do próximo e o começo do anterior; com rede fraca, só o começo
- * do próximo; em economia de dados ou 2G, nada além do atual. Parado (sem reprodução automática ou pausado pela
- * pessoa), o atual e o próximo baixam só o começo: o resto vem quando ela tocar.
+ * Prioridade de download. Até o vídeo da tela mostrar o primeiro quadro, só ele baixa. Com rede boa, o próximo
+ * prepara o começo logo depois (troca imediata) e, com o atual com folga (ver `Readiness`), baixa inteiro; o
+ * anterior fica com o começo. Com rede fraca, o próximo espera o atual ter folga e prepara só o começo: até no
+ * `metadata` o navegador baixa centenas de KB, que fazem o vídeo da tela travar. Em economia de dados ou 2G, nada
+ * além do atual. Parado (sem reprodução automática ou pausado pela pessoa), o atual e o próximo baixam só o começo.
  */
-function preloadFor(offset: number, ready: boolean, budget: PreloadBudget, paused: boolean): Preload {
+function preloadFor(offset: number, ready: Readiness, budget: PreloadBudget, paused: boolean): Preload {
   if (offset === 0) return paused ? "metadata" : "auto";
-  if (!ready || budget === "minimal") return "none";
-  if (offset === 1) return budget === "full" && !paused ? "auto" : "metadata";
-  if (offset === -1) return budget === "full" ? "metadata" : "none";
+  if (ready === "none" || budget === "minimal") return "none";
+  const safe = ready === "safe";
+  if (offset === 1) {
+    if (budget === "light") return safe ? "metadata" : "none";
+    return safe && !paused ? "auto" : "metadata";
+  }
+  if (offset === -1) return safe && budget === "full" ? "metadata" : "none";
   return "none";
 }
+const READINESS: Readiness[] = ["none", "first", "safe"];
 
 const SOUND_KEY = "kardap-reels-som";
 const HINT_KEY = "kardap-reels-dica";
@@ -87,8 +93,8 @@ export function ReelsViewer({
   const [paused, setPaused] = useState(!autoplay);
   const [holding, setHolding] = useState(false);
   const [hidden, setHidden] = useState(false);
-  /** O slide atual já tem o primeiro quadro (ou não tem vídeo): libera o pré-carregamento dos vizinhos. */
-  const [activeReady, setActiveReady] = useState(false);
+  /** Quanto o slide atual já tem: define o que os vizinhos podem baixar (`preloadFor`). */
+  const [activeReady, setActiveReady] = useState<Readiness>("none");
   const [sheet, setSheet] = useState<{ kind: "share" | "save"; dish: Dish } | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [hint] = useState(() => dishes.length > 1 && readSession(HINT_KEY) !== "1");
@@ -98,6 +104,8 @@ export function ReelsViewer({
   const autoplayRef = useRef(autoplay);
   autoplayRef.current = autoplay;
   useDialog(ref, onClose);
+  // Os vídeos da lista do cardápio (atrás do feed) saem enquanto ele está aberto.
+  useEffect(() => holdFeedOpen(), []);
 
   const { refresh, toggleLike, toggleSave, likeCount, liked, savedHere, account, notice, clearNotice } = engagement;
   const savedRef = useRef(savedHere);
@@ -151,7 +159,7 @@ export function ReelsViewer({
           indexRef.current = next;
           setIndex(next);
           setPaused(!autoplayRef.current);
-          setActiveReady(false);
+          setActiveReady("none");
         });
       },
       { root, threshold: 0.6 },
@@ -212,7 +220,10 @@ export function ReelsViewer({
 
   const onTap = useCallback(() => setPaused((p) => !p), []);
   const onHold = useCallback((value: boolean) => setHolding(value), []);
-  const onReady = useCallback((i: number) => i === indexRef.current && setActiveReady(true), []);
+  // Só avança (o vídeo pode perder folga ao tocar, mas o que os vizinhos já baixaram fica).
+  const onReady = useCallback((i: number, level: Readiness) => {
+    if (i === indexRef.current) setActiveReady((prev) => (READINESS.indexOf(level) > READINESS.indexOf(prev) ? level : prev));
+  }, []);
   const onAutoplayBlocked = useCallback(() => setPaused(true), []);
   const onSoundBlocked = useCallback(() => {
     setMuted(true);

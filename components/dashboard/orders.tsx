@@ -11,7 +11,7 @@ import { changeOrderStatus, watchOrders } from "@/lib/orders/client";
 import { CHANNEL_LABELS, CHANNEL_ORDER, isDeliveryChannel, isMarketplaceChannel, type OrderChannel } from "@/lib/orders/channels";
 import { countsAsRevenue, growth, OPEN_STATUSES, summarize, type PanelOrder, type SalesSummary } from "@/lib/orders/metrics";
 import { PAYMENT_METHOD_LABELS, STATUS_LABELS, type DeliveryOrderStatus } from "@/lib/delivery/types";
-import { Badge, Button, ButtonLink, Card, CardHead, ConfirmDialog, EmptyState, Modal, PageHeader, Segmented, SelectField, Skeleton, type BadgeTone } from "@/components/ui";
+import { Badge, Button, ButtonLink, Card, CardHead, ConfirmDialog, EmptyState, Modal, PageHeader, Segmented, SelectField, Skeleton, TextArea, type BadgeTone } from "@/components/ui";
 import type { Notify } from "./types";
 
 const DAY = 86_400_000;
@@ -117,10 +117,10 @@ export function OrdersPage({ notify, isDemo }: { notify: Notify; isDemo: boolean
   const channelsPresent = CHANNEL_ORDER.filter((c) => all.some((o) => o.channel === c));
   const live = selected ? all.find((o) => o.id === selected.id) || selected : null;
 
-  const advance = async (order: PanelOrder, status: DeliveryOrderStatus) => {
+  const advance = async (order: PanelOrder, status: DeliveryOrderStatus, reason?: string) => {
     setBusy(order.id);
     try {
-      await changeOrderStatus(getRestaurantId(), order.id, status);
+      await changeOrderStatus(getRestaurantId(), order.id, status, reason);
       notify(`Pedido ${orderTitle(order)}: ${statusLabel(status).toLowerCase()}`);
     } catch (e) {
       notify(friendlyError(e, "Não foi possível alterar o status."), "error");
@@ -248,8 +248,9 @@ export function OrdersPage({ notify, isDemo }: { notify: Notify; isDemo: boolean
   );
 }
 
-function OrderDetail({ order, busy, onAdvance, onClose }: { order: PanelOrder; busy: boolean; onAdvance: (o: PanelOrder, s: DeliveryOrderStatus) => Promise<void>; onClose: () => void }) {
+function OrderDetail({ order, busy, onAdvance, onClose }: { order: PanelOrder; busy: boolean; onAdvance: (o: PanelOrder, s: DeliveryOrderStatus, reason?: string) => Promise<void>; onClose: () => void }) {
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
   const step = nextStep(order);
   const canCancel = OPEN_STATUSES.indexOf(order.status) >= 0 && managedHere(order);
   const addr = order.address;
@@ -322,10 +323,13 @@ function OrderDetail({ order, busy, onAdvance, onClose }: { order: PanelOrder; b
           description="O pedido sai da fila e não conta no faturamento. Esta ação não pode ser desfeita."
           confirmLabel={order.status === "pendente" ? "Recusar pedido" : "Cancelar pedido"}
           onConfirm={async () => {
-            await onAdvance(order, order.status === "pendente" ? "recusado" : "cancelado");
+            if (order.status === "pendente" && cancelReason.trim().length < 3) return false;
+            await onAdvance(order, order.status === "pendente" ? "recusado" : "cancelado", cancelReason);
           }}
           onClose={() => setConfirmCancel(false)}
-        />
+        >
+          <TextArea label="Motivo" rows={3} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Explique ao cliente por que o pedido não pode ser aceito." />
+        </ConfirmDialog>
       )}
     </>
   );

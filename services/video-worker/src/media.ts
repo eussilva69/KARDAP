@@ -4,7 +4,7 @@
  */
 import { spawn } from "node:child_process";
 import { open, stat } from "node:fs/promises";
-import { VIDEO_LIMITS, type VideoStrategy } from "./contract.ts";
+import { VIDEO_LIMITS, type VideoStrategy, type VideoVariantKind } from "./contract.ts";
 
 export class MediaError extends Error {
   code: "invalid_file" | "unsupported_format" | "too_long" | "no_video_stream" | "processing_failed" | "validation_failed";
@@ -197,10 +197,15 @@ export function planFor(p: Probe, maxDuration: number = VIDEO_LIMITS.maxDuration
 
 export type EncodeSettings = { crf: number; preset: string; audioBitrate: string; maxBitrate: string };
 
-export function transcodeArgs(input: string, output: string, plan: Plan, s: EncodeSettings) {
+export function transcodeArgs(input: string, output: string, plan: Plan, s: EncodeSettings, codec: "h264" | "av1" = "h264") {
   const filters = [`scale=${plan.width}:${plan.height}:flags=lanczos`, "setsar=1"];
   if (plan.capFps) filters.push(`fps=${VIDEO_LIMITS.maxFps}`);
   const maxrate = parseInt(s.maxBitrate, 10);
+  const video =
+    codec === "av1"
+      ? // SVT-AV1 no preset 8: ~1,2x o tempo do x264 "medium", ~44% menor com a mesma qualidade (docs/VIDEOS.md).
+        ["-c:v", "libsvtav1", "-preset", "8", "-crf", String(AV1_CRF), "-pix_fmt", "yuv420p"]
+      : ["-c:v", "libx264", "-preset", s.preset, "-crf", String(s.crf), "-profile:v", "high", "-pix_fmt", "yuv420p", "-maxrate", s.maxBitrate, "-bufsize", `${maxrate * 2}${s.maxBitrate.replace(/^[0-9]+/, "")}`];
   return [
     "-hide_banner", "-nostdin", "-y",
     "-i", input,
@@ -208,9 +213,7 @@ export function transcodeArgs(input: string, output: string, plan: Plan, s: Enco
     // Remove metadados (localização do celular, nome do aparelho); a rotação já é aplicada nos pixels.
     "-map_metadata", "-1", "-map_chapters", "-1",
     "-vf", filters.join(","),
-    "-c:v", "libx264", "-preset", s.preset, "-crf", String(s.crf),
-    "-profile:v", "high", "-pix_fmt", "yuv420p",
-    "-maxrate", s.maxBitrate, "-bufsize", `${maxrate * 2}${s.maxBitrate.replace(/^[0-9]+/, "")}`,
+    ...video,
     // Um quadro-chave a cada 2 s: avançar e voltar no vídeo responde rápido.
     "-g", String(VIDEO_LIMITS.maxFps * 2),
     ...(plan.keepAudio ? ["-c:a", "aac", "-b:a", s.audioBitrate, "-ac", "2"] : ["-an"]),
@@ -235,6 +238,50 @@ export async function encode(tools: MediaTools, input: string, output: string, p
   const r = await run(tools.ffmpeg, args, tools.timeoutMs);
   if (r.timedOut) throw new MediaError("processing_failed", `ffmpeg excedeu ${Math.round(tools.timeoutMs / 1000)} s`);
   if (r.code !== 0) throw new MediaError("processing_failed", `ffmpeg (${strategy}) saiu com ${r.code}: ${r.stderr.slice(-600)}`);
+}
+
+// ───────────────────────── Versões extras ─────────────────────────
+
+/** CRF do SVT-AV1 que empatou em SSIM com o H.264 CRF 25 nos vídeos de comida medidos (docs/VIDEOS.md). */
+export const AV1_CRF = 38;
+
+/** Versões H.264 menores: lado menor, lado maior e tetos de bitrate (o CRF decide abaixo do teto). */
+const SMALLER = {
+  "540p": { short: 540, long: 960, maxBitrate: "2M", audioBitrate: "80k" },
+  "360p": { short: 360, long: 640, maxBitrate: "900k", audioBitrate: "64k" },
+} as const;
+
+/**
+ * Plano de uma versão extra a partir do plano da principal. null: não faz sentido (a versão menor não seria
+ * menor que a principal, porque o vídeo enviado já é pequeno; nunca amplia).
+ */
+export function variantPlan(main: Plan, kind: VideoVariantKind): Plan | null {
+  if (kind === "av1") return { ...main, strategy: "transcode", reasons: ["versão av1"] };
+  const t = SMALLER[kind];
+  const size = targetSize(main.width, main.height, t.long, t.short);
+  if (Math.min(size.width, size.height) >= Math.min(main.width, main.height)) return null;
+  return { ...main, ...size, strategy: "transcode", reasons: [`versão ${kind}`] };
+}
+
+export function variantCodec(kind: VideoVariantKind): "h264" | "av1" {
+  return kind === "av1" ? "av1" : "h264";
+}
+
+export function variantSettings(kind: VideoVariantKind, s: EncodeSettings): EncodeSettings {
+  return kind === "av1" ? s : { ...s, maxBitrate: SMALLER[kind].maxBitrate, audioBitrate: SMALLER[kind].audioBitrate };
+}
+
+export async function encodeVariant(tools: MediaTools, input: string, output: string, plan: Plan, kind: VideoVariantKind, settings: EncodeSettings) {
+  const r = await run(tools.ffmpeg, transcodeArgs(input, output, plan, variantSettings(kind, settings), variantCodec(kind)), tools.timeoutMs);
+  if (r.timedOut) throw new MediaError("processing_failed", `ffmpeg (${kind}) excedeu ${Math.round(tools.timeoutMs / 1000)} s`);
+  if (r.code !== 0) throw new MediaError("processing_failed", `ffmpeg (${kind}) saiu com ${r.code}: ${r.stderr.slice(-600)}`);
+}
+
+const encoders = new Map<string, Promise<boolean>>();
+/** O FFmpeg instalado tem este codificador? (o do Debian pode não ter o SVT-AV1). Resultado guardado. */
+export function hasEncoder(tools: MediaTools, name: string) {
+  if (!encoders.has(name)) encoders.set(name, run(tools.ffmpeg, ["-hide_banner", "-encoders"], 30_000, true).then((r) => r.code === 0 && new RegExp(`\\b${name}\\b`).test(r.stdout)));
+  return encoders.get(name)!;
 }
 
 // ───────────────────────── Validação ─────────────────────────
@@ -266,14 +313,14 @@ export async function hasFastStart(file: string) {
 export type Validation = { width: number; height: number; duration: number; size: number; hasAudio: boolean };
 
 /** O arquivo final precisa abrir, ter as dimensões esperadas, durar o mesmo e decodificar no começo e no fim. */
-export async function validateOutput(tools: MediaTools, file: string, source: Probe, expected: { width: number; height: number }): Promise<Validation> {
+export async function validateOutput(tools: MediaTools, file: string, source: Probe, expected: { width: number; height: number }, codec: "h264" | "av1" = "h264"): Promise<Validation> {
   const { size } = await stat(file);
   if (!size) throw new MediaError("validation_failed", "arquivo final vazio");
   const out = await probe(tools, file).catch(() => {
     throw new MediaError("validation_failed", "arquivo final não abre no ffprobe");
   });
   const v = out.video;
-  if (!v || v.codec !== "h264" || v.pixFmt !== "yuv420p") throw new MediaError("validation_failed", `vídeo final inesperado: ${v?.codec}/${v?.pixFmt}`);
+  if (!v || v.codec !== codec || v.pixFmt !== "yuv420p") throw new MediaError("validation_failed", `vídeo final inesperado: ${v?.codec}/${v?.pixFmt}`);
   if (v.displayWidth !== expected.width || v.displayHeight !== expected.height) {
     throw new MediaError("validation_failed", `dimensões ${v.displayWidth}x${v.displayHeight}, esperado ${expected.width}x${expected.height}`);
   }

@@ -150,8 +150,12 @@ export function jobLabel(job: JobView) {
       return "Otimizando o vídeo para o cardápio…";
     case "retrying":
       return "Otimização falhou; nova tentativa automática em instantes…";
-    case "ready":
-      return job.reductionPercent && job.reductionPercent > 0 ? `Publicado no cardápio · arquivo ${job.reductionPercent.toLocaleString("pt-BR")}% menor` : "Publicado no cardápio";
+    case "ready": {
+      const published = job.reductionPercent && job.reductionPercent > 0 ? `Publicado no cardápio · arquivo ${job.reductionPercent.toLocaleString("pt-BR")}% menor` : "Publicado no cardápio";
+      // Versões extras (VIDEO_VARIANTS no worker): o cardápio escolhe a que cabe na conexão de cada cliente.
+      const variants = job.doc?.variants?.map((v) => v.kind).join(", ");
+      return variants ? `${published} · também em ${variants}` : published;
+    }
     case "failed":
     case "interrupted":
       return job.message || "Não foi possível publicar o vídeo.";

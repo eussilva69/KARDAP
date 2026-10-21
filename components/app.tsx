@@ -37,19 +37,21 @@ import { readPalette } from "@/lib/palette";
 import type { AccountInfo } from "@/components/dashboard/types";
 import { readReturnTo, readSsoState, safeRedirect } from "@/lib/sso/config";
 import { clearAccountStorage, linkedUid, readSsoSession, watchSsoState } from "@/lib/sso/client";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { getFirebaseAuth } from "@/lib/auth";
 
 /* Cada tela carrega só o próprio código: quem abre o cardápio pelo QR não baixa o painel. */
 const loadDashboard = () => import("@/components/dashboard/dashboard");
 const loadAdminPanel = () => import("@/components/admin/admin-panel");
-const Dashboard = dynamic(loadDashboard, { loading: () => <DashboardSkeleton /> });
-const AuthPage = dynamic(() => import("@/components/auth/auth-page"), { loading: () => <PanelLoading /> });
-const PublicMenu = dynamic(() => import("@/components/menu/public-menu"), { loading: () => <MenuSkeleton /> });
-const DeliveryMenu = dynamic(() => import("@/components/delivery/delivery-menu"), { loading: () => <MenuSkeleton /> });
-const Onboarding = dynamic(() => import("@/components/site/onboarding"), { loading: () => <PanelLoading /> });
-const LegalPage = dynamic(() => import("@/components/site/legal-page"), { loading: () => <PanelLoading /> });
-const AdminPanel = dynamic(loadAdminPanel, { loading: () => <DashboardSkeleton /> });
-const PlansPage = dynamic(() => import("@/components/site/plans-page"), { loading: () => <PanelLoading /> });
-const LogoutPage = dynamic(() => import("@/components/auth/logout-page"), { loading: () => <PanelLoading /> });
+const Dashboard = dynamic(loadDashboard, { ssr: false, loading: () => <DashboardSkeleton /> });
+const AuthPage = dynamic(() => import("@/components/auth/auth-page"), { ssr: false, loading: () => <PanelLoading /> });
+const PublicMenu = dynamic(() => import("@/components/menu/public-menu"), { ssr: false, loading: () => <MenuSkeleton /> });
+const DeliveryMenu = dynamic(() => import("@/components/delivery/delivery-menu"), { ssr: false, loading: () => <MenuSkeleton /> });
+const Onboarding = dynamic(() => import("@/components/site/onboarding"), { ssr: false, loading: () => <PanelLoading /> });
+const LegalPage = dynamic(() => import("@/components/site/legal-page"), { ssr: false, loading: () => <PanelLoading /> });
+const AdminPanel = dynamic(loadAdminPanel, { ssr: false, loading: () => <DashboardSkeleton /> });
+const PlansPage = dynamic(() => import("@/components/site/plans-page"), { ssr: false, loading: () => <PanelLoading /> });
+const LogoutPage = dynamic(() => import("@/components/auth/logout-page"), { ssr: false, loading: () => <PanelLoading /> });
 
 const defaultBrand: Brand = {
   logo: "", cover: "", logoSmall: "", coverSmall: "",
@@ -87,10 +89,12 @@ const isAdminPath = (path: string) => path === "/admin" || path.startsWith("/adm
 /** Login pedido por outro aplicativo (ex.: o PDV) com destino válido: a tela de login decide para onde voltar. */
 const hasSsoRedirect = () => Boolean(safeRedirect(readReturnTo(new URLSearchParams(window.location.search))));
 
+const SESSION_HINT_KEY = "kardap-session-hint";
+
 /** Encerra só a sessão deste site (a compartilhada já acabou em outro lugar). */
 async function signOutHere() {
-  const [{ signOut }, { getFirebaseAuth }] = await Promise.all([import("firebase/auth"), import("@/lib/auth")]);
   clearAccountStorage();
+  if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
   await signOut(getFirebaseAuth()).catch(() => undefined);
 }
 
@@ -119,7 +123,11 @@ export default function App() {
   const [chamadosLoading, setChamadosLoading] = useState(false);
   const [chamadosError, setChamadosError] = useState("");
   const [session, setSession] = useState(false);
-  const [authReady, setAuthReady] = useState(!isFirebaseConfigured);
+  // Se há hint de sessão prévia no localStorage, inicia authReady=true para evitar skeleton em branco
+  // enquanto o Firebase Auth confirma a sessão em background. Se a sessão estiver expirada,
+  // o onAuthStateChanged corrige o estado logo após (mostrando login sem flash visível).
+  const hasSessionHint = typeof window !== "undefined" && Boolean(localStorage.getItem(SESSION_HINT_KEY)) && inPanel && isFirebaseConfigured;
+  const [authReady, setAuthReady] = useState(!isFirebaseConfigured || hasSessionHint);
   const [brand, setBrand] = useState<Brand>(defaultBrand);
   const [restaurantName, setRestaurantName] = useState("");
   const [settings, setSettings] = useState<RestaurantSettings>(defaultSettings);
@@ -219,53 +227,55 @@ export default function App() {
   useEffect(() => {
     if (!isFirebaseConfigured || !needsAuth) return;
     let alive = true;
-    let unsubscribe: (() => void) | undefined;
-    Promise.all([import("firebase/auth"), import("@/lib/auth")])
-      .then(([{ onAuthStateChanged }, { getFirebaseAuth }]) => {
-        if (!alive) return;
-        unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (authUser) => {
-          if (!alive) return;
-          // Identidade anônima criada ao curtir um prato no cardápio público não é login no painel.
-          const user = authUser?.isAnonymous ? null : authUser;
-          // A sessão compartilhada deste navegador acabou enquanto o site estava fechado (logout no PDV,
-          // expiração dos 5 dias): o login guardado aqui também não vale mais.
-          if (user && firstAuthEvent.current && linkedUid() === user.uid && !readSsoState()) {
-            firstAuthEvent.current = false;
-            await signOutHere();
-            return;
-          }
-          if (user) {
-            const fromApp = hasSsoRedirect();
-            const cachedUserId = localStorage.getItem("kardap-restaurant-owner");
-            if (cachedUserId && cachedUserId !== user.uid) localStorage.removeItem("kardap-restaurant-id");
-            localStorage.setItem("kardap-restaurant-owner", user.uid);
+    // onAuthStateChanged agora é static import — sem round-trip de dynamic import antes do listener iniciar.
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (authUser) => {
+      if (!alive) return;
+      // Identidade anônima criada ao curtir um prato no cardápio público não é login no painel.
+      const user = authUser?.isAnonymous ? null : authUser;
+      // A sessão compartilhada deste navegador acabou enquanto o site estava fechado (logout no PDV,
+      // expiração dos 5 dias): o login guardado aqui também não vale mais.
+      if (user && firstAuthEvent.current && linkedUid() === user.uid && !readSsoState()) {
+        firstAuthEvent.current = false;
+        await signOutHere();
+        return;
+      }
+      if (user) {
+        localStorage.setItem(SESSION_HINT_KEY, "1");
+        const fromApp = hasSsoRedirect();
+        const cachedUserId = localStorage.getItem("kardap-restaurant-owner");
+        if (cachedUserId && cachedUserId !== user.uid) localStorage.removeItem("kardap-restaurant-id");
+        localStorage.setItem("kardap-restaurant-owner", user.uid);
 
-            if (!localStorage.getItem("kardap-restaurant-id")) {
-              const found = await findRestaurantByOwner(user.uid);
-              if (found && isAuthPath(window.location.pathname) && !fromApp) {
-                if (found.onboardingCompleted) router.replace("/dashboard");
-                else router.replace("/onboarding");
-              }
-            } else if (firstAuthEvent.current && isAuthPath(window.location.pathname) && !fromApp) {
-              firstAuthEvent.current = false;
-              router.replace("/dashboard");
-            }
-          } else {
-            setRestaurantLoaded(false);
-            // Sem sessão, nada é gravado (o estado da tela anterior não volta para o Firestore).
-            setCloudReady(false);
+        if (!localStorage.getItem("kardap-restaurant-id")) {
+          // Redireciona otimisticamente para o dashboard sem bloquear em findRestaurantByOwner.
+          // O dashboard lida com restaurantLoaded=false mostrando o skeleton enquanto o Firestore responde.
+          if (isAuthPath(window.location.pathname) && !fromApp) {
+            router.replace("/dashboard");
           }
+          // Busca o id do restaurante em background para popular o localStorage para próximas visitas.
+          findRestaurantByOwner(user.uid).then((found) => {
+            if (!alive) return;
+            if (found && !found.onboardingCompleted && window.location.pathname === "/dashboard") {
+              router.replace("/onboarding");
+            }
+          });
+        } else if (firstAuthEvent.current && isAuthPath(window.location.pathname) && !fromApp) {
           firstAuthEvent.current = false;
-          setSession(Boolean(user));
-          setAuthReady(true);
-        });
-      })
-      .catch(() => {
-        if (alive) setAuthReady(true);
-      });
+          router.replace("/dashboard");
+        }
+      } else {
+        localStorage.removeItem(SESSION_HINT_KEY);
+        setRestaurantLoaded(false);
+        // Sem sessão, nada é gravado (o estado da tela anterior não volta para o Firestore).
+        setCloudReady(false);
+      }
+      firstAuthEvent.current = false;
+      setSession(Boolean(user));
+      setAuthReady(true);
+    });
     return () => {
       alive = false;
-      unsubscribe?.();
+      unsubscribe();
     };
   }, [needsAuth, router]);
 
@@ -353,7 +363,7 @@ export default function App() {
   useEffect(() => {
     setSlowLoad(false);
     if (!ownerData || restaurantLoaded) return;
-    const timer = setTimeout(() => setSlowLoad(true), 9000);
+    const timer = setTimeout(() => setSlowLoad(true), 4000);
     return () => clearTimeout(timer);
   }, [ownerData, restaurantLoaded, retryKey]);
 
@@ -364,7 +374,7 @@ export default function App() {
     setPublicStatus("loading");
     setPublicProductsLoaded(false);
     setPublicSlow(false);
-    const slowTimer = setTimeout(() => setPublicSlow(true), 9000);
+    const slowTimer = setTimeout(() => setPublicSlow(true), 4000);
     const stop = watchPublicRestaurant(
       slug,
       (data, meta) => {

@@ -25,13 +25,18 @@ const DIST = process.env.KARDAP_DIST_DIR || ".next-perf";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PROBE = fs.readFileSync(path.join(ROOT, "scripts", "perf", "video-probe.js"), "utf8");
 
-// Perfis de rede (mesmos números dos presets do DevTools). Bytes por segundo.
+// Perfis de rede do celular (números dos presets do DevTools): banda em bytes por segundo, latência em ms.
+// Aplicados no servidor de mídia (abaixo), não no navegador: a limitação do DevTools segura os dados dentro do
+// navegador, mas o socket local aceita tudo, e a conta de bytes por vídeo deixaria de valer.
 const NET = {
-  wifi: null,
-  fast4g: { latency: 60, downloadThroughput: (9_000_000 / 8) * 0.9, uploadThroughput: (1_500_000 / 8) * 0.9 },
-  slow4g: { latency: 150, downloadThroughput: (1_600_000 / 8) * 0.9, uploadThroughput: (750_000 / 8) * 0.9 },
-  "3g": { latency: 300, downloadThroughput: (750_000 / 8) * 0.9, uploadThroughput: (250_000 / 8) * 0.9 },
+  wifi: { latency: 20, rate: 40_000_000 / 8 },
+  fast4g: { latency: 60, rate: (9_000_000 / 8) * 0.9 },
+  slow4g: { latency: 150, rate: (1_600_000 / 8) * 0.9 },
+  // Num Android em 3G o Chrome informa effectiveType "3g": a página recebe esse valor (sem limitar a rede de novo).
+  "3g": { latency: 300, rate: (750_000 / 8) * 0.9, effectiveType: "3g" },
 };
+const fakeConnection = (effectiveType) =>
+  `(() => { const c = new EventTarget(); Object.assign(c, { effectiveType: ${JSON.stringify(effectiveType)}, saveData: false }); Object.defineProperty(Navigator.prototype, "connection", { get: () => c, configurable: true }); })();`;
 
 const results = {};
 const checks = [];
@@ -48,6 +53,7 @@ function toValue(v) {
   if (typeof v === "boolean") return { booleanValue: v };
   if (Number.isInteger(v)) return { integerValue: String(v) };
   if (typeof v === "number") return { doubleValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(toValue) } };
   return { mapValue: { fields: toFields(v) } };
 }
 const toFields = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toValue(v)]));
@@ -62,21 +68,53 @@ const put = (docPath, data) => ({ update: { name: `${DOCS}/${docPath}`, fields: 
 // ───────── Servidor de mídia (faz o papel do Firebase Storage) ─────────
 // Outro endereço que o do app, Range e `Cache-Control: immutable` como os arquivos gerados pelo worker.
 // Conta os bytes realmente enviados por arquivo: é a medida de consumo de internet dos cenários.
+// Todos os downloads dividem a mesma banda (o enlace do celular), cada um espera a latência antes do primeiro
+// byte, e só se escreve quando o socket esvazia: os bytes contados são os que o aparelho recebeu.
 const MEDIA_PORT = 3300;
 const MEDIA = `http://localhost:${MEDIA_PORT}`;
-const FILES = ["/hamburguer.mp4", "/pizzavideo.mp4", "/carne%20tabua.mp4"];
+// PERF_MEDIA_DIR: pasta com os vídeos já processados pelo worker (mesmos arquivos de produção) e o manifest.json
+// com tamanhos e versões extras; sem ela, os vídeos crus de public/. PERF_VARIANTS=1 publica as versões extras
+// no produto (como o worker com VIDEO_VARIANTS ligado), para comparar com e sem elas.
+const MEDIA_DIR = process.env.PERF_MEDIA_DIR ? path.resolve(process.env.PERF_MEDIA_DIR) : "";
+const MANIFEST = MEDIA_DIR ? JSON.parse(fs.readFileSync(path.join(MEDIA_DIR, "manifest.json"), "utf8")) : null;
+const WITH_VARIANTS = process.env.PERF_VARIANTS === "1";
+if (WITH_VARIANTS && !MANIFEST) throw new Error("PERF_VARIANTS=1 precisa de PERF_MEDIA_DIR");
+const FILES = MANIFEST ? Object.keys(MANIFEST).map((slug) => `/${slug}.mp4`) : ["/hamburguer.mp4", "/pizzavideo.mp4", "/carne%20tabua.mp4"];
 const POSTER = `${MEDIA}/imagens/display-cardapio-kardap.webp`;
 const media = { bytes: new Map(), requests: 0, open: 0, maxOpen: 0 };
+let link = NET.wifi;
+const fileCache = new Map();
+const transfers = new Set();
+const TICK_MS = 10;
+setInterval(() => {
+  if (!transfers.size) return;
+  const ready = [...transfers].filter((t) => t.startAt <= Date.now() && t.res.writableLength < 16 * 1024);
+  if (!ready.length) return;
+  const share = Math.max(1024, Math.floor((link.rate * TICK_MS) / 1000 / ready.length));
+  for (const t of ready) {
+    const n = Math.min(share, t.end + 1 - t.pos);
+    t.res.write(t.buf.subarray(t.pos, t.pos + n));
+    t.pos += n;
+    if (t.isVideo) media.bytes.set(t.key, (media.bytes.get(t.key) || 0) + n);
+    if (t.pos > t.end) {
+      transfers.delete(t);
+      t.res.end();
+    }
+  }
+}, TICK_MS).unref();
 const mediaServer = http.createServer((req, res) => {
   const url = new URL(req.url, MEDIA);
-  const file = path.join(ROOT, "public", decodeURIComponent(url.pathname));
-  if (!file.startsWith(path.join(ROOT, "public")) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+  const base = MEDIA_DIR && !url.pathname.startsWith("/imagens/") && !url.pathname.startsWith("/google-logo") ? MEDIA_DIR : path.join(ROOT, "public");
+  const file = path.join(base, decodeURIComponent(url.pathname));
+  if (!file.startsWith(base) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404).end();
     return;
   }
   const size = fs.statSync(file).size;
   const type = file.endsWith(".mp4") ? "video/mp4" : file.endsWith(".webp") ? "image/webp" : "image/png";
-  const headers = { "content-type": type, "accept-ranges": "bytes", "cache-control": "public, max-age=31536000, immutable" };
+  // Validadores como os do Firebase Storage: sem eles o Chrome não guarda respostas parciais (206) no cache.
+  const mtime = fs.statSync(file).mtime;
+  const headers = { "content-type": type, "accept-ranges": "bytes", "cache-control": "public, max-age=31536000, immutable", etag: `"${size}-${mtime.getTime()}"`, "last-modified": mtime.toUTCString() };
   let start = 0;
   let end = size - 1;
   const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
@@ -88,22 +126,22 @@ const mediaServer = http.createServer((req, res) => {
     res.writeHead(200, { ...headers, "content-length": size });
   }
   if (req.method === "HEAD") return res.end();
-  const key = url.search.match(/v=([^&]+)/)?.[0] || url.pathname;
+  // Chave: o prato (v=) e a versão do arquivo (principal, 540p, 360p, av1).
+  const kind = /\.(540p|360p|av1)\.mp4$/.exec(url.pathname)?.[1] || "main";
+  const key = `${url.search.match(/v=([^&]+)/)?.[0] || url.pathname}:${kind}`;
   const isVideo = !url.pathname.startsWith("/imagens/");
   if (isVideo) {
     media.requests++;
     media.open++;
     media.maxOpen = Math.max(media.maxOpen, media.open);
   }
-  const stream = fs.createReadStream(file, { start, end, highWaterMark: 16 * 1024 });
-  stream.on("data", (chunk) => {
-    if (isVideo) media.bytes.set(key, (media.bytes.get(key) || 0) + chunk.length);
-  });
+  if (!fileCache.has(file)) fileCache.set(file, fs.readFileSync(file));
+  const transfer = { res, buf: fileCache.get(file), pos: start, end, key, isVideo, startAt: Date.now() + link.latency };
+  transfers.add(transfer);
   res.on("close", () => {
-    stream.destroy();
+    transfers.delete(transfer);
     if (isVideo) media.open--;
   });
-  stream.pipe(res);
 });
 const mediaNet = {
   reset() {
@@ -121,6 +159,14 @@ const A = { id: "perf-bistro", slug: "perf-bistro", products: 120, videos: 40 };
 const B = { id: "perf-cantina", slug: "perf-cantina", products: 6, videos: 6 };
 // Endereços distintos por prato (como em produção, um arquivo por vídeo): o cache não mistura pratos.
 const videoUrl = (rid, i) => `${MEDIA}${FILES[i % FILES.length]}?r=${rid}&v=${rid === A.id ? "" : "b"}${i}`;
+/** Resumo publicado no produto, como o worker grava (com as versões extras quando PERF_VARIANTS=1). */
+function publishedVideo(rid, i) {
+  if (!MANIFEST) return { width: 720, height: 1280 };
+  const m = MANIFEST[FILES[i % FILES.length].slice(1, -4)];
+  const query = videoUrl(rid, i).split("?")[1];
+  const variants = WITH_VARIANTS ? m.variants.map((v) => ({ kind: v.kind, codec: v.codec, width: v.width, height: v.height, size: v.size, url: `${MEDIA}/${v.file}?${query}`, path: v.file })) : undefined;
+  return { id: `vid-${rid}-${i}`, width: m.width, height: m.height, duration: m.duration, optimizedSize: m.optimizedSize, originalSize: m.original, optimizedPath: "", thumbnailPath: "", ...(variants ? { variants } : {}) };
+}
 const BROKEN = { missing: "p-sem-arquivo", corrupt: "p-arquivo-ruim" };
 
 async function seed() {
@@ -146,7 +192,7 @@ async function seed() {
           // Lista ordenada pelo mais recente: p-0 é o primeiro.
           createdAt: new Date(base - i * 60_000).toISOString(),
           image: POSTER,
-          ...(withVideo ? { videoUrl: videoUrl(r.id, i), videoPoster: POSTER, video: { width: 720, height: 1280 } } : {}),
+          ...(withVideo ? { videoUrl: videoUrl(r.id, i), videoPoster: POSTER, video: publishedVideo(r.id, i) } : {}),
         }),
       );
     }
@@ -247,6 +293,7 @@ async function newPhone({ script = "" } = {}) {
   };
   const page = {
     errors,
+    sessionId,
     evaluate,
     async goto(url) {
       const loaded = new Promise((resolve) => {
@@ -273,8 +320,8 @@ async function newPhone({ script = "" } = {}) {
       throw new Error(`tempo esgotado esperando: ${label}`);
     },
     async network(profile) {
-      const p = NET[profile];
-      await s("Network.emulateNetworkConditions", p ? { offline: false, ...p } : { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+      link = NET[profile];
+      await s("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
     },
     offline: (value) => s("Network.emulateNetworkConditions", { offline: value, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }),
     clearCache: () => s("Network.clearBrowserCache"),
@@ -330,7 +377,7 @@ const p90 = (xs) => {
 let phone;
 /** Abre o cardápio do restaurante e os Reels no primeiro prato; devolve o tempo do toque ao primeiro quadro. */
 async function openReels(slug, { network = "wifi", cold = true } = {}) {
-  phone = await newPhone();
+  phone = await newPhone({ script: NET[network].effectiveType ? fakeConnection(NET[network].effectiveType) : "" });
   if (cold) await phone.clearCache();
   await phone.network(network);
   await phone.goto(`${APP}/r/${slug}`);
@@ -416,6 +463,9 @@ try {
     await scenario(`abrir-${network}`, `Primeiro acesso e trocas (${network})`, async () => {
       const open = await openReels(A.slug, { network });
       const startupNet = mediaNet.summary();
+      // Parado no primeiro prato: quanto o próximo (v=1) baixa de antemão, sem a pessoa deslizar.
+      await sleep(network === "3g" ? 9000 : 6000);
+      const idle = mediaNet.summary().perVideoKB;
       const swaps = [];
       for (let i = 0; i < 4; i++) swaps.push(await swipeAndMeasure("up", network === "3g" ? 6000 : 3000));
       const back = await swipeAndMeasure("down", 1500);
@@ -424,7 +474,8 @@ try {
       return {
         connection: await phone.evaluate(`navigator.connection ? { type: navigator.connection.effectiveType, downlink: navigator.connection.downlink, rtt: navigator.connection.rtt } : null`),
         openToFirstFrameMs: open,
-        startupVideoRequests: { maxInFlight: startupNet.maxInFlight, files: Object.keys(startupNet.perVideoKB).length, MB: startupNet.MB },
+        startupVideoRequests: { maxInFlight: startupNet.maxInFlight, files: Object.keys(startupNet.perVideoKB).length, MB: startupNet.MB, perVideoKB: startupNet.perVideoKB },
+        whileWatchingFirstKB: idle,
         switchFromActivationMs: swaps.map((s) => s.fromActivation),
         switchFromSwipeMs: swaps.map((s) => s.fromSwipe),
         backFromSwipeMs: back.fromSwipe,
@@ -587,6 +638,40 @@ try {
     return { start, samples, maxPlaying: snap.maxPlaying, maxReelVideos: snap.maxReelVideos, reelVideosNow: snap.reelVideosNow };
   });
 
+  await scenario("lista", "Lista do cardápio: rolar 20 pratos com vídeo tocando sozinho (fast4g)", async () => {
+    phone = await newPhone();
+    await phone.clearCache();
+    await phone.network("fast4g");
+    await phone.goto(`${APP}/r/${A.slug}`);
+    await phone.waitFor(`document.querySelectorAll(".kd-dish").length > 20`, 90000, "lista de pratos");
+    await sleep(1500);
+    mediaNet.reset();
+    const firstFrame = [];
+    for (let i = 0; i < 20; i++) {
+      await phone.evaluate(`window.scrollBy(0, 140)`);
+      await sleep(600);
+      // Quanto tempo a linha visível leva para mostrar o vídeo andando.
+      const t0 = Date.now();
+      const ok = await phone.waitFor(`[...document.querySelectorAll(".kd-dish-media video")].some((v) => !v.paused && v.currentTime > 0)`, 4000, "vídeo da lista").then(() => true).catch(() => false);
+      firstFrame.push(ok ? Date.now() - t0 : null);
+    }
+    const net = mediaNet.summary();
+    const snap = await probe();
+    return { MB: net.MB, requests: net.requests, perVideoKB: net.perVideoKB, playingWithinMs: firstFrame, maxPlaying: snap.maxPlaying };
+  });
+
+  await scenario("conexao-3g", "navigator.connection em 3G: o que cada vizinho recebe para baixar", async () => {
+    await openReels(A.slug, { network: "fast4g" });
+    await swipeAndMeasure("up", 2500);
+    // O DevTools muda o navigator.connection da página (effectiveType "3g"); a mídia segue no enlace do servidor.
+    await send("Network.emulateNetworkConditions", { offline: false, latency: 400, downloadThroughput: 700_000 / 8, uploadThroughput: 250_000 / 8 }, phone.sessionId);
+    await sleep(2500);
+    return {
+      effectiveType: await phone.evaluate(`navigator.connection?.effectiveType`),
+      preload: await phone.evaluate(`(() => { const i = ${activeIndex}; const at = (n) => document.querySelector('.kd-reel[data-index="' + n + '"] video')?.preload ?? null; return { anterior: at(i - 1), atual: at(i), proximo: at(i + 1) }; })()`),
+    };
+  });
+
   await scenario("troca-restaurante", "Troca de restaurante: nada do anterior continua tocando ou baixando", async () => {
     await openReels(A.slug, { network: "fast4g" });
     await phone.goto(`${APP}/r/${B.slug}`);
@@ -595,7 +680,7 @@ try {
     await sleep(3000);
     const net = mediaNet.summary();
     const names = await phone.evaluate(`[...document.querySelectorAll(".kd-reels-bubble-name")].map(e => e.textContent)`);
-    return { requestsToA: Object.keys(net.perVideoKB).filter((u) => !u.startsWith("v=b")).length, urlsSeen: Object.keys(net.perVideoKB), bubbles: names.length, playingNow: (await probe()).playingNow };
+    return { perVideoKB: net.perVideoKB, requestsToA: Object.keys(net.perVideoKB).filter((u) => !u.startsWith("v=b")).length, urlsSeen: Object.keys(net.perVideoKB), bubbles: names.length, playingNow: (await probe()).playingNow };
   });
 
   fs.writeFileSync(path.join(OUT, "perf-results.json"), JSON.stringify({ mode: MODE, at: new Date().toISOString(), results, checks }, null, 2));

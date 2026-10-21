@@ -195,6 +195,8 @@ async function newPage({ phone = true, contextId } = {}) {
   const s = (m, p) => send(m, p, sessionId);
   await s("Page.enable");
   await s("Runtime.enable");
+  // A máquina de teste pode pedir "reduzir movimento" (Windows sem animações), e aí nada toca sozinho.
+  await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
   if (phone) {
     await s("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
     await s("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });

@@ -1623,7 +1623,20 @@
 
 .kd-areas { margin-bottom: var(--k-s4); }
 .kd-areas-fees { display: grid; gap: var(--k-s3); padding-bottom: var(--k-s4); border-bottom: 1px solid var(--k-line); }
-.kd-areas-modes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kd-areas-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kd-map-editor { display: grid; gap: var(--k-s3); }
+.kd-map-toolbar, .kd-map-section > header { display: flex; align-items: center; justify-content: space-between; gap: var(--k-s3); }
+.kd-map-toolbar small, .kd-map-section small { display: block; margin-top: 3px; color: var(--k-muted); }
+.kd-map-canvas { width: 100%; min-height: 410px; border: 1px solid var(--k-line); border-radius: var(--k-r-md); background: var(--k-sunken); overflow: hidden; }
+.kd-map-error, .kd-map-preview, .kd-map-origin { margin: 0; padding: var(--k-s3); border-radius: var(--k-r-md); background: var(--k-sunken); color: var(--k-muted); }
+.kd-map-error, .kd-map-preview.is-out { background: var(--k-danger-soft); color: var(--k-danger); }
+.kd-map-preview.is-ok { background: var(--k-success-soft); color: var(--k-success); }
+.kd-map-origin { display: flex; align-items: center; justify-content: space-between; gap: var(--k-s3); }
+.kd-map-origin p { margin: 0; }
+.kd-map-section { display: grid; gap: var(--k-s2); padding-top: var(--k-s3); border-top: 1px solid var(--k-line); }
+.kd-map-row { display: grid; grid-template-columns: minmax(100px, .7fr) minmax(150px, 1.4fr) minmax(100px, .7fr) minmax(110px, .7fr) auto auto; gap: var(--k-s2); align-items: end; padding: var(--k-s2); border: 1px solid var(--k-line); border-radius: var(--k-r-md); }
+.kd-map-row label { display: grid; gap: 5px; font-size: var(--k-fs-xs); color: var(--k-muted); }
+.kd-map-row input[type="color"] { width: 38px; height: 38px; padding: 2px; border: 1px solid var(--k-line); border-radius: var(--k-r-sm); background: var(--k-surface); }
 .kd-areas-cities { display: grid; gap: var(--k-s3); }
 .kd-areas-cities-head { display: flex; align-items: center; justify-content: space-between; gap: var(--k-s2); }
 .kd-areas-title { margin: 0; font-size: var(--k-fs-lg); font-weight: 700; }
@@ -1706,6 +1719,9 @@
   .kd-area-table td.kd-area-feecell { grid-area: fee; justify-self: start; font-size: inherit; }
   .kd-area-table td.kd-area-toggle { grid-area: toggle; justify-self: end; font-size: inherit; }
   .kd-area-table td.kd-area-actions { grid-area: actions; width: auto; font-size: inherit; }
+  .kd-map-toolbar, .kd-map-section > header, .kd-map-origin { align-items: stretch; flex-direction: column; }
+  .kd-map-canvas { min-height: 320px; }
+  .kd-map-row { grid-template-columns: 1fr 1fr; }
 }
 
 /* Modal de áreas de entrega */

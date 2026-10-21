@@ -16,11 +16,15 @@ export async function GET(req: NextRequest) {
     const district = (params.get("district") || "").slice(0, 100);
     const uf = (params.get("uf") || "").slice(0, 2);
     const ibgeCode = (params.get("ibgeCode") || "").slice(0, 7);
+    const placeId = (params.get("placeId") || "").slice(0, 300);
+    const street = (params.get("street") || "").slice(0, 200);
+    const number = (params.get("number") || "").slice(0, 20);
+    const cep = (params.get("cep") || "").slice(0, 10);
 
     if (!restaurantId) return json(req, { error: "missing_restaurant", message: "Informe o restaurante." }, 400);
     if (!city) return json(req, { error: "missing_city", message: "Informe a cidade." }, 400);
 
-    const result = await calculateDeliveryFee(restaurantId, city, district, uf || undefined, ibgeCode || undefined);
+    const result = await calculateDeliveryFee(restaurantId, city, district, uf || undefined, ibgeCode || undefined, { placeId: placeId || undefined, street: street || undefined, number: number || undefined, cep: cep || undefined });
 
     // Cidade atendida mas bairro não reconhecido (ou ainda não informado): devolve a lista para o cliente escolher.
     let servedNeighborhoods: { name: string; slug: string }[] | undefined;

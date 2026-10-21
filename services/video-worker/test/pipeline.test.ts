@@ -11,8 +11,8 @@ import { before, beforeEach, describe, test } from "node:test";
 import { videoPaths, type OriginalRef, type ProductVideoDoc, type PublishedVideo } from "../src/contract.ts";
 import type { Config } from "../src/config.ts";
 import { silentLogger } from "../src/log.ts";
-import { encode, makeThumbnail, planFor, probe, validateOutput } from "../src/media.ts";
-import { decideClaim, decidePublish, handleObjectFinalized, NotFoundError, type BlobStore, type Deps, type StorageEvent, type VideoRepo } from "../src/pipeline.ts";
+import { encode, encodeVariant, hasEncoder, makeThumbnail, planFor, probe, validateOutput } from "../src/media.ts";
+import { decideClaim, decidePublish, handleObjectFinalized, MAX_VARIANT_RATIO, NotFoundError, type BlobStore, type Deps, type StorageEvent, type VideoRepo } from "../src/pipeline.ts";
 import * as fx from "./fixtures.ts";
 
 const R = "rest00000000000000a1";
@@ -27,6 +27,7 @@ const config: Config = {
   preset: "veryfast",
   audioBitrate: "96k",
   maxBitrate: "4M",
+  variants: [],
   deleteOriginalAfterSuccess: true,
   dailyQuota: 30,
   retentionDays: 7,
@@ -66,7 +67,7 @@ function makeRepo(w: World): VideoRepo {
       const product = w.products.get(ref.productId) ?? null;
       const d = decidePublish(doc, product, ref.videoId, attemptId);
       if (!d.ok) return d;
-      const video: PublishedVideo = { id: ref.videoId, width: r.width, height: r.height, duration: r.duration, optimizedPath: r.optimizedPath, thumbnailPath: r.thumbnailPath, optimizedSize: r.optimizedSize, originalSize: r.originalSize };
+      const video: PublishedVideo = { id: ref.videoId, width: r.width, height: r.height, duration: r.duration, optimizedPath: r.optimizedPath, thumbnailPath: r.thumbnailPath, optimizedSize: r.optimizedSize, originalSize: r.originalSize, ...(r.variants.length ? { variants: r.variants } : {}) };
       w.products.set(ref.productId, { ...product, videoUrl: r.optimizedUrl, videoPoster: r.thumbnailUrl, video });
       w.videos.set(ref.videoId, { ...doc, status: "ready", ...r, leaseUntil: undefined });
       if (d.previous) w.videos.set(d.previous.id, { ...w.videos.get(d.previous.id), status: "canceled", supersededBy: ref.videoId });
@@ -110,8 +111,8 @@ function makeBlobs(w: World): BlobStore {
   };
 }
 
-const deps = (): Deps => ({
-  config,
+const deps = (over: Partial<Config> = {}): Deps => ({
+  config: { ...config, ...over },
   log: silentLogger,
   repo: makeRepo(world),
   blobs: makeBlobs(world),
@@ -119,8 +120,10 @@ const deps = (): Deps => ({
     probe: (f) => probe(fx.tools, f),
     plan: (p) => planFor(p),
     encode: (i, o, plan, s, strategy) => encode(fx.tools, i, o, plan, s, strategy),
-    validate: (f, src, exp) => validateOutput(fx.tools, f, src, exp),
+    validate: (f, src, exp, codec) => validateOutput(fx.tools, f, src, exp, codec),
     thumbnail: (i, o, plan, d, tmp) => makeThumbnail(fx.tools, i, o, plan, d, tmp),
+    variant: (i, o, plan, kind, s) => encodeVariant(fx.tools, i, o, plan, kind, s),
+    canEncode: (kind) => hasEncoder(fx.tools, kind === "av1" ? "libsvtav1" : "libx264"),
   },
   now: () => clock,
   newId: () => randomUUID(),
@@ -243,6 +246,62 @@ describe("worker: fluxo completo", () => {
     assert.ok(world.removed.includes(old.optimized) && world.removed.includes(old.thumbnail));
     assert.equal(world.videos.get(first.videoId)!.status, "canceled");
     assert.equal(world.videos.get(first.videoId)!.supersededBy, second.videoId);
+  });
+
+  test("versões extras ligadas: publicadas no produto, menores que a principal, e removidas na substituição", async (t) => {
+    if (!ffmpeg) return t.skip("ffmpeg indisponível");
+    const av1 = await hasEncoder(fx.tools, "libsvtav1");
+    const first = await uploadOriginal(await fx.realFood("carne tabua.mp4"));
+    assert.equal((await handleObjectFinalized(first.ev, deps({ variants: ["540p", "360p", "av1"] }))).outcome, "ready");
+    const video = world.products.get(P)!.video!;
+    const byKind = Object.fromEntries((video.variants ?? []).map((v) => [v.kind, v]));
+    assert.deepEqual(Object.keys(byKind).sort(), av1 ? ["360p", "540p", "av1"] : ["360p", "540p"]);
+    assert.deepEqual([byKind["540p"].width, byKind["540p"].height], [540, 960]);
+    assert.deepEqual([byKind["360p"].width, byKind["360p"].height], [360, 640]);
+    if (av1) assert.equal(byKind.av1.codec, "av1");
+    for (const v of video.variants!) {
+      assert.ok(v.size <= video.optimizedSize * MAX_VARIANT_RATIO, `${v.kind} não ficou bem menor`);
+      assert.equal(v.path, videoPaths(R, P, first.videoId, "mp4").variant(v.kind));
+      assert.ok(world.blobs.has(v.path), `${v.kind} enviado`);
+      assert.match(v.url, /videos%2Foptimized%2F.*\.(540p|360p|av1)\.mp4/);
+    }
+    // Vídeo novo do mesmo produto: as versões do anterior saem junto com ele.
+    const second = await uploadOriginal(await fx.blackStart());
+    assert.equal((await handleObjectFinalized(second.ev, deps()).then((o) => o.outcome)), "ready");
+    for (const v of video.variants!) assert.ok(world.removed.includes(v.path), `${v.kind} do anterior removida`);
+    assert.equal(world.products.get(P)!.video?.variants, undefined);
+  });
+
+  test("migração (--versoes): reenviar o otimizado remonta a principal sem perda e acrescenta as versões", async (t) => {
+    if (!ffmpeg) return t.skip("ffmpeg indisponível");
+    const first = await uploadOriginal(await fx.realFood("pizzavideo.mp4"));
+    await handleObjectFinalized(first.ev, deps());
+    const before = world.products.get(P)!.video!;
+    assert.equal(before.variants, undefined);
+    // O script copia o arquivo otimizado publicado para um original novo.
+    const second = await uploadOriginal(world.blobs.get(before.optimizedPath)!);
+    assert.equal((await handleObjectFinalized(second.ev, deps({ variants: ["540p", "360p"] }))).outcome, "ready");
+    const after = world.products.get(P)!.video!;
+    assert.equal(world.videos.get(second.videoId)!.strategy, "remux", "a principal não é recomprimida");
+    assert.equal(after.optimizedSize <= before.optimizedSize * 1.01, true);
+    assert.deepEqual((after.variants ?? []).map((v) => v.kind).sort(), ["360p", "540p"]);
+    assert.ok(world.removed.includes(before.optimizedPath), "arquivos do vídeo anterior removidos");
+  });
+
+  test("versões extras não ampliam: vídeo pequeno fica só com a principal", async (t) => {
+    if (!ffmpeg) return t.skip("ffmpeg indisponível");
+    const { ev } = await uploadOriginal(await fx.small360Webm(), undefined, "webm");
+    assert.equal((await handleObjectFinalized({ ...ev, contentType: "video/webm" }, deps({ variants: ["540p", "360p"] }))).outcome, "ready");
+    assert.equal(world.products.get(P)!.video?.variants, undefined);
+  });
+
+  test("cancelado com versões ligadas: tudo o que subiu é apagado", async (t) => {
+    if (!ffmpeg) return t.skip("ffmpeg indisponível");
+    const { videoId, ev } = await uploadOriginal(await fx.realFood("hamburguer.mp4"));
+    world.beforePublish = () => world.videos.set(videoId, { ...world.videos.get(videoId), status: "canceled" });
+    assert.equal((await handleObjectFinalized(ev, deps({ variants: ["540p"] }))).outcome, "discarded_canceled");
+    const paths = videoPaths(R, P, videoId, "mp4");
+    assert.ok([paths.optimized, paths.thumbnail, paths.variant("540p")].every((x) => world.removed.includes(x)));
   });
 
   test("cota diária do estabelecimento", async () => {

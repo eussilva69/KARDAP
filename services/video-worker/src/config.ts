@@ -1,4 +1,5 @@
 /** Configuração por variáveis de ambiente, com padrões seguros e limites para não estourar custo. */
+import { VIDEO_VARIANT_KINDS, type VideoVariantKind } from "./contract.ts";
 
 export type Config = {
   bucket: string;
@@ -10,6 +11,11 @@ export type Config = {
   preset: string;
   audioBitrate: string;
   maxBitrate: string;
+  /**
+   * Versões extras de cada vídeo (VIDEO_VARIANTS, ex.: "540p,360p,av1"). Vazio = só a principal: cada versão
+   * soma tempo de processamento e armazenamento, então só liga com custo aprovado (docs/VIDEOS.md).
+   */
+  variants: VideoVariantKind[];
   deleteOriginalAfterSuccess: boolean;
   /** Vídeos por estabelecimento em 24 h (0 = sem limite). */
   dailyQuota: number;
@@ -46,6 +52,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (!/^\d{2,3}k$/.test(audioBitrate)) throw new Error("AUDIO_BITRATE deve ser como 96k");
   const maxBitrate = env.MAX_VIDEO_BITRATE?.trim() || "4M";
   if (!/^\d{1,2}M$/.test(maxBitrate)) throw new Error("MAX_VIDEO_BITRATE deve ser como 4M");
+  const variants = (env.VIDEO_VARIANTS ?? "").split(",").map((v) => v.trim()).filter(Boolean);
+  const unknown = variants.filter((v) => !VIDEO_VARIANT_KINDS.includes(v as VideoVariantKind));
+  if (unknown.length) throw new Error(`VIDEO_VARIANTS aceita ${VIDEO_VARIANT_KINDS.join(", ")} (recebido: ${unknown.join(", ")})`);
   return {
     bucket,
     port: int(env, "PORT", 8080, 1, 65535),
@@ -56,6 +65,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     preset,
     audioBitrate,
     maxBitrate,
+    variants: [...new Set(variants)] as VideoVariantKind[],
     deleteOriginalAfterSuccess: bool(env, "DELETE_ORIGINAL_AFTER_SUCCESS", true),
     dailyQuota: int(env, "DAILY_VIDEO_QUOTA", 30, 0, 10_000),
     retentionDays: int(env, "ORIGINAL_RETENTION_DAYS", 7, 1, 365),

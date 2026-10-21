@@ -82,6 +82,9 @@ export type ProductVideoDoc = {
   optimizedUrl?: string;
   thumbnailUrl?: string;
   optimizedSize?: number;
+  /** Versões extras geradas (ver `VideoVariantKind`); `variantPaths` serve à limpeza. */
+  variants?: { kind: VideoVariantKind; width: number; height: number; size: number }[];
+  variantPaths?: string[];
   /** (1 − otimizado / original) × 100, com uma casa decimal. Pode ser negativo. */
   reductionPercent?: number;
   width?: number;
@@ -95,6 +98,25 @@ export type ProductVideoDoc = {
   supersededBy?: string;
 };
 
+/**
+ * Versões extras do mesmo vídeo, além da principal (H.264 até 720p), geradas só quando ligadas no worker
+ * (`VIDEO_VARIANTS`). O cardápio escolhe uma ao criar o player, conforme a rede e o aparelho.
+ * - "540p" / "360p": H.264 menor, para redes fracas e para a miniatura da lista;
+ * - "av1": AV1 no tamanho da principal, menor com a mesma qualidade, só onde o aparelho decodifica por hardware.
+ */
+export type VideoVariantKind = "540p" | "360p" | "av1";
+export const VIDEO_VARIANT_KINDS: readonly VideoVariantKind[] = ["540p", "360p", "av1"];
+
+export type PublishedVariant = {
+  kind: VideoVariantKind;
+  codec: "h264" | "av1";
+  width: number;
+  height: number;
+  size: number;
+  path: string;
+  url: string;
+};
+
 /** Resumo publicado no produto (restaurantes/{id}/produtos/{productId}.video), gravado só pelo worker. */
 export type PublishedVideo = {
   id: string;
@@ -105,6 +127,8 @@ export type PublishedVideo = {
   thumbnailPath: string;
   optimizedSize: number;
   originalSize: number;
+  /** Ausente em vídeos processados sem versões extras (o cardápio usa só `videoUrl`). */
+  variants?: PublishedVariant[];
 };
 
 /** Como o arquivo final foi produzido. */
@@ -123,6 +147,8 @@ export function videoPaths(restaurantId: string, productId: string, videoId: str
     original: `${base}/videos/original/${videoId}.${ext}`,
     optimized: `${base}/videos/optimized/${videoId}.mp4`,
     thumbnail: `${base}/thumbnails/${videoId}.webp`,
+    /** O ponto separa o tipo da versão: identificadores não têm ponto, então não há ambiguidade. */
+    variant: (kind: VideoVariantKind) => `${base}/videos/optimized/${videoId}.${kind}.mp4`,
   };
 }
 
@@ -137,11 +163,12 @@ export function parseOriginalPath(path: string): OriginalRef | null {
   return m ? { restaurantId: m[1], productId: m[2], videoId: m[3], ext: m[4] as VideoExtension } : null;
 }
 
-/** Qualquer arquivo de vídeo gerenciado (original, otimizado ou miniatura) de um produto. */
-export function parseManagedPath(path: string): (Omit<OriginalRef, "ext"> & { kind: "original" | "optimized" | "thumbnail" }) | null {
-  const m = /^restaurantes\/([A-Za-z0-9_-]{6,64})\/produtos\/([A-Za-z0-9_-]{6,64})\/(videos\/original|videos\/optimized|thumbnails)\/([A-Za-z0-9_-]{6,64})\.(mp4|mov|webm|webp)$/.exec(path);
+/** Qualquer arquivo de vídeo gerenciado (original, otimizado, versão extra ou miniatura) de um produto. */
+export function parseManagedPath(path: string): (Omit<OriginalRef, "ext"> & { kind: "original" | "optimized" | "variant" | "thumbnail" }) | null {
+  const m = /^restaurantes\/([A-Za-z0-9_-]{6,64})\/produtos\/([A-Za-z0-9_-]{6,64})\/(videos\/original|videos\/optimized|thumbnails)\/([A-Za-z0-9_-]{6,64})(\.(?:540p|360p|av1))?\.(mp4|mov|webm|webp)$/.exec(path);
   if (!m) return null;
-  const kind = m[3] === "videos/original" ? "original" : m[3] === "videos/optimized" ? "optimized" : "thumbnail";
+  if (m[5] && (m[3] !== "videos/optimized" || m[6] !== "mp4")) return null;
+  const kind = m[3] === "videos/original" ? "original" : m[3] === "thumbnails" ? "thumbnail" : m[5] ? "variant" : "optimized";
   return { restaurantId: m[1], productId: m[2], videoId: m[4], kind };
 }
 

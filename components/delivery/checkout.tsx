@@ -13,12 +13,13 @@ import { OrderSummary, type PricedLine } from "./cart-sheet";
 import { useDeliveryFee, type DeliveryMenuConfig } from "./use-delivery";
 
 type Field = "name" | "phone" | "cep" | "street" | "number" | "district" | "city" | "payment" | "change";
-type CheckoutStep = 1 | 2 | 3;
+type CheckoutStep = 1 | 2 | 3 | 4;
 const FIELD_ORDER: Field[] = ["name", "phone", "cep", "street", "number", "district", "city", "payment", "change"];
 const STEP_FIELDS: Record<CheckoutStep, Field[]> = {
   1: ["name", "phone"],
   2: ["cep", "street", "number", "district", "city"],
   3: ["payment", "change"],
+  4: [],
 };
 
 function formatPhone(raw: string): string {
@@ -97,7 +98,7 @@ export function Checkout({
   const submittedRef = useRef(false);
   const idempotencyKey = useRef(`del_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
 
-  const fee = useDeliveryFee(restaurantId, config, city, district, uf, ibgeCode);
+  const fee = useDeliveryFee(restaurantId, config, city, district, uf, ibgeCode, { placeId, street, number, cep });
   const feeCents = fee.feeCents ?? 0;
   const subtotal = lines.reduce((sum, line) => sum + line.priceCents * line.quantity, 0);
   const count = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -334,6 +335,10 @@ export function Checkout({
 
       // Pagamento online: gera PIX ou preference do Mercado Pago antes de avançar.
       if (ONLINE_PAYMENT_METHODS.has(paymentMethod)) {
+        if (paymentMethod === "cartao_online") {
+          onSuccess({ orderId: data.orderId, orderNumber: data.orderNumber, payment: { type: "card_setup" }, totalCents });
+          return;
+        }
         const payRes = await fetch("/api/delivery/payment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -347,6 +352,10 @@ export function Checkout({
         });
         const payData = await payRes.json().catch(() => ({}));
         if (!payRes.ok) throw new Error(payData.message || "Não foi possível iniciar o pagamento online.");
+        if (payData.alreadyPaid) {
+          onSuccess({ orderId: data.orderId, orderNumber: data.orderNumber });
+          return;
+        }
         onSuccess({ orderId: data.orderId, orderNumber: data.orderNumber, payment: payData as OnlinePaymentData, totalCents: subtotal + feeCents });
         return;
       }
@@ -381,7 +390,7 @@ export function Checkout({
 
       <nav className="kd-checkout-progress" aria-label="Etapas do pedido">
         <ol>
-          {(["Dados", "Entrega", "Confirmar"] as const).map((label, index) => {
+          {(["Carrinho", "Entrega", "Pagamento", "Revisão"] as const).map((label, index) => {
             const itemStep = (index + 1) as CheckoutStep;
             const done = itemStep < step;
             return (
@@ -394,7 +403,7 @@ export function Checkout({
             );
           })}
         </ol>
-        <p>Etapa {step} de 3</p>
+        <p>Etapa {step} de 4</p>
       </nav>
 
       <form id="kd-checkout" onSubmit={handleSubmit} noValidate>
@@ -491,7 +500,7 @@ export function Checkout({
           />
           <TextField id="kd-co-street" label="Rua" autoComplete="address-line1" value={street} error={errors.street} onChange={manual("street", setStreet)} />
           <div className="kd-checkout-grid">
-            <TextField id="kd-co-number" label="Número" inputMode="text" value={number} error={errors.number} maxLength={20} onChange={onField("number", setNumber)} />
+            <TextField id="kd-co-number" label="Número" inputMode="text" value={number} error={errors.number} maxLength={20} onChange={manual("number", setNumber)} />
             <TextField id="kd-co-complement" label="Complemento" optional autoComplete="address-line2" placeholder="Apto, bloco…" value={complement} maxLength={80} onChange={(e) => setComplement(e.target.value)} />
           </div>
           {cities.length > 0 ? (
@@ -632,6 +641,26 @@ export function Checkout({
         </section>
           </div>
         )}
+        {step === 4 && (
+          <div className="kd-checkout-step k-enter">
+            <section className="kd-checkout-section" aria-labelledby="kd-co-review">
+              <header className="kd-menu-section-head">
+                <h2 id="kd-co-review" className="kd-menu-section-title">Revise antes de enviar</h2>
+                <p>Nada será enviado ao restaurante até você confirmar abaixo.</p>
+              </header>
+              <ul className="kd-checkout-items">
+                {lines.map((line) => <li key={line.key}><span><span className="kd-num">{line.quantity}×</span> {line.name}{line.notes && <small>{line.notes}</small>}</span><span className="kd-num">{brl(line.priceCents * line.quantity)}</span></li>)}
+              </ul>
+              <dl className="kd-checkout-review">
+                <div><dt>Cliente</dt><dd>{name} · {phone}</dd></div>
+                <div><dt>Entrega</dt><dd>{street}, {number}{complement ? `, ${complement}` : ""} · {district}, {city}</dd></div>
+                <div><dt>Pagamento</dt><dd>{PAYMENT_METHOD_LABELS[paymentMethod] || paymentMethod}</dd></div>
+              </dl>
+              <OrderSummary subtotalCents={subtotal} feeCents={fee.matched ? fee.feeCents : null} feeLoading={fee.loading} count={count} />
+              {formError && <div className="kd-sheet-error" role="alert"><AlertCircle size={18} aria-hidden /><p>{formError}</p></div>}
+            </section>
+          </div>
+        )}
       </form>
 
       <div className="kd-menu-bar">
@@ -641,9 +670,9 @@ export function Checkout({
               Voltar
             </Button>
           )}
-          {step < 3 ? (
+          {step < 4 ? (
             <Button type="button" variant="signal" size="lg" loading={step === 2 && fee.loading} disabled={step === 2 && fee.loading} onClick={continueCheckout}>
-              {step === 1 ? "Continuar para entrega" : fee.loading ? "Calculando entrega…" : "Continuar para pagamento"}
+              {step === 1 ? "Continuar para entrega" : step === 2 ? (fee.loading ? "Calculando entrega…" : "Continuar para pagamento") : "Revisar pedido"}
             </Button>
           ) : (
           <Button
@@ -655,7 +684,7 @@ export function Checkout({
             disabled={busy || !fee.matched || lines.length === 0}
             icon={<Check size={19} aria-hidden />}
           >
-            {submitting ? "Enviando pedido…" : fee.loading ? "Calculando frete…" : !fee.matched ? "Endereço não atendido" : `Confirmar pedido · ${brl(totalCents)}`}
+            {submitting ? "Enviando pedido…" : fee.loading ? "Calculando frete…" : !fee.matched ? "Endereço não atendido" : `Confirmar e enviar pedido · ${brl(totalCents)}`}
           </Button>
           )}
         </div>

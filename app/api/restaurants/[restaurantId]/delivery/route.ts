@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { authenticate, json, errorResponse, preflight, readJson } from "@/lib/billing/http";
-import { getDeliveryConfigForTeam, saveDeliveryConfig } from "@/lib/delivery/server";
+import { getDeliveryConfigForTeam, getDeliveryMapOrigin, saveDeliveryConfig } from "@/lib/delivery/server";
 import { monthlyUsage, getSubscriptionEntitlements } from "@/lib/billing/server";
 
 /**
@@ -15,9 +15,10 @@ export async function GET(req: NextRequest, { params }: { params: { restaurantId
   try {
     const caller = await authenticate(req);
     const { restaurantId } = params;
-    const [config, entitlements] = await Promise.all([
+    const [config, entitlements, mapOrigin] = await Promise.all([
       getDeliveryConfigForTeam(restaurantId, caller.uid),
       getSubscriptionEntitlements(restaurantId),
+      getDeliveryMapOrigin(restaurantId),
     ]);
     const usage = await monthlyUsage(restaurantId, entitlements);
     const slug = await getRestaurantSlug(restaurantId);
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: { restaurantId
       deliveryUrl: slug ? `/r/${slug}/delivery` : null,
       planAllowsDelivery: entitlements.features.deliveryManagement,
       subscriptionValid: entitlements.valid,
+      mapOrigin,
     });
   } catch (error) {
     return errorResponse(req, "delivery config", error);

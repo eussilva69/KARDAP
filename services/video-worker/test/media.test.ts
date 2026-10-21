@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { before, describe, test } from "node:test";
 import { reductionPercent } from "../src/contract.ts";
-import { DARK_FRAME_LUMA, encode, hasFastStart, makeThumbnail, MediaError, planFor, probe, run, targetSize, validateOutput, type EncodeSettings } from "../src/media.ts";
+import { DARK_FRAME_LUMA, encode, encodeVariant, hasEncoder, hasFastStart, makeThumbnail, MediaError, planFor, probe, run, targetSize, validateOutput, variantCodec, variantPlan, type EncodeSettings, type Plan } from "../src/media.ts";
 import * as fx from "./fixtures.ts";
 
 const settings: EncodeSettings = { crf: 25, preset: "medium", audioBitrate: "96k", maxBitrate: "4M" };
@@ -33,6 +33,21 @@ describe("dimensões de saída", () => {
     assert.deepEqual(targetSize(640, 360), { width: 640, height: 360 });
     assert.deepEqual(targetSize(3840, 1600), { width: 1280, height: 532 });
     assert.deepEqual(targetSize(853, 480), { width: 852, height: 480 });
+  });
+});
+
+describe("versões extras: plano", () => {
+  const main = (width: number, height: number): Plan => ({ strategy: "transcode", width, height, capFps: false, keepAudio: true, reasons: [] });
+  test("menores na mesma proporção, nas duas orientações", () => {
+    assert.deepEqual([variantPlan(main(1280, 720), "540p")?.width, variantPlan(main(1280, 720), "540p")?.height], [960, 540]);
+    assert.deepEqual([variantPlan(main(720, 1280), "360p")?.width, variantPlan(main(720, 1280), "360p")?.height], [360, 640]);
+    assert.equal(variantPlan(main(1280, 720), "540p")?.strategy, "transcode");
+  });
+  test("nunca amplia nem repete a principal; AV1 fica no tamanho da principal", () => {
+    assert.equal(variantPlan(main(640, 360), "540p"), null);
+    assert.equal(variantPlan(main(640, 360), "360p"), null);
+    assert.equal(variantPlan(main(960, 540), "540p"), null);
+    assert.deepEqual([variantPlan(main(640, 360), "av1")?.width, variantPlan(main(640, 360), "av1")?.height], [640, 360]);
   });
 });
 
@@ -130,5 +145,34 @@ describe("FFmpeg real", { skip: false }, () => {
       );
       assert.ok(score >= 0.95, `SSIM ${score} abaixo de 0,95 em ${name}`);
     }
+  });
+
+  test("versões extras dos vídeos reais: tamanho, tempo e qualidade contra a principal", async (t) => {
+    if (!ffmpeg) return t.skip("ffmpeg indisponível");
+    const av1 = await hasEncoder(fx.tools, "libsvtav1");
+    for (const name of ["pizzavideo.mp4", "hamburguer.mp4", "carne tabua.mp4"] as const) {
+      const input = await fx.realFood(name);
+      const r = await process(input, `v-${name.replace(/\W/g, "-")}`);
+      const work = await fx.workDir(`variants-${name.replace(/\W/g, "-")}`);
+      const main: Plan = { ...r.plan, width: r.checked.width, height: r.checked.height };
+      const parts = [`principal ${(r.checked.size / 1048576).toFixed(2)} MB`];
+      for (const kind of ["540p", "360p", ...(av1 ? (["av1"] as const) : [])] as const) {
+        const plan = variantPlan(main, kind)!;
+        const out = join(work, `${kind}.mp4`);
+        const started = Date.now();
+        await encodeVariant(fx.tools, input, out, plan, kind, settings);
+        const ms = Date.now() - started;
+        const v = await validateOutput(fx.tools, out, r.source, { width: plan.width, height: plan.height }, variantCodec(kind));
+        assert.ok(await hasFastStart(out), `${kind} sem faststart`);
+        // SSIM contra o original no tamanho da principal: mede o que a pessoa vê na mesma tela.
+        const ssim = await run(fx.tools.ffmpeg, ["-hide_banner", "-nostdin", "-i", out, "-i", input, "-lavfi", `[0:v]scale=${main.width}:${main.height}:flags=bicubic[a];[1:v]scale=${main.width}:${main.height}:flags=lanczos,setsar=1[ref];[a][ref]ssim`, "-f", "null", "-"], 300_000);
+        const score = Number(/All:([\d.]+)/.exec(ssim.stderr)?.[1] ?? 0);
+        parts.push(`${kind} ${v.width}×${v.height} ${(v.size / 1048576).toFixed(2)} MB (${reductionPercent(r.checked.size, v.size)}% menor, SSIM ${score.toFixed(4)}, ${(ms / 1000).toFixed(1)} s)`);
+        assert.ok(v.size < r.checked.size, `${kind} não ficou menor que a principal em ${name}`);
+        assert.ok(score >= (kind === "360p" ? 0.94 : 0.96), `SSIM ${score} baixo em ${kind}/${name}`);
+      }
+      t.diagnostic(`${name}: ${parts.join("; ")}`);
+    }
+    if (!av1) t.diagnostic("FFmpeg sem libsvtav1: versão AV1 não testada");
   });
 });

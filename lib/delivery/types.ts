@@ -107,6 +107,9 @@ export type FeeCalculation = {
   matchType?: NeighborhoodMatchType;
   usedDefaultFee?: boolean;
   feeCents: number;
+  distanceKm?: number;
+  mapAreaId?: string;
+  mapAreaName?: string;
 };
 
 export type DeliveryOrder = {
@@ -122,7 +125,9 @@ export type DeliveryOrder = {
   discountCents: number;
   totalCents: number;
   paymentMethod: string;
-  paymentStatus: "pendente" | "pago";
+  paymentStatus: "pendente" | "processando" | "pago" | "recusado" | "cancelado" | "estornado";
+  /** Somente pedidos liberados aparecem na fila operacional/PDV. */
+  operationalReady: boolean;
   notes?: string;
   feeCalculation?: FeeCalculation;
   origin: {
@@ -144,7 +149,34 @@ export type DeliveryOrder = {
 
 // ───────────────────────── Configuração do delivery ─────────────────────────
 
-export type FeeMode = "taxa_fixa" | "taxa_por_bairro";
+export type FeeMode = "taxa_fixa" | "taxa_por_bairro" | "area_mapa";
+
+export type GeoPoint = { lat: number; lng: number };
+
+export type DeliveryDistanceBand = {
+  id: string;
+  name: string;
+  maxDistanceKm: number;
+  feeCents: number;
+  enabled: boolean;
+};
+
+export type DeliveryMapArea = {
+  id: string;
+  name: string;
+  center: GeoPoint;
+  radiusKm: number;
+  feeCents: number;
+  enabled: boolean;
+  color: string;
+};
+
+export type DeliveryMapConfig = {
+  storeLocation: GeoPoint | null;
+  storePlaceId?: string;
+  distanceBands: DeliveryDistanceBand[];
+  customAreas: DeliveryMapArea[];
+};
 
 export type ServedCity = {
   ibgeCode: string;
@@ -182,6 +214,9 @@ export type DeliveryFeeResult = {
   usedDefaultFee?: boolean;
   matched: boolean;
   reason?: string;
+  distanceKm?: number;
+  mapAreaId?: string;
+  mapAreaName?: string;
 };
 
 export function slugifyNeighborhood(name: string): string {
@@ -217,6 +252,7 @@ export type DeliveryConfig = {
   defaultNeighborhoodFeeCents?: number | null;
   /** Taxa por bairro: atende bairros que não estão na lista da cidade, cobrando a taxa padrão. */
   serveUnlistedNeighborhoods?: boolean;
+  mapConfig?: DeliveryMapConfig;
 };
 
 export const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
@@ -231,6 +267,7 @@ export const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
   servedCities: [],
   defaultNeighborhoodFeeCents: null,
   serveUnlistedNeighborhoods: false,
+  mapConfig: { storeLocation: null, distanceBands: [], customAreas: [] },
 };
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -262,3 +299,5 @@ export type DeliveryCheckoutPayload = {
   notes?: string;
   idempotencyKey: string;
 };
+
+export type DeliveryPublicPaymentStatus = DeliveryOrder["paymentStatus"];

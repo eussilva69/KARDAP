@@ -106,6 +106,7 @@ export function createVideoRepo(db: Firestore, leaseMs: number, maxAttempts: num
           thumbnailPath: r.thumbnailPath,
           optimizedSize: r.optimizedSize,
           originalSize: r.originalSize,
+          ...(r.variants.length ? { variants: r.variants } : {}),
         };
         // O cardápio continua lendo `videoUrl`: vídeos antigos e novos funcionam do mesmo jeito.
         tx.update(productRef(db, ref), { videoUrl: r.optimizedUrl, videoPoster: r.thumbnailUrl, video: published, updatedAt: new Date().toISOString() });
@@ -121,6 +122,8 @@ export function createVideoRepo(db: Firestore, leaseMs: number, maxAttempts: num
           height: r.height,
           duration: r.duration,
           strategy: r.strategy,
+          variants: r.variants.map((v) => ({ kind: v.kind, width: v.width, height: v.height, size: v.size })),
+          variantPaths: r.variants.map((v) => v.path),
           processingMs: r.processingMs,
           processedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),

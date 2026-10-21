@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, Clock, Copy, ExternalLink, LoaderCircle } from "lucide-react";
 import { brl } from "@/lib/format";
 import { Button } from "@/components/ui/primitives";
+import { CardPayment, initMercadoPago } from "@mercadopago/sdk-react";
+
+const mercadoPagoPublicKey = process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY || "";
+if (mercadoPagoPublicKey) initMercadoPago(mercadoPagoPublicKey, { locale: "pt-BR" });
 
 type PixPayment = {
   type: "pix";
@@ -19,7 +23,10 @@ type CheckoutProPayment = {
   preferenceId: string;
 };
 
-export type OnlinePaymentData = PixPayment | CheckoutProPayment;
+type CardSetupPayment = { type: "card_setup" };
+type CardResultPayment = { type: "card"; paymentId: string; status: string; statusDetail?: string | null };
+
+export type OnlinePaymentData = PixPayment | CheckoutProPayment | CardSetupPayment | CardResultPayment;
 
 /** Tela de pagamento online mostrada após criação do pedido. */
 export function PaymentStep({
@@ -98,6 +105,35 @@ export function PaymentStep({
     const s = total % 60;
     return `${m}:${String(s).padStart(2, "0")}`;
   };
+
+  if (payment.type === "card_setup") {
+    if (!mercadoPagoPublicKey) return <div className="kd-payment-step"><div className="kd-sheet-error" role="alert"><AlertCircle size={18} aria-hidden /><p>Pagamento por cartão indisponível: configure a chave pública do Mercado Pago.</p></div></div>;
+    return (
+      <div className="kd-payment-step">
+        <header className="kd-track-head">
+          <h1>Pagamento com cartão</h1>
+          <p>Pedido <b className="kd-num">#{String(orderNumber).padStart(3, "0")}</b> · {restaurantName}</p>
+          <p className="kd-num kd-payment-total">{brl(totalCents)}</p>
+        </header>
+        <CardPayment
+          initialization={{ amount: totalCents / 100 }}
+          customization={{ paymentMethods: { minInstallments: 1, maxInstallments: 12 } }}
+          onSubmit={async (card) => {
+            const res = await fetch("/api/delivery/payment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurantId, orderId, paymentMethod: "cartao_online", card }) });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || "Não foi possível processar o cartão.");
+            if (data.status === "approved") onPaidRef.current();
+            else if (data.status === "rejected") throw new Error("Pagamento recusado. Confira os dados ou use outro cartão.");
+          }}
+          onError={(error) => console.error("[Mercado Pago Brick]", error)}
+        />
+      </div>
+    );
+  }
+
+  if (payment.type === "card") {
+    return <div className="kd-payment-step"><div className="kd-pix-waiting" role="status"><LoaderCircle className="k-spin" size={18} aria-hidden /><span>Aguardando confirmação do pagamento…</span></div></div>;
+  }
 
   if (payment.type === "checkout_pro") {
     return (

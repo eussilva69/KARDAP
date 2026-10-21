@@ -232,6 +232,20 @@ export async function geocodeCep(cep: string): Promise<ParsedAddress | null> {
   return address;
 }
 
+/** Geocodifica um endereço completo no servidor. O resultado fica apenas no cache curto em memória. */
+export async function geocodeAddress(address: string): Promise<ParsedAddress | null> {
+  const normalized = address.replace(/\s+/g, " ").trim().slice(0, 500);
+  if (normalized.length < 6) return null;
+  const cacheKey = `address:${normalized.toLowerCase()}`;
+  const cached = addressCache.get(cacheKey);
+  if (cached) return cached;
+  const result = await geocodeRequest({ address: normalized, components: "country:BR" });
+  if (!result?.location) return null;
+  const parsed = await withIbge({ formatted: result.formatted, ...parseComponents(result.components), location: result.location, placeId: result.placeId });
+  addressCache.set(cacheKey, parsed);
+  return parsed;
+}
+
 /** Centro aproximado da cidade (viés das sugestões de endereço para a região do restaurante). */
 export async function cityCenter(name: string, uf: string, placeId?: string): Promise<{ lat: number; lng: number } | null> {
   const cacheKey = `${name}|${uf}`.toLowerCase();

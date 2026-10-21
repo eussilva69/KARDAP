@@ -11,9 +11,16 @@
 //   3. a cópia dispara o worker, que otimiza e troca o videoUrl do produto quando a versão nova estiver pronta.
 // O arquivo antigo continua no Storage (o produto só muda de URL depois da validação no worker).
 //
+// --versoes: em vez de vídeos antigos, pega os já otimizados que ainda não têm as versões extras (540p, 360p, AV1;
+// só faz sentido com VIDEO_VARIANTS ligado no worker). A cópia é a versão otimizada: o worker a remonta sem perda
+// (já é H.264 compatível) e gera as versões a partir dela. Quando o vídeo novo fica pronto, o worker apaga os
+// arquivos do anterior. Cada vídeo conta na cota diária do estabelecimento (DAILY_VIDEO_QUOTA): use --max.
+//   node scripts/reprocess-legacy-videos.mjs --versoes [--aplicar] [--max=20] [--restaurante=<id>]
+//
 // Requer FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY e o bucket
 // (FIREBASE_ADMIN_STORAGE_BUCKET ou NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET), lidos do ambiente ou do .env.local.
 import { existsSync, readFileSync } from "node:fs";
+import { pipeline } from "node:stream/promises";
 import { cert, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
@@ -31,6 +38,7 @@ loadEnvFile(".env");
 
 const args = process.argv.slice(2);
 const apply = args.includes("--aplicar");
+const variantsMode = args.includes("--versoes");
 const max = Number(args.find((a) => a.startsWith("--max="))?.split("=")[1] ?? 20);
 const onlyRestaurant = args.find((a) => a.startsWith("--restaurante="))?.split("=")[1];
 
@@ -57,6 +65,12 @@ function legacyPath(url, restaurantId) {
   return path.startsWith(`restaurantes/${restaurantId}/produtos/videos/`) ? path : null;
 }
 
+/** Caminho da versão otimizada publicada, só se for deste restaurante e produto. */
+function optimizedPath(video, restaurantId, productId) {
+  const path = String(video?.optimizedPath || "");
+  return path.startsWith(`restaurantes/${restaurantId}/produtos/${productId}/videos/optimized/`) && /^[A-Za-z0-9_-]{6,64}\.mp4$/.test(path.split("/").pop()) ? path : null;
+}
+
 async function detectExt(file) {
   const [head] = await file.download({ start: 0, end: 15 });
   if (head.length >= 12 && head.toString("latin1", 4, 8) === "ftyp") return head.toString("latin1", 8, 12) === "qt  " ? "mov" : "mp4";
@@ -73,10 +87,11 @@ for (const restaurant of restaurants) {
   for (const product of products.docs) {
     if (queued >= max) break;
     const data = product.data();
-    if (!data.videoUrl || data.video) continue;
-    const source = legacyPath(data.videoUrl, restaurant.id);
+    if (!data.videoUrl) continue;
+    if (variantsMode ? !data.video || data.video.variants?.length : data.video) continue;
+    const source = variantsMode ? optimizedPath(data.video, restaurant.id, product.id) : legacyPath(data.videoUrl, restaurant.id);
     if (!source || !ID.test(product.id)) {
-      skipped.push(`${restaurant.id}/${product.id}: URL fora do padrão antigo`);
+      skipped.push(`${restaurant.id}/${product.id}: ${variantsMode ? "vídeo otimizado fora do padrão" : "URL fora do padrão antigo"}`);
       continue;
     }
     const file = bucket.file(source);
@@ -102,12 +117,17 @@ for (const restaurant of restaurants) {
         originalSize: Number(meta.size),
         contentType: TYPES[ext],
         fileName: source.split("/").pop().slice(0, 120),
-        createdBy: "script:reprocess-legacy-videos",
+        createdBy: variantsMode ? "script:reprocess-legacy-videos:versoes" : "script:reprocess-legacy-videos",
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         uploadCompletedAt: FieldValue.serverTimestamp(),
       });
-      await file.copy(bucket.file(original), { contentType: TYPES[ext], metadata: { legacySource: source, videoId: videoRef.id, productId: product.id } });
+      if (variantsMode) {
+        // Objeto novo, sem herdar os metadados do otimizado: "kardapGenerated" faria o worker ignorar o evento.
+        await pipeline(file.createReadStream(), bucket.file(original).createWriteStream({ resumable: false, metadata: { contentType: TYPES[ext], metadata: { legacySource: source, videoId: videoRef.id, productId: product.id } } }));
+      } else {
+        await file.copy(bucket.file(original), { contentType: TYPES[ext], metadata: { legacySource: source, videoId: videoRef.id, productId: product.id } });
+      }
     }
     queued++;
   }

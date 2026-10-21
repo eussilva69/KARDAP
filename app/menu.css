@@ -1049,7 +1049,7 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-checkout-head .kd-overline { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kd-checkout-head h1 { margin: 0; font-size: var(--k-fs-lg); font-weight: 750; line-height: 1.2; }
 .kd-checkout-progress { display: grid; gap: var(--k-s2); padding: var(--k-s4) var(--k-s4) var(--k-s3); background: var(--k-canvas); }
-.kd-checkout-progress ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
+.kd-checkout-progress ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
 .kd-checkout-progress li { position: relative; min-width: 0; }
 .kd-checkout-progress li:not(:last-child)::after { content: ""; position: absolute; top: 15px; right: calc(-50% + 17px); left: calc(50% + 17px); height: 2px; background: var(--k-line-strong); }
 .kd-checkout-progress li.is-done::after { background: var(--k-ink); }
@@ -1072,6 +1072,10 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-checkout-items { display: grid; gap: var(--k-s2); margin: 0; padding: 0; list-style: none; font-size: var(--k-fs-md); }
 .kd-checkout-items li { display: flex; justify-content: space-between; gap: var(--k-s3); }
 .kd-checkout-items small { display: block; color: var(--k-muted); font-size: var(--k-fs-sm); }
+.kd-checkout-review { display: grid; gap: var(--k-s3); margin: 0; }
+.kd-checkout-review div { display: grid; gap: 3px; padding-bottom: var(--k-s3); border-bottom: 1px solid var(--k-line); }
+.kd-checkout-review dt { color: var(--k-muted); font-size: var(--k-fs-xs); font-weight: 700; }
+.kd-checkout-review dd { margin: 0; color: var(--k-ink); font-size: var(--k-fs-sm); }
 
 @media (min-width: 640px) {
   .kd-checkout-progress,
