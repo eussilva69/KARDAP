@@ -205,7 +205,9 @@
         document.querySelectorAll('a[href="/login"], a[href="/criar-conta"]').forEach(link => {
           if (link.getAttribute('href') === '/login') {
             link.href = '/dashboard';
-            link.textContent = 'Acessar Dashboard';
+            const label = link.querySelector('span');
+            if (label) label.textContent = 'Acessar Dashboard';
+            else link.textContent = 'Acessar Dashboard';
             link.setAttribute('aria-label', 'Acessar Dashboard');
           }
         });
