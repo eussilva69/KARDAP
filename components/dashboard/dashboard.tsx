@@ -2673,7 +2673,7 @@ function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, accoun
     );
 
   return (
-    <div className="kd-stack">
+    <div className="kd-reports-page">
       <PageHeader
         title="Relatórios"
         description={
@@ -2685,20 +2685,27 @@ function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, accoun
         }
       />
       {entitlements.features.orderManagement && <SalesReport foods={foods} />}
-      {entitlements.features.orderManagement && <h2 className="kd-h3">Chamados das mesas</h2>}
-      <div className="kd-stats">
-        {stats.map(([value, label, Icon], i) => (
-          <div key={label} className="kd-stat k-enter" style={stagger(i)}>
-            <span className="kd-stat-icon" aria-hidden><Icon size={20} strokeWidth={1.8} /></span>
-            <div className="kd-stat-body">
-              <span className="kd-stat-value kd-num">{value}</span>
-              <span className="kd-stat-label">{label}</span>
-            </div>
+      <section className="kd-report-calls" aria-labelledby="kd-report-calls-title">
+        <div className="kd-report-section-head">
+          <div>
+            <p className="kd-eyebrow">Operação do salão</p>
+            <h2 id="kd-report-calls-title">Chamados das mesas</h2>
+            <p>Veja a demanda da equipe, os motivos recorrentes e as mesas que mais precisam de atendimento.</p>
           </div>
-        ))}
-      </div>
-      <div className="kd-split">
-        <Card className="k-enter" style={stagger(2)} aria-labelledby="kd-rep-types">
+        </div>
+        <div className="kd-stats kd-report-call-stats">
+          {stats.map(([value, label, Icon], i) => (
+            <div key={label} className="kd-stat k-enter" style={stagger(i)}>
+              <span className="kd-stat-icon" aria-hidden><Icon size={20} strokeWidth={1.8} /></span>
+              <div className="kd-stat-body">
+                <span className="kd-stat-value kd-num">{value}</span>
+                <span className="kd-stat-label">{label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="kd-report-insights">
+        <Card className="kd-report-panel k-enter" style={stagger(2)} aria-labelledby="kd-rep-types">
           <CardHead id="kd-rep-types" title="Motivos dos chamados" />
           {byType.length ? (
             <BarList rows={byType} />
@@ -2706,7 +2713,7 @@ function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, accoun
             <EmptyState compact title="Sem chamados ainda" description="Quando as mesas começarem a chamar, os motivos mais comuns aparecem aqui." />
           )}
         </Card>
-        <Card className="k-enter" style={stagger(3)} aria-labelledby="kd-rep-tables">
+        <Card className="kd-report-panel k-enter" style={stagger(3)} aria-labelledby="kd-rep-tables">
           <CardHead id="kd-rep-tables" title="Mesas que mais chamaram" />
           {byTable.length ? (
             <BarList rows={byTable} />
@@ -2718,7 +2725,8 @@ function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, accoun
             />
           )}
         </Card>
-      </div>
+        </div>
+      </section>
       {categories.length > 0 && noPhoto > 0 && (
         <Callout
           icon={<ImageOff size={18} aria-hidden />}

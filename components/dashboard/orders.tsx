@@ -344,7 +344,7 @@ function Delta({ value, suffix }: { value: number | null; suffix: string }) {
   );
 }
 
-function SalesTiles({ s }: { s: SalesSummary }) {
+function SalesTiles({ s, report = false }: { s: SalesSummary; report?: boolean }) {
   const tiles: { label: string; value: string; icon: typeof Wallet; delta?: React.ReactNode }[] = [
     { label: "Faturamento hoje", value: brl(s.today.revenueCents), icon: Wallet, delta: <Delta value={growth(s.today.revenueCents, s.lastWeekSameTime.revenueCents)} suffix="vs. semana passada até esta hora" /> },
     { label: "Pedidos hoje", value: String(s.today.orders), icon: Receipt, delta: <Delta value={growth(s.today.orders, s.lastWeekSameTime.orders)} suffix="vs. semana passada até esta hora" /> },
@@ -352,7 +352,7 @@ function SalesTiles({ s }: { s: SalesSummary }) {
     { label: "Faturamento do mês", value: brl(s.month.revenueCents), icon: TrendingUp, delta: <Delta value={growth(s.last7.revenueCents, s.prev7.revenueCents)} suffix="últimos 7 dias vs. 7 anteriores" /> },
   ];
   return (
-    <div className="kd-stats kd-sales-tiles">
+    <div className={`kd-stats kd-sales-tiles ${report ? "kd-report-sales-tiles" : ""}`.trim()}>
       {tiles.map(({ label, value, icon: Icon, delta }, i) => (
         <div key={label} className="kd-stat k-enter" style={stagger(i)}>
           <span className="kd-stat-icon" aria-hidden><Icon size={20} strokeWidth={1.8} /></span>
@@ -482,10 +482,16 @@ export function SalesReport({ foods }: { foods: any[] }) {
   const openHours = s.hourly.filter((h) => h.hour >= 10);
   const peakHour = s.hourly.reduce((best, h) => (h.orders > best.orders ? h : best), s.hourly[0]);
   return (
-    <section className="kd-stack kd-sales" aria-labelledby="kd-report-sales">
-      <h2 id="kd-report-sales" className="kd-h3">Vendas</h2>
-      <SalesTiles s={s} />
-      <Card aria-labelledby="kd-rep-daily">
+    <section className="kd-report-sales" aria-labelledby="kd-report-sales">
+      <div className="kd-report-section-head">
+        <div>
+          <p className="kd-eyebrow">Desempenho comercial</p>
+          <h2 id="kd-report-sales">Vendas</h2>
+          <p>Receita, volume de pedidos e os principais padrões dos últimos 30 dias.</p>
+        </div>
+      </div>
+      <SalesTiles s={s} report />
+      <Card className="kd-report-chart-card" aria-labelledby="kd-rep-daily">
         <CardHead id="kd-rep-daily" title="Faturamento por dia" kicker={`Últimos 30 dias · ${brl(s.last30.revenueCents)} em ${plural(s.last30.orders, "pedido", "pedidos")}`} />
         <ColumnChart
           label="Faturamento por dia, últimos 30 dias"
@@ -507,8 +513,8 @@ export function SalesReport({ foods }: { foods: any[] }) {
           </div>
         </details>
       </Card>
-      <div className="kd-split">
-        <Card aria-labelledby="kd-rep-channel">
+      <div className="kd-report-insights">
+        <Card className="kd-report-panel" aria-labelledby="kd-rep-channel">
           <CardHead id="kd-rep-channel" title="Vendas por canal" kicker="Últimos 30 dias" />
           <ul className="kd-bars kd-bars--money">
             {s.byChannel.map((c, i) => (
@@ -520,7 +526,7 @@ export function SalesReport({ foods }: { foods: any[] }) {
             ))}
           </ul>
         </Card>
-        <Card aria-labelledby="kd-rep-hours">
+        <Card className="kd-report-panel" aria-labelledby="kd-rep-hours">
           <CardHead id="kd-rep-hours" title="Pedidos por horário" kicker={`Pico às ${peakHour.hour}h · últimos 30 dias`} />
           <ColumnChart
             label="Pedidos por hora do dia, últimos 30 dias"
@@ -529,8 +535,8 @@ export function SalesReport({ foods }: { foods: any[] }) {
           />
         </Card>
       </div>
-      <div className="kd-split">
-        <Card flush aria-labelledby="kd-rep-top">
+      <div className="kd-report-insights kd-report-insights--operations">
+        <Card className="kd-report-panel kd-report-products" flush aria-labelledby="kd-rep-top">
           <div className="kd-card-pad"><CardHead id="kd-rep-top" title="Produtos mais vendidos" kicker="Últimos 30 dias · margem estimada pelo custo cadastrado" /></div>
           <div className="kd-table-scroll">
             <table className="kd-data-table">
@@ -548,7 +554,7 @@ export function SalesReport({ foods }: { foods: any[] }) {
             </table>
           </div>
         </Card>
-        <Card aria-labelledby="kd-rep-delivery">
+        <Card className="kd-report-panel kd-report-delivery" aria-labelledby="kd-rep-delivery">
           <CardHead id="kd-rep-delivery" title="Desempenho das entregas" kicker="Delivery próprio e marketplaces · 30 dias" />
           <dl className="kd-facts-grid">
             <div><dt>Pedidos com entrega</dt><dd className="kd-num">{s.delivery.orders}</dd></div>
