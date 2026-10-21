@@ -53,12 +53,15 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0e1912",
+  themeColor: "#111111",
 };
+
+const themeBootstrap = `(()=>{try{const p=location.pathname;let k="";if(p.startsWith("/dashboard"))k="kardap-theme-panel:v1";else if(p.startsWith("/r/")){const s=p.split("/")[2]||"";k="kardap-theme-menu:"+s+":v1"}if(!k)return;const t=JSON.parse(localStorage.getItem(k)||"null");if(!t||!t.vars)return;const r=document.documentElement;Object.entries(t.vars).forEach(([n,v])=>r.style.setProperty(n,String(v)));if(t.scheme)r.style.colorScheme=t.scheme}catch{}})()`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={archivo.variable}>
+    <html lang="pt-BR" className={archivo.variable} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head>
       <body>
         {children}
       </body>

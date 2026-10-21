@@ -69,7 +69,7 @@ export default function DeliveryMenu({
   /** Conta demonstrativa: aviso discreto de dados simulados no rodapé. */
   isDemo?: boolean;
 }) {
-  useRootPalette(brand.palette);
+  useRootPalette(brand.palette, true, `kardap-theme-menu:${slug}:v1`);
   const customColors = !isDefaultPalette(brand.palette);
   const reducedMotion = usePrefersReducedMotion();
   const saveData = useSaveData();

@@ -39,28 +39,37 @@ import { readReturnTo, readSsoState, safeRedirect } from "@/lib/sso/config";
 import { clearAccountStorage, linkedUid, readSsoSession, watchSsoState } from "@/lib/sso/client";
 
 /* Cada tela carrega só o próprio código: quem abre o cardápio pelo QR não baixa o painel. */
-const Dashboard = dynamic(() => import("@/components/dashboard/dashboard"), { loading: () => <DashboardSkeleton /> });
+const loadDashboard = () => import("@/components/dashboard/dashboard");
+const loadAdminPanel = () => import("@/components/admin/admin-panel");
+const Dashboard = dynamic(loadDashboard, { loading: () => <DashboardSkeleton /> });
 const AuthPage = dynamic(() => import("@/components/auth/auth-page"), { loading: () => <PanelLoading /> });
 const PublicMenu = dynamic(() => import("@/components/menu/public-menu"), { loading: () => <MenuSkeleton /> });
 const DeliveryMenu = dynamic(() => import("@/components/delivery/delivery-menu"), { loading: () => <MenuSkeleton /> });
 const Onboarding = dynamic(() => import("@/components/site/onboarding"), { loading: () => <PanelLoading /> });
 const LegalPage = dynamic(() => import("@/components/site/legal-page"), { loading: () => <PanelLoading /> });
-const AdminPanel = dynamic(() => import("@/components/admin/admin-panel"), { loading: () => <PanelLoading /> });
+const AdminPanel = dynamic(loadAdminPanel, { loading: () => <DashboardSkeleton /> });
 const PlansPage = dynamic(() => import("@/components/site/plans-page"), { loading: () => <PanelLoading /> });
 const LogoutPage = dynamic(() => import("@/components/auth/logout-page"), { loading: () => <PanelLoading /> });
 
-const defaultBrand: Brand = { logo: "", cover: "", logoSmall: "", coverSmall: "", palette: null, customPalette: null };
+const defaultBrand: Brand = {
+  logo: "", cover: "", logoSmall: "", coverSmall: "",
+  palette: null, customPalette: null, panelPalette: null, panelCustomPalette: null,
+};
 
 /** Marca vinda do Firestore ou do aparelho: só strings nas imagens e paleta validada (cores #rrggbb). */
 function normalizeBrand(raw: unknown): Brand {
   const b = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const menuPalette = readPalette(b.palette);
+  const legacyPanelPalette = menuPalette?.panel ? { ...menuPalette, panel: false } : null;
   return {
     logo: typeof b.logo === "string" ? b.logo : "",
     cover: typeof b.cover === "string" ? b.cover : "",
     logoSmall: typeof b.logoSmall === "string" ? b.logoSmall : "",
     coverSmall: typeof b.coverSmall === "string" ? b.coverSmall : "",
-    palette: readPalette(b.palette),
+    palette: menuPalette,
     customPalette: readPalette(b.customPalette),
+    panelPalette: readPalette(b.panelPalette) ?? legacyPanelPalette,
+    panelCustomPalette: readPalette(b.panelCustomPalette),
   };
 }
 const defaultSettings: RestaurantSettings = {
@@ -94,6 +103,10 @@ export default function App() {
   const query = useSearchParams();
   const router = useRouter();
   const inPanel = isPanelPath(path);
+  useEffect(() => {
+    if (inPanel) void loadDashboard();
+    if (isAdminPath(path)) void loadAdminPanel();
+  }, [inPanel, path]);
   // O SDK de login só carrega onde há sessão: painel, login e administração (não no cardápio público).
   const needsAuth = inPanel || isAuthPath(path) || isAdminPath(path);
 

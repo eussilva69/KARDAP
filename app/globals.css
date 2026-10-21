@@ -18,35 +18,35 @@
   --k-stretch-semi: 88%;
 
   /* Marca (medida na logo) */
-  --k-lousa: #0e1912;
-  --k-lousa-2: #17251b;
-  --k-lousa-3: #22342a;
-  --k-giz: #fcf5e4;
-  --k-giz-muted: #a9b3a6;
-  --k-cloche: #fdd737;
-  --k-cloche-hover: #f2c81c;
-  --k-cloche-soft: #fff3c2;
-  --k-cloche-line: #ead07a;
-  --k-cloche-ink: #6a5200;
-  --k-on-cloche: #14201a; /* texto sobre o amarelo: sempre escuro, também no tema escuro */
+  --k-lousa: #111111;
+  --k-lousa-2: #1f1f1f;
+  --k-lousa-3: #303030;
+  --k-giz: #ffffff;
+  --k-giz-muted: #c7c7c7;
+  --k-cloche: #111111;
+  --k-cloche-hover: #292929;
+  --k-cloche-soft: #ededed;
+  --k-cloche-line: #777777;
+  --k-cloche-ink: #111111;
+  --k-on-cloche: #ffffff;
   --k-signal-on-lousa: var(--k-cloche); /* amarelo sobre a lousa; vira giz se a paleta não tiver contraste */
   --k-giz-soft: #d6dcd3; /* texto de navegação sobre a lousa */
 
   /* Papel e tinta */
-  --k-canvas: #f3f1ea;
-  --k-surface: #fffefb;
-  --k-sunken: #eae7de;
-  --k-line: #e0dcd1;
-  --k-line-strong: #c9c4b6;
-  --k-control-line: #8f897b; /* bordas de campos: 3:1 sobre a superfície */
-  --k-ink: #14201a;
-  --k-ink-hover: #26352c;
-  --k-text-2: #3f4a42;
-  --k-muted: #5e665b;
-  --k-placeholder: #6f695d; /* 4,9:1 sobre a superfície dos campos */
+  --k-canvas: #ffffff;
+  --k-surface: #ffffff;
+  --k-sunken: #f1f1f1;
+  --k-line: #dedede;
+  --k-line-strong: #b8b8b8;
+  --k-control-line: #777777;
+  --k-ink: #111111;
+  --k-ink-hover: #292929;
+  --k-text-2: #333333;
+  --k-muted: #595959;
+  --k-placeholder: #666666;
   --k-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2314201a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  --k-on-ink: #fffefb;
-  --k-skel-hi: #f6f4ee;
+  --k-on-ink: #ffffff;
+  --k-skel-hi: #fafafa;
 
   /* Ação principal. Por padrão é a própria tinta; paletas do restaurante podem trocar (lib/palette.ts). */
   --k-primary: var(--k-ink);

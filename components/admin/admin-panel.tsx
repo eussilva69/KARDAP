@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { AlertTriangle, ArrowLeft, Bug, CircleDollarSign, Copy, ExternalLink, LayoutDashboard, LoaderCircle, LogOut, RotateCw, Search, ShieldAlert, ShieldCheck, Store, Trash2, Wallet } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/auth";
@@ -201,6 +202,7 @@ const SECTIONS = [
 ];
 
 function AdminApp({ path, identity, notify }: { path: string; identity: AdminIdentity; notify: Notify }) {
+  const router = useRouter();
   const [data, setData] = useState<{ items: AdminRestaurant[]; truncated: boolean } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -222,6 +224,10 @@ function AdminApp({ path, identity, notify }: { path: string; identity: AdminIde
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => SECTIONS.forEach(({ href }) => router.prefetch(href)), 250);
+    return () => clearTimeout(timer);
+  }, [router]);
 
   const rows = useMemo(() => (data?.items || []).map((r) => toRow(r, now)), [data, now]);
   const updateRow = (next: AdminRestaurant) =>
@@ -297,9 +303,18 @@ export function AdminFrame({
   notify: Notify;
   children: React.ReactNode;
 }) {
+  const [navigating, setNavigating] = useState(false);
+  useEffect(() => setNavigating(false), [section, detail]);
   const logout = () => signOutToLogin(notify);
   return (
-    <div className="kd-admin">
+    <div
+      className={`kd-admin ${navigating ? "is-navigating" : ""}`}
+      onClickCapture={(event) => {
+        const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href^='/admin']");
+        if (link && link.pathname !== window.location.pathname && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.button === 0) setNavigating(true);
+      }}
+    >
+      {navigating && <span className="kd-route-progress" role="status" aria-label="Carregando página" />}
       <a href="#kd-admin-main" className="kd-skip">
         Pular para o conteúdo
       </a>

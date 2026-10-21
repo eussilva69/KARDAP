@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { AlertCircle, AlertTriangle, Check, Paintbrush, Pencil, Trash2, Wand2 } from "lucide-react";
-import { Button, Card, CardHead, Switch, TextField } from "@/components/ui/primitives";
+import { Button, Card, CardHead, TextField } from "@/components/ui/primitives";
 import {
   DEFAULT_PALETTE_ID,
   PALETTE_FIELDS,
@@ -21,6 +21,7 @@ type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
 type Draft = { name: string; colors: PaletteColors; basedOn?: string };
 
 const CUSTOM_ID = "custom";
+type ThemeTarget = "menu" | "panel";
 
 /** Ponto de partida de "Começar do zero": neutro, para a pessoa definir tudo. */
 const BLANK: PaletteColors = { background: "#ffffff", text: "#111111", primary: "#111111", signal: "#ffd23f", brand: "#111111" };
@@ -132,11 +133,14 @@ export function PalettePicker({
   onPreview: (colors: PaletteColors | null) => void;
 }) {
   const [draft, setDraft] = useState<Draft | null>(null);
-  const selectedId = brand.palette?.id ?? DEFAULT_PALETTE_ID;
-  const panel = brand.palette?.panel ?? false;
-  const custom = brand.customPalette;
+  const [target, setTarget] = useState<ThemeTarget>("menu");
+  const paletteKey = target === "menu" ? "palette" : "panelPalette";
+  const customKey = target === "menu" ? "customPalette" : "panelCustomPalette";
+  const activePalette = brand[paletteKey];
+  const selectedId = activePalette?.id ?? DEFAULT_PALETTE_ID;
+  const custom = brand[customKey];
 
-  useEffect(() => onPreview(draft ? draft.colors : null), [draft, onPreview]);
+  useEffect(() => onPreview(target === "menu" && draft ? draft.colors : null), [draft, onPreview, target]);
   useEffect(() => () => onPreview(null), [onPreview]);
 
   const options: { id: string; name: string; description: string; colors: PaletteColors }[] = [
@@ -148,17 +152,17 @@ export function PalettePicker({
 
   /** Troca a paleta em uso, com desfazer (a escolha é salva na hora, como logo e capa). */
   const apply = (next: BrandPalette | null, message: string) => {
-    const previous = brand.palette;
-    setBrand((current) => ({ ...current, palette: next }));
-    afterSave(() => notify(message, "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, palette: previous })) }));
+    const previous = brand[paletteKey];
+    setBrand((current) => ({ ...current, [paletteKey]: next }));
+    afterSave(() => notify(message, "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, [paletteKey]: previous })) }));
   };
 
   const choose = (id: string) => {
     if (id === selectedId) return;
-    if (id === CUSTOM_ID && custom) return apply({ ...custom, panel }, `Paleta “${custom.name}” aplicada`);
+    if (id === CUSTOM_ID && custom) return apply({ ...custom, panel: false }, `Paleta “${custom.name}” aplicada`);
     const preset = presetById(id);
     if (!preset) return;
-    apply(preset.id === DEFAULT_PALETTE_ID ? null : paletteFromPreset(preset, panel), `Paleta “${preset.name}” aplicada`);
+    apply(preset.id === DEFAULT_PALETTE_ID ? null : paletteFromPreset(preset, false), `Paleta “${preset.name}” aplicada`);
   };
 
   const startFrom = (base: "selected" | "blank") => {
@@ -178,19 +182,19 @@ export function PalettePicker({
       name: draft.name.trim().slice(0, 40) || "Minha paleta",
       colors: draft.colors,
       ...(draft.basedOn ? { basedOn: draft.basedOn } : {}),
-      panel,
+      panel: false,
     };
-    const previous = { palette: brand.palette, customPalette: brand.customPalette };
-    setBrand((current) => ({ ...current, palette, customPalette: palette }));
+    const previous = { palette: brand[paletteKey], customPalette: brand[customKey] };
+    setBrand((current) => ({ ...current, [paletteKey]: palette, [customKey]: palette }));
     setDraft(null);
-    afterSave(() => notify(`Paleta “${palette.name}” salva e aplicada`, "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, ...previous })) }));
+    afterSave(() => notify(`Paleta “${palette.name}” salva e aplicada`, "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, [paletteKey]: previous.palette, [customKey]: previous.customPalette })) }));
   };
 
   const removeCustom = () => {
-    const previous = { palette: brand.palette, customPalette: brand.customPalette };
-    setBrand((current) => ({ ...current, customPalette: null, palette: current.palette?.id === CUSTOM_ID ? null : current.palette }));
+    const previous = { palette: brand[paletteKey], customPalette: brand[customKey] };
+    setBrand((current) => ({ ...current, [customKey]: null, [paletteKey]: current[paletteKey]?.id === CUSTOM_ID ? null : current[paletteKey] }));
     setDraft(null);
-    afterSave(() => notify("Paleta própria excluída", "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, ...previous })) }));
+    afterSave(() => notify("Paleta própria excluída", "success", { label: "Desfazer", onAction: () => setBrand((current) => ({ ...current, [paletteKey]: previous.palette, [customKey]: previous.customPalette })) }));
   };
 
   const setColor = (key: PaletteKey, value: string) => setDraft((d) => (d ? { ...d, colors: { ...d.colors, [key]: value } } : d));
@@ -200,7 +204,12 @@ export function PalettePicker({
   return (
     <Card>
       <CardHead kicker="Cores" title="Paleta de cores" id="kd-palette-title" />
-      <p className="kd-pal-intro">Vale para o cardápio que o cliente vê e, se você quiser, para este painel. A escolha é salva na hora.</p>
+      <p className="kd-pal-intro">Personalize o cardápio e o painel separadamente. Cada escolha é salva na hora.</p>
+
+      <div className="kd-theme-target" role="tablist" aria-label="Área a personalizar">
+        <button type="button" role="tab" aria-selected={target === "menu"} className={target === "menu" ? "is-active" : ""} onClick={() => { setDraft(null); setTarget("menu"); }}>Cardápio</button>
+        <button type="button" role="tab" aria-selected={target === "panel"} className={target === "panel" ? "is-active" : ""} onClick={() => { setDraft(null); setTarget("panel"); }}>Painel</button>
+      </div>
 
       <fieldset className="kd-pal-grid" aria-labelledby="kd-palette-title" disabled={Boolean(draft)}>
         {options.map((o) => (
@@ -229,27 +238,6 @@ export function PalettePicker({
               Começar do zero
             </Button>
           </div>
-          {selected.id !== DEFAULT_PALETTE_ID && (
-            <div className="kd-pal-panel">
-              <Switch
-                label="Usar também no painel"
-                description="Desligado, o painel de gestão fica com as cores do Kardap e só o cardápio usa a paleta."
-                checked={panel}
-                onChange={(checked) => {
-                  setBrand((current) => {
-                    if (!current.palette) return current;
-                    const nextPalette = { ...current.palette, panel: checked };
-                    const nextCustom =
-                      current.customPalette && current.palette.id === CUSTOM_ID
-                        ? { ...current.customPalette, panel: checked }
-                        : current.customPalette;
-                    return { ...current, palette: nextPalette, customPalette: nextCustom };
-                  });
-                  afterSave(() => notify(checked ? "Paleta aplicada também ao painel" : "Painel voltou às cores do Kardap"));
-                }}
-              />
-            </div>
-          )}
         </>
       )}
 

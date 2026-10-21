@@ -14,47 +14,6 @@
 .kd-menu-page.has-bar { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 .kd-menu-column { width: 100%; max-width: 640px; margin: 0 auto; }
 
-/* Tema escuro automático só com as cores do Kardap; com paleta do restaurante, valem as cores dele. */
-@media (prefers-color-scheme: dark) {
-  .kd-menu-page:not(.has-palette) {
-    --k-canvas: #0e1912;
-    --k-surface: #15231a;
-    --k-sunken: #1f3026;
-    --k-line: #26392d;
-    --k-line-strong: #3a5243;
-    --k-control-line: #6f8576;
-    --k-ink: #f4eedf;
-    --k-ink-hover: #ffffff;
-    --k-text-2: #d3d9cf;
-    --k-muted: #a9b3a6;
-    --k-placeholder: #8e998b;
-    --k-on-ink: #0e1912;
-    --k-logo-bg: #22342a;
-    --k-skel-hi: #2a3f31;
-    --k-success-ink: #8fd8ae;
-    --k-success-soft: #173326;
-    --k-danger-ink: #ffb4a8;
-    --k-danger-soft: #3a1d18;
-    --k-danger-line: #6b3329;
-    --k-warning-ink: #ffc27a;
-    --k-warning-soft: #3a2a12;
-    --k-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23f4eedf' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-    /* O vidro de :root foi calculado com a superfície clara: recalcula sobre a escura. */
-    --k-glass: rgb(21 35 26 / 0.55);
-    --k-glass-2: rgb(21 35 26 / 0.72);
-    --k-glass-3: rgb(21 35 26 / 0.88);
-    --k-glass-rim: var(--k-line);
-    --k-shadow-card: 0 20px 44px -28px rgb(0 0 0 / 0.55);
-    --k-focus: var(--k-giz);
-    /* Recalculadas aqui porque o padrão de :root aponta para a tinta clara. */
-    --k-primary: var(--k-ink);
-    --k-primary-hover: var(--k-ink-hover);
-    --k-on-primary: var(--k-on-ink);
-    --k-primary-ink: var(--k-ink);
-    color-scheme: dark;
-  }
-}
-
 /* ─────────────── Cabeçalho do restaurante ─────────────── */
 
 .kd-menu-hero { display: grid; gap: var(--k-s4); padding-bottom: var(--k-s4); }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { signOut } from "firebase/auth";
@@ -80,7 +81,7 @@ import { getFirebaseAuth } from "@/lib/auth";
 import { friendlyError, isQueued } from "@/lib/async";
 import { brl, elapsed, greeting, initial, plural, productCents, stagger } from "@/lib/format";
 import { useDialog, useNow, useRootPalette } from "@/lib/hooks";
-import { isDefaultPalette, paletteVars, type PaletteColors } from "@/lib/palette";
+import { isDefaultPalette, KARDAP_COLORS, paletteVars, type PaletteColors } from "@/lib/palette";
 import { PalettePicker } from "./palette-picker";
 import { accountState, canAccessFeature, effectiveSubscription, planLabel, toDate, trialDaysLeft, type SubscriptionSummary } from "@/lib/cakto/access";
 import {
@@ -105,19 +106,32 @@ import {
 } from "@/components/ui";
 import { KardapLogo } from "@/components/brand/logo";
 import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
-import { DeliveryPage } from "./delivery-page";
-import { FinancialPage } from "./financial-page";
 import { OrdersPage, SalesOverview, SalesReport } from "./orders";
 import { DemoResetCard } from "./demo";
 import { MenuHero } from "@/components/menu/menu-hero";
 import { DishRow } from "@/components/menu/dish-row";
-import { MyPlanPage } from "@/components/billing/my-plan-page";
 import { usePlanEntitlements, usePlanUsage } from "@/components/billing/hooks";
 import { PDVAccessButton, PlanLimitWarning, PlanUsageCard, MY_PLAN_PATH } from "@/components/billing/widgets";
 import { SubscriptionGate } from "@/components/billing/renewal-gate";
 import type { AccountInfo, Brand, Call, CallStatus, DashboardProps, Notify, RestaurantSettings } from "./types";
 
 export type { Brand, DashboardProps, DataLoaded, LoadErrors, Notify, RestaurantSettings } from "./types";
+
+const sectionSkeleton = () => (
+  <div className="kd-stack" role="status" aria-label="Carregando conteúdo">
+    <span className="kd-skel" style={{ width: "min(320px, 70%)", height: 40 }} />
+    <span className="kd-skel" style={{ height: 280 }} />
+  </div>
+);
+const DeliveryPage = dynamic(() => import("./delivery-page").then((module) => module.DeliveryPage), { loading: sectionSkeleton });
+const FinancialPage = dynamic(() => import("./financial-page").then((module) => module.FinancialPage), { loading: sectionSkeleton });
+const MyPlanPage = dynamic(() => import("@/components/billing/my-plan-page").then((module) => module.MyPlanPage), { loading: sectionSkeleton });
+
+function preloadPanelSection(href: string) {
+  if (href === "/dashboard/delivery") void import("./delivery-page");
+  if (href === "/dashboard/financeiro") void import("./financial-page");
+  if (href === "/dashboard/plano" || href === "/dashboard/assinatura") void import("@/components/billing/my-plan-page");
+}
 
 /* ───────────────────────── Utilidades ───────────────────────── */
 
@@ -355,6 +369,7 @@ export default function Dashboard(props: DashboardProps) {
   const status = planStatus(plan);
   const entitlements = usePlanEntitlements(account);
   const [drawer, setDrawer] = useState(false);
+  const [navigating, setNavigating] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const sideRef = useRef<HTMLElement>(null);
   const title = ALL_ITEMS.find((item) => item.href === path)?.label || "Painel";
@@ -372,16 +387,24 @@ export default function Dashboard(props: DashboardProps) {
       if (!raw) return;
       sessionStorage.removeItem("kardap-onboarding-notice");
       const notice = JSON.parse(raw) as { message?: string; label?: string; href?: string };
-      if (notice.message) notify(notice.message, "error", notice.label && notice.href ? { label: notice.label, onAction: () => (window.location.href = notice.href!) } : undefined);
+      if (notice.message) notify(notice.message, "error", notice.label && notice.href ? { label: notice.label, onAction: () => router.push(notice.href!) } : undefined);
     } catch {
       /* sem sessionStorage ou JSON inválido: ignora */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => setDrawer(false), [path]);
+  useEffect(() => {
+    setDrawer(false);
+    setNavigating(false);
+  }, [path]);
+  useEffect(() => {
+    const preload = () => ALL_ITEMS.forEach(({ href }) => router.prefetch(href));
+    const timer = window.setTimeout(preload, 250);
+    return () => clearTimeout(timer);
+  }, [router]);
   useDialog(sideRef, () => setDrawer(false), drawer);
-  useRootPalette(brand.palette, brand.palette?.panel === true);
+  useRootPalette(brand.panelPalette, true, "kardap-theme-panel:v1");
 
   const allLoaded = loaded.products && loaded.categories && loaded.tables;
   const [slowData, setSlowData] = useState(false);
@@ -427,7 +450,18 @@ export default function Dashboard(props: DashboardProps) {
   };
 
   return (
-    <div className="kd">
+    <div
+      className={`kd ${navigating ? "is-navigating" : ""}`}
+      onClickCapture={(event) => {
+        const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href^='/dashboard']");
+        if (link && link.pathname !== window.location.pathname && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.button === 0) setNavigating(true);
+      }}
+      onPointerOverCapture={(event) => {
+        const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href^='/dashboard']");
+        if (link) preloadPanelSection(link.pathname);
+      }}
+    >
+      {navigating && <span className="kd-route-progress" role="status" aria-label="Carregando página" />}
       <a href="#kd-main" className="kd-skip">
         Pular para o conteúdo
       </a>
@@ -2084,6 +2118,7 @@ function ProductForm({
 /* ───────────────────────── Mesas ───────────────────────── */
 
 function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, pendingTables, restaurantName, account }: DashboardProps) {
+  const router = useRouter();
   const [creating, setCreating] = useState(false);
   const entitlements = usePlanEntitlements(account);
   const limit = entitlements.limits.maxTables;
@@ -2094,7 +2129,7 @@ function TablesPage({ notify, tables, tableTokens, loaded, loadErrors, onRetry, 
   const [viewing, setViewing] = useState<string | null>(null);
 
   const create = async () => {
-    const upgrade = { label: "Fazer upgrade", onAction: () => (window.location.href = `${MY_PLAN_PATH}#planos`) };
+    const upgrade = { label: "Fazer upgrade", onAction: () => router.push(`${MY_PLAN_PATH}#planos`) };
     if (atLimit) {
       notify(limitMessage, "error", upgrade);
       return;
@@ -2743,7 +2778,7 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories,
   const [uploading, setUploading] = useState<"" | "logo" | "cover">("");
   /** Cores em edição no seletor de paleta (ainda não salvas). */
   const [draftColors, setDraftColors] = useState<PaletteColors | null>(null);
-  const previewColors = draftColors ?? (isDefaultPalette(brand.palette) ? null : brand.palette!.colors);
+  const previewColors = draftColors ?? (isDefaultPalette(brand.palette) ? KARDAP_COLORS : brand.palette!.colors);
   const previewChips = categories.filter((c: any) => c.active !== false).slice(0, 3).map((c: any) => String(c.name));
   const [pct, setPct] = useState(0);
   const [stage, setStage] = useState<UploadStage>("processing");
@@ -2816,7 +2851,7 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories,
       <div className="kd-stack">
         <PageHeader
           title="Personalização"
-          description="Logo, capa e cores do cardápio público. Cada alteração é salva na hora e aparece na prévia ao lado."
+          description="Logo, capa e cores independentes do cardápio e do painel. Cada alteração é salva na hora."
         />
         <Card flush>
           <ul className="kd-rows">
@@ -2862,7 +2897,7 @@ function BrandPage({ brand, setBrand, restaurantName, notify, foods, categories,
         <PalettePicker brand={brand} setBrand={setBrand} notify={notify} onPreview={setDraftColors} onSaved={onSaved} />
       </div>
       <figure className="kd-phone">
-        <div className="kd-phone-screen kd-menu" aria-hidden style={previewColors ? (paletteVars(previewColors) as React.CSSProperties) : undefined}>
+        <div className="kd-phone-screen kd-menu" aria-hidden style={paletteVars(previewColors) as React.CSSProperties}>
           <MenuHero name={restaurantName || "Seu estabelecimento"} brand={brand} table="Mesa 07" preview />
           <div className="kd-phone-chips kd-menu-chips">
             {(previewChips.length ? previewChips : ["Entradas", "Pratos", "Bebidas"]).map((name, i) => (

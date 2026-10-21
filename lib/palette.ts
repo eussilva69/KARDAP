@@ -38,19 +38,19 @@ export type BrandPalette = {
 
 export type PalettePreset = { id: string; name: string; description: string; colors: PaletteColors };
 
-export const DEFAULT_PALETTE_ID = "kardap";
+export const DEFAULT_PALETTE_ID = "default";
 
 /** Cores atuais do Kardap (app/globals.css). */
 export const KARDAP_COLORS: PaletteColors = {
-  background: "#f3f1ea",
-  text: "#14201a",
-  primary: "#14201a",
-  signal: "#fdd737",
-  brand: "#0e1912",
+  background: "#ffffff",
+  text: "#111111",
+  primary: "#111111",
+  signal: "#111111",
+  brand: "#111111",
 };
 
 export const PALETTE_PRESETS: PalettePreset[] = [
-  { id: "kardap", name: "Kardap", description: "Creme e verde-lousa. No cardápio, acompanha o modo escuro do celular.", colors: KARDAP_COLORS },
+  { id: DEFAULT_PALETTE_ID, name: "Padrão", description: "Preto e branco, minimalista e profissional.", colors: KARDAP_COLORS },
   {
     id: "cantina",
     name: "Cantina",
@@ -343,4 +343,5 @@ export function paletteFromPreset(preset: PalettePreset, panel = false): BrandPa
 }
 
 /** A paleta padrão do Kardap não sobrescreve nada (mantém o modo escuro automático do cardápio). */
-export const isDefaultPalette = (palette: BrandPalette | null | undefined) => !palette || palette.id === DEFAULT_PALETTE_ID;
+export const isDefaultPalette = (palette: BrandPalette | null | undefined) =>
+  !palette || palette.id === DEFAULT_PALETTE_ID || palette.id === "kardap";

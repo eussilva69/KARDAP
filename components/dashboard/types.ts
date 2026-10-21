@@ -30,6 +30,8 @@ export type Brand = {
   coverSmall: string;
   palette: BrandPalette | null;
   customPalette: BrandPalette | null;
+  panelPalette: BrandPalette | null;
+  panelCustomPalette: BrandPalette | null;
 };
 export type RestaurantSettings = {
   waiter: boolean;

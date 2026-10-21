@@ -357,3 +357,15 @@
   .kd-fin__kpi-grid { grid-template-columns: 1fr; }
 }
 .kd-admin-feature select { min-height: 32px; padding: 0 6px; border: 1px solid var(--k-line-strong); border-radius: var(--k-r-sm); background: var(--k-surface); color: var(--k-ink); font: inherit; font-size: var(--k-fs-sm); }
+.kd-admin .bg-white { background-color: var(--k-surface); }
+.kd-admin .bg-neutral-100 { background-color: var(--k-sunken); }
+.kd-admin .bg-neutral-900 { background-color: var(--k-primary); }
+.kd-admin .border-neutral-200 { border-color: var(--k-line); }
+.kd-admin .text-neutral-900 { color: var(--k-ink); }
+.kd-admin .text-neutral-700,
+.kd-admin .text-neutral-600 { color: var(--k-text-2); }
+.kd-admin .text-neutral-500,
+.kd-admin .text-neutral-400 { color: var(--k-muted); }
+.kd-admin .text-white { color: var(--k-on-primary); }
+.kd-admin .hover\:bg-neutral-50:hover { background-color: var(--k-sunken); }
+.kd-admin .hover\:bg-neutral-800:hover { background-color: var(--k-primary-hover); }

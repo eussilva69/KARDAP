@@ -121,7 +121,7 @@ function usePublicMenuData(slug: string, tableToken: string, retryKey: number, l
           id: data.id,
           name: typeof data.name === "string" ? data.name : "",
           establishmentType: typeof data.establishmentType === "string" ? data.establishmentType : "",
-          brand: { logo: "", cover: "", logoSmall: "", coverSmall: "", palette: null, customPalette: null, ...(data.brand as Partial<Brand> | undefined) },
+          brand: { logo: "", cover: "", logoSmall: "", coverSmall: "", palette: null, customPalette: null, panelPalette: null, panelCustomPalette: null, ...(data.brand as Partial<Brand> | undefined) },
           settings: (data.settings as Partial<RestaurantSettings> | undefined) || {},
         });
         setStatus("ready");
