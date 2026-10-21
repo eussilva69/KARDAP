@@ -1443,6 +1443,8 @@ function CategoryForm({ category, nextOrder, notify, onClose }: { category: any 
 
 /* ───────────────────────── Produtos ───────────────────────── */
 
+const PRODUCTS_PAGE_SIZE = 12;
+
 function MiniSwitch({ checked, label, onChange, busy }: { checked: boolean; label: string; onChange: () => void; busy?: boolean }) {
   return (
     <button type="button" role="switch" aria-checked={checked} aria-label={label} className="kd-mini-switch" onClick={onChange} disabled={busy} aria-busy={busy || undefined}>
@@ -1466,6 +1468,7 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
   const [toggling, setToggling] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | "new" | null>(null);
   const [removing, setRemoving] = useState<any | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PRODUCTS_PAGE_SIZE);
   const activeCategories = categories.filter((c) => c.active);
   const categoryInfo = useCategoryInfo(categories);
 
@@ -1493,6 +1496,14 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
     return true;
   });
   const hasFilters = Boolean(query || categoryFilter || mediaFilter);
+  const visibleProducts = filtered.slice(0, visibleCount);
+  const availableCount = foods.filter((food) => food.available !== false).length;
+  const videoCount = foods.filter((food) => Boolean(food.videoUrl)).length;
+
+  useEffect(() => {
+    setVisibleCount(PRODUCTS_PAGE_SIZE);
+  }, [query, categoryFilter, mediaFilter]);
+
   const clearFilters = () => {
     setQuery("");
     setCategoryFilter("");
@@ -1518,7 +1529,7 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
   };
 
   return (
-    <div className="kd-stack">
+    <div className="kd-stack kd-products-page">
       <PageHeader
         title="Produtos"
         description="Tudo o que aparece no cardápio. Acabou um prato? Desligue “No cardápio”: ele some para o cliente e continua salvo aqui."
@@ -1547,8 +1558,26 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
         </Callout>
       )}
 
-      <div className="kd-group">
-      <div className="kd-toolbar" role="search">
+      <div className="kd-product-overview" aria-label="Resumo do catálogo">
+        <div>
+          <span>Produtos</span>
+          <strong className="kd-num">{foods.length}</strong>
+          <small>cadastrados</small>
+        </div>
+        <div>
+          <span>No cardápio</span>
+          <strong className="kd-num">{availableCount}</strong>
+          <small>{foods.length - availableCount} ocultos</small>
+        </div>
+        <div>
+          <span>Com vídeo</span>
+          <strong className="kd-num">{videoCount}</strong>
+          <small>{foods.length ? `${Math.round((videoCount / foods.length) * 100)}% do catálogo` : "nenhum ainda"}</small>
+        </div>
+      </div>
+
+      <div className="kd-group kd-product-catalog">
+      <div className="kd-toolbar kd-product-toolbar" role="search">
         <label className="kd-search">
           <Search size={17} aria-hidden />
           <span className="kd-sr">Buscar produto</span>
@@ -1598,8 +1627,15 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
             <Skeleton rows={5} height={64} label="Carregando produtos" />
           </div>
         ) : filtered.length ? (
-          <ul className="kd-rows" aria-label="Produtos">
-            {filtered.map((f, i) => {
+          <>
+          <div className="kd-product-columns" aria-hidden="true">
+            <span>Produto</span>
+            <span>Preço</span>
+            <span>Disponibilidade</span>
+            <span>Ações</span>
+          </div>
+          <ul className="kd-rows kd-product-list" aria-label="Produtos">
+            {visibleProducts.map((f, i) => {
               const category = categoryInfo(f);
               return (
               <li key={f.id || f.name + i} className={`kd-product k-enter ${f.available === false ? "is-off" : ""}`} style={stagger(i)}>
@@ -1646,6 +1682,17 @@ function ProductsPage({ notify, foods, categories, loaded, loadErrors, onRetry }
               );
             })}
           </ul>
+          {visibleCount < filtered.length && (
+            <div className="kd-product-more">
+              <span>
+                Exibindo {visibleProducts.length} de {filtered.length}
+              </span>
+              <Button variant="secondary" size="sm" onClick={() => setVisibleCount((count) => count + PRODUCTS_PAGE_SIZE)}>
+                Mostrar mais produtos
+              </Button>
+            </div>
+          )}
+          </>
         ) : hasFilters ? (
           <EmptyState
             icon={<Search size={22} />}
