@@ -985,8 +985,8 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-product-desc { margin: 0; color: var(--k-text-2); font-size: var(--k-fs-md); line-height: 1.5; white-space: pre-line; }
 .kd-detail-price { margin: 0; font-size: var(--k-fs-lg); font-weight: 750; }
 
-.kd-stepper { flex: none; display: inline-flex; align-items: center; border: 1px solid var(--k-line-strong); border-radius: var(--k-r-pill); background: var(--k-surface); }
-.kd-stepper button {
+.kd-qty-stepper { flex: none; display: inline-flex; align-items: center; border: 1px solid var(--k-line-strong); border-radius: var(--k-r-pill); background: var(--k-surface); }
+.kd-qty-stepper button {
   display: grid;
   place-items: center;
   width: 44px;
@@ -998,11 +998,11 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
   cursor: pointer;
   touch-action: manipulation;
 }
-.kd-stepper button:disabled { color: var(--k-placeholder); cursor: default; }
-.kd-stepper button:focus-visible { outline: 2px solid var(--k-focus); outline-offset: -2px; }
-.kd-stepper output { min-width: 24px; font-weight: 750; text-align: center; }
-.kd-stepper--sm button { width: 36px; height: 36px; }
-.kd-stepper--sm output { min-width: 18px; font-size: var(--k-fs-md); }
+.kd-qty-stepper button:disabled { color: var(--k-placeholder); cursor: default; }
+.kd-qty-stepper button:focus-visible { outline: 2px solid var(--k-focus); outline-offset: -2px; }
+.kd-qty-stepper output { min-width: 24px; font-weight: 750; text-align: center; }
+.kd-qty-stepper--sm button { width: 36px; height: 36px; }
+.kd-qty-stepper--sm output { min-width: 18px; font-size: var(--k-fs-md); }
 .kd-sheet-foot-row { display: flex; align-items: center; gap: var(--k-s3); }
 .kd-sheet-foot-row .kd-btn { flex: 1; min-width: 0; }
 

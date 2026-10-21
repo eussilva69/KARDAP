@@ -139,7 +139,7 @@ export function DeliveryAreasManager({
           <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
             {feeMode === "taxa_fixa"
               ? `Taxa fixa · ${brl(config.deliveryFeeCents)}`
-              : `Taxa por bairro${config.defaultNeighborhoodFeeCents !== null && config.defaultNeighborhoodFeeCents !== undefined ? ` · Taxa padrão ${brl(config.defaultNeighborhoodFeeCents)}` : ""}${config.serveUnlistedNeighborhoods ? " · Atende bairros fora da lista" : ""}`}
+              : "Taxa por bairro"}
           </p>
           <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
             {servedCities.length === 0 ? (
@@ -195,33 +195,24 @@ function DeliveryAreasModal({
   // Taxas gerais (Passo 0)
   const [mode, setMode] = useState<FeeMode>(config.feeMode || "taxa_fixa");
   const [flat, setFlat] = useState(centsToInput(config.deliveryFeeCents));
-  const [fallback, setFallback] = useState(centsToInput(config.defaultNeighborhoodFeeCents));
-  const [unlisted, setUnlisted] = useState(Boolean(config.serveUnlistedNeighborhoods));
   const [feeSaving, setFeeSaving] = useState(false);
-  const [feeErrors, setFeeErrors] = useState<{ flat?: string; fallback?: string }>({});
+  const [feeErrors, setFeeErrors] = useState<{ flat?: string }>({});
 
   const flatCents = parseMoney(flat);
-  const fallbackCents = parseMoney(fallback);
   const feeDirty =
     mode !== (config.feeMode || "taxa_fixa") ||
-    (mode === "taxa_fixa" && (flatCents ?? 0) !== config.deliveryFeeCents) ||
-    (mode === "taxa_por_bairro" && (fallbackCents !== (config.defaultNeighborhoodFeeCents ?? null) || unlisted !== Boolean(config.serveUnlistedNeighborhoods)));
+    (mode === "taxa_fixa" && (flatCents ?? 0) !== config.deliveryFeeCents);
 
   const saveFeeSettings = async (showToast = true): Promise<boolean> => {
     const found: typeof feeErrors = {};
     if (mode === "taxa_fixa" && Number.isNaN(flatCents)) found.flat = "Informe um valor como 7,50 (ou 0 para entrega grátis).";
-    if (mode === "taxa_por_bairro" && Number.isNaN(fallbackCents)) found.fallback = "Informe um valor como 7,50 ou deixe em branco.";
-    if (mode === "taxa_por_bairro" && unlisted && fallbackCents === null) found.fallback = "Defina a taxa padrão para atender bairros fora da lista.";
     setFeeErrors(found);
-    if (found.flat || found.fallback) return false;
+    if (found.flat) return false;
 
     setFeeSaving(true);
     const patch: Partial<DeliveryConfig> = { feeMode: mode };
     if (mode === "taxa_fixa") {
       patch.deliveryFeeCents = flatCents ?? 0;
-    } else {
-      patch.defaultNeighborhoodFeeCents = fallbackCents;
-      patch.serveUnlistedNeighborhoods = unlisted;
     }
 
     try {
@@ -368,7 +359,7 @@ function DeliveryAreasModal({
         </div>
       }
     >
-      <ol className="kd-stepper">
+      <ol className="kd-stepper kd-wizard-steps">
         {MODAL_STEPS.map((label, i) => (
           <li key={label}>
             <button
@@ -420,24 +411,9 @@ function DeliveryAreasModal({
               onChange={(e) => setFlat(e.target.value)}
             />
           ) : (
-            <div className="kd-group" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <TextField
-                label="Taxa padrão (R$)"
-                optional
-                inputMode="decimal"
-                placeholder="Sem taxa padrão"
-                value={fallback}
-                error={feeErrors.fallback}
-                hint="Cobrada nos bairros ativos sem valor próprio. Deixe em branco se não desejar taxa padrão."
-                onChange={(e) => setFallback(e.target.value)}
-              />
-              <Switch
-                label="Atender bairros fora da lista"
-                description="Endereços em bairros que não estão cadastrados pagam a taxa padrão."
-                checked={unlisted}
-                onChange={setUnlisted}
-              />
-            </div>
+            <p className="kd-hint" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--k-muted)" }}>
+              As taxas e os bairros atendidos são configurados individualmente na próxima etapa (Cidades e bairros).
+            </p>
           )}
 
           {feeDirty && (
@@ -573,7 +549,6 @@ function CityNeighborhoodsEditor({
   bindSave: (saveFn: () => Promise<boolean>, dirty: boolean) => void;
 }) {
   const perNeighborhood = (config.feeMode || "taxa_fixa") === "taxa_por_bairro";
-  const fallback = config.defaultNeighborhoodFeeCents ?? null;
   const cityEnabled = city.enabled !== false;
 
   const [rows, setRows] = useState<Rows | null>(initialRows ?? null);
@@ -915,7 +890,7 @@ function CityNeighborhoodsEditor({
                         className="kd-input"
                         inputMode="decimal"
                         aria-label="Taxa para os selecionados (R$)"
-                        placeholder={fallback !== null ? "Padrão" : "R$ 0,00"}
+                        placeholder="R$ 0,00"
                         value={bulkFee}
                         onChange={(e) => setBulkFee(e.target.value)}
                       />
@@ -982,7 +957,6 @@ function CityNeighborhoodsEditor({
                           <td className="kd-area-feecell">
                             <FeeCell
                               value={row.feeCents}
-                              fallback={fallback}
                               label={row.name}
                               onCommit={(feeCents) => update(slug, { feeCents })}
                               notify={notify}
@@ -1046,9 +1020,7 @@ function CityNeighborhoodsEditor({
             <div className="kd-area-foot" style={{ marginTop: 8 }}>
               {perNeighborhood && noFeeCount > 0 && (
                 <span className="kd-hint">
-                  {fallback !== null
-                    ? `${noFeeCount} bairros usam a taxa padrão (${brl(fallback)}).`
-                    : `${noFeeCount} bairros ativos sem taxa não recebem entregas até definir um valor ou taxa padrão.`}
+                  {noFeeCount} {noFeeCount === 1 ? "bairro ativo sem taxa definida." : "bairros ativos sem taxa definida."}
                 </span>
               )}
               <span className="kd-row">
@@ -1117,13 +1089,11 @@ function NameCell({ name, onRename }: { name: string; onRename: (name: string) =
 
 function FeeCell({
   value,
-  fallback,
   label,
   onCommit,
   notify,
 }: {
   value: number | null;
-  fallback: number | null;
   label: string;
   onCommit: (cents: number | null) => void;
   notify: Notify;
@@ -1154,7 +1124,7 @@ function FeeCell({
         className="kd-input kd-area-inline"
         inputMode="decimal"
         aria-label={`Taxa de entrega para ${label}`}
-        placeholder={fallback !== null ? `${centsToInput(fallback)} (padrão)` : "Sem taxa"}
+        placeholder="0,00"
         value={text}
         onFocus={() => (focused.current = true)}
         onChange={(e) => setText(e.target.value)}

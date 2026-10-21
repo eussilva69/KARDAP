@@ -26,7 +26,7 @@ export function Stepper({
 }) {
   const removing = Boolean(onRemove) && value <= min;
   return (
-    <div className={`kd-stepper ${small ? "kd-stepper--sm" : ""}`} role="group" aria-label={`Quantidade de ${label}`}>
+    <div className={`kd-qty-stepper ${small ? "kd-qty-stepper--sm" : ""}`} role="group" aria-label={`Quantidade de ${label}`}>
       <button
         type="button"
         onClick={() => (removing ? onRemove?.() : onChange(value - 1))}

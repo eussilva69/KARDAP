@@ -666,28 +666,74 @@ textarea.kd-input { min-height: 96px; border-radius: var(--k-r-lg); resize: vert
 .kd-chip-toggle[aria-pressed="true"] { border-color: var(--k-primary); background: var(--k-primary); color: var(--k-on-primary); }
 
 /* Etapas de um assistente: a atual em destaque, as concluídas com ✓. */
-.kd-stepper { display: flex; margin: 0 0 var(--k-s6); padding: 0; list-style: none; border: 1px solid var(--k-control-line); border-radius: var(--k-r-pill); overflow: hidden; }
-.kd-stepper li { flex: 1; min-width: 0; }
-.kd-stepper li + li { border-left: 1px solid var(--k-control-line); }
-.kd-stepper button {
+.kd-stepper,
+.kd-wizard-steps {
+  display: flex;
+  width: 100%;
+  margin: 0 0 var(--k-s5);
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--k-line);
+  border-radius: var(--k-r-lg);
+  overflow: hidden;
+  background: var(--k-surface);
+}
+.kd-stepper li,
+.kd-wizard-steps li {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+}
+.kd-stepper li + li,
+.kd-wizard-steps li + li {
+  border-left: 1px solid var(--k-line);
+}
+.kd-stepper button,
+.kd-wizard-steps button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
-  min-height: 40px;
-  padding: 0 6px;
+  height: auto;
+  min-height: 42px;
+  padding: 8px 12px;
   border: 0;
+  border-radius: 0;
   background: transparent;
   color: var(--k-muted);
   font-size: var(--k-fs-sm);
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--k-dur-1) var(--k-ease-out), color var(--k-dur-1) var(--k-ease-out);
 }
-.kd-stepper button:hover:not(:disabled) { background: var(--k-sunken); color: var(--k-ink); }
-.kd-stepper button.is-done { color: var(--k-primary-ink); }
-.kd-stepper button[aria-current="step"] { background: var(--k-primary); color: var(--k-on-primary); }
-.kd-stepper button:focus-visible { outline-offset: -3px; }
+.kd-stepper button:hover:not(:disabled),
+.kd-wizard-steps button:hover:not(:disabled) {
+  background: var(--k-sunken);
+  color: var(--k-ink);
+}
+.kd-stepper button.is-done,
+.kd-wizard-steps button.is-done {
+  color: var(--k-primary);
+  font-weight: 600;
+}
+.kd-stepper button[aria-current="step"],
+.kd-wizard-steps button[aria-current="step"] {
+  background: var(--k-primary);
+  color: var(--k-on-primary);
+  font-weight: 650;
+}
+.kd-stepper button:disabled,
+.kd-wizard-steps button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.kd-stepper button:focus-visible,
+.kd-wizard-steps button:focus-visible {
+  outline: 2px solid var(--k-focus);
+  outline-offset: -2px;
+}
 
 .kd-radio-card {
   position: relative;

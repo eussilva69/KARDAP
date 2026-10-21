@@ -376,7 +376,7 @@ function DeliverySetupModal({
         </div>
       }
     >
-      <ol className="kd-stepper">
+      <ol className="kd-stepper kd-wizard-steps">
         {stepLabels.map((label, i) => (
           <li key={label}>
             <button
