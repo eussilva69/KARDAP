@@ -8,6 +8,7 @@ import { RotateCw } from "lucide-react";
 import {
   fetchChamadosPage,
   findRestaurantByOwner,
+  getRestaurantId,
   saveRestaurant,
   updateChamadoStatus,
   watchChamados,
@@ -22,6 +23,7 @@ import {
   type ChamadoDoc,
 } from "@/lib/restaurant-db";
 import { friendlyError, isTimeout } from "@/lib/async";
+import { isDemoRestaurant } from "@/lib/demo/ids";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { Button, SpeedLoader } from "@/components/ui/primitives";
 import { Toaster, type ToastAction, type ToastState } from "@/components/ui/toast";
@@ -83,9 +85,9 @@ async function signOutHere() {
   await signOut(getFirebaseAuth()).catch(() => undefined);
 }
 
-type PublicRestaurant = { id: string; name: string; brand: Brand; settings: RestaurantSettings; billAllowed: boolean; suspended: boolean };
-const emptyPublicRestaurant: PublicRestaurant = { id: "", name: "", brand: defaultBrand, settings: defaultSettings, billAllowed: false, suspended: false };
-const emptyAccount: AccountInfo = { subscription: null, createdAt: null, suspended: false, suspendedReason: "", onboardingSelectedPlanId: null };
+type PublicRestaurant = { id: string; name: string; brand: Brand; settings: RestaurantSettings; billAllowed: boolean; suspended: boolean; isDemo: boolean };
+const emptyPublicRestaurant: PublicRestaurant = { id: "", name: "", brand: defaultBrand, settings: defaultSettings, billAllowed: false, suspended: false, isDemo: false };
+const emptyAccount: AccountInfo = { subscription: null, createdAt: null, suspended: false, suspendedReason: "", onboardingSelectedPlanId: null, isDemo: false };
 
 export default function App() {
   const path = usePathname();
@@ -324,6 +326,7 @@ export default function App() {
             suspended: data.status === "suspended",
             suspendedReason: typeof data.suspendedReason === "string" ? data.suspendedReason : "",
             onboardingSelectedPlanId: typeof onboardingData?.selectedPlanId === "string" ? onboardingData.selectedPlanId : null,
+            isDemo: isDemoRestaurant(getRestaurantId(), data),
           });
         }
         setRestaurantLoaded(true);
@@ -369,6 +372,7 @@ export default function App() {
           // "Pedir a conta" é recurso do Pro (e do período de teste), conforme lib/cakto/plans.ts.
           billAllowed: canAccessFeature(effectiveSubscription(data.subscription as any, data.createdAt), "bill_request"),
           suspended: data.status === "suspended",
+          isDemo: isDemoRestaurant(data.id, data),
         });
       },
       () => {
@@ -586,6 +590,7 @@ export default function App() {
         categories={publicCategories}
         restaurantName={publicRestaurant.name}
         suspended={publicRestaurant.suspended}
+        isDemo={publicRestaurant.isDemo}
         notify={notify}
       />
     );
@@ -606,6 +611,7 @@ export default function App() {
         restaurantName={publicRestaurant.name}
         billAllowed={publicRestaurant.billAllowed}
         suspended={publicRestaurant.suspended}
+        isDemo={publicRestaurant.isDemo}
       />
     );
   } else if (path === "/planos") {

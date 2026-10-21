@@ -15,7 +15,9 @@
     "test:plans": "node scripts/e2e-plans.mjs",
     "test:onboarding": "node scripts/e2e-onboarding.mjs",
     "seo:landing": "node scripts/seo-landing.mjs",
-    "migrate:plans": "node scripts/migrate-plans.mjs"
+    "migrate:plans": "node scripts/migrate-plans.mjs",
+    "demo:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/demo/seed-demo.mjs",
+    "demo:audit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/demo/audit-demo.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

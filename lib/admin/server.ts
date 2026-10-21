@@ -11,6 +11,14 @@ import { adminDb } from "@/lib/firebase-admin";
 
 export type AdminCaller = { uid: string; email: string | null };
 
+/**
+ * Administrador do sistema (admins/{uid}), conferido no servidor com o Admin SDK. Não use isSystemAdmin de
+ * lib/admin-db nas rotas: aquele usa o SDK do navegador, que no servidor não tem login e é recusado pelas regras.
+ */
+export async function isAdminUid(uid: string) {
+  return (await adminDb().collection("admins").doc(uid).get()).exists;
+}
+
 /** Autentica Bearer e confere `admins/{uid}`. Lança 403 para quem não é admin. */
 export async function authenticateAdmin(req: NextRequest): Promise<AdminCaller> {
   const caller = await authenticate(req, null);

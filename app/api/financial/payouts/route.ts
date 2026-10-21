@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { json, errorResponse, preflight, readJson } from "@/lib/billing/http";
 import { adminAuth } from "@/lib/firebase-admin";
-import { isSystemAdmin } from "@/lib/admin-db";
+import { isAdminUid as isSystemAdmin } from "@/lib/admin/server";
 import { createPayout, confirmPayout, cancelPayout, listPayouts } from "@/lib/financial/server";
 import type { PayoutStatus } from "@/lib/financial/types";
 

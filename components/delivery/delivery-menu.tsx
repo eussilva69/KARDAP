@@ -50,6 +50,7 @@ export default function DeliveryMenu({
   restaurantName,
   suspended,
   notify,
+  isDemo = false,
 }: {
   status: "loading" | "ready" | "not-found" | "error";
   slow: boolean;
@@ -64,6 +65,8 @@ export default function DeliveryMenu({
   restaurantName: string;
   suspended: boolean;
   notify: Notify;
+  /** Conta demonstrativa: aviso discreto de dados simulados no rodapé. */
+  isDemo?: boolean;
 }) {
   useRootPalette(brand.palette);
   const customColors = !isDefaultPalette(brand.palette);
@@ -273,6 +276,7 @@ export default function DeliveryMenu({
             ) : null;
           }}
         />
+        {isDemo && <p className="kd-menu-demo-note">Cardápio de demonstração do KARDAP · dados e pedidos simulados</p>}
       </div>
 
       {step === "checkout" && config && (

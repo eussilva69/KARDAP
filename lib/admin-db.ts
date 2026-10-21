@@ -2,6 +2,7 @@ import { addDoc, collection, doc, getCountFromServer, getDoc, getDocs, limit, or
 import { getDb } from "./firebase";
 import { withTimeout, withWriteTimeout } from "./async";
 import { effectiveSubscription, toDate } from "./cakto/access";
+import { isDemoRestaurant } from "./demo/ids";
 import type { RestaurantSubscription } from "./cakto/types";
 
 /**
@@ -23,6 +24,8 @@ export type AdminRestaurant = {
   suspended: boolean;
   suspendedReason: string;
   subscription: Partial<RestaurantSubscription> | null;
+  /** Conta demonstrativa: fica fora da receita e dos contadores de assinantes. */
+  isDemo: boolean;
 };
 
 export type AdminLogEntry = {
@@ -64,6 +67,7 @@ function toRestaurant(id: string, data: Record<string, any>): AdminRestaurant {
     suspended: data.status === "suspended",
     suspendedReason: text(data.suspendedReason),
     subscription: (data.subscription as Partial<RestaurantSubscription>) || null,
+    isDemo: isDemoRestaurant(id, data),
   };
 }
 

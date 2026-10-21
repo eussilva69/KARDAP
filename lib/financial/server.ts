@@ -479,7 +479,14 @@ export async function payWithdrawal(id: string, adminUid: string, proof: { trans
     const item = snap.data() as WithdrawalRequest;
     if (item.status === "paid") return;
     if (item.status !== "approved") throw new Error("O saque precisa ser aprovado antes do pagamento.");
-    tx.update(ref, { status: "paid" as WithdrawalStatus, paid_at: at, approved_by: adminUid, transfer_transaction_id: proof.transferTransactionId, payment_proof_reference: proof.paymentProofReference });
+    // Só o comprovante informado: o Firestore recusa campo undefined (basta um dos dois).
+    tx.update(ref, {
+      status: "paid" as WithdrawalStatus,
+      paid_at: at,
+      approved_by: adminUid,
+      ...(proof.transferTransactionId ? { transfer_transaction_id: proof.transferTransactionId } : {}),
+      ...(proof.paymentProofReference ? { payment_proof_reference: proof.paymentProofReference } : {}),
+    });
     tx.set(balanceDoc(item.restaurant_id), { reserved_cents: FieldValue.increment(-item.amount_cents), paid_out_cents: FieldValue.increment(item.amount_cents), active_withdrawal_id: FieldValue.delete(), updated_at: at }, { merge: true });
     tx.set(ledgerCol().doc(), { restaurant_id: item.restaurant_id, payout_id: id, type: "repasse" as LedgerEntryType, amount_cents: -item.amount_cents, currency: "BRL", description: "Saque pago", created_at: at });
     tx.set(auditCol().doc(), { restaurant_id: item.restaurant_id, withdrawal_id: id, action: "paid", admin_uid: adminUid, at });
@@ -554,7 +561,8 @@ export async function getFinancialSummary(options: { from?: string; to?: string;
   q = q.limit(5000);
 
   const snap = await q.get();
-  const transactions = snap.docs.map((d) => d.data() as FinancialTransaction);
+  // A conta demonstrativa (registros is_demo) só aparece no próprio painel dela, nunca nos totais da plataforma.
+  const transactions = snap.docs.map((d) => d.data() as FinancialTransaction & { is_demo?: boolean }).filter((t) => options.restaurant_id || !t.is_demo);
 
   let gross = 0, approved = 0, gatewayFees = 0, kardapRev = 0, restaurantTotal = 0, chargebacks = 0;
   let count = 0;
@@ -580,8 +588,9 @@ export async function getFinancialSummary(options: { from?: string; to?: string;
 
   const balSnaps = await db().collection("restaurant_balances").get();
   for (const doc of balSnaps.docs) {
-    const b = doc.data() as RestaurantBalance;
+    const b = doc.data() as RestaurantBalance & { is_demo?: boolean };
     if (options.restaurant_id && b.restaurant_id !== options.restaurant_id) continue;
+    if (!options.restaurant_id && b.is_demo) continue;
     availableTotal += b.available_cents;
     pendingTotal += b.pending_cents;
     completedPayouts += b.paid_out_cents;
@@ -619,7 +628,8 @@ export async function getRestaurantFinancialRows(): Promise<RestaurantFinancialR
 
   const rows: Record<string, RestaurantFinancialRow> = {};
   for (const d of txSnap.docs) {
-    const t = d.data() as FinancialTransaction;
+    const t = d.data() as FinancialTransaction & { is_demo?: boolean };
+    if (t.is_demo) continue;
     if (!rows[t.restaurant_id]) {
       rows[t.restaurant_id] = {
         restaurant_id: t.restaurant_id,

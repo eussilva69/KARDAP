@@ -14,6 +14,8 @@ export type AccountInfo = {
    * no momento da conclusão) — o painel oferece ativar de novo. Com `subscription` preenchido, já foi ativado.
    */
   onboardingSelectedPlanId: string | null;
+  /** Conta demonstrativa (lib/demo/ids.ts): mostra a faixa "dados simulados" e a opção de restaurar. */
+  isDemo: boolean;
 };
 
 /**

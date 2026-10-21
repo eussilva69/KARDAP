@@ -35,7 +35,9 @@ import {
   Plus,
   Printer,
   QrCode,
+  Receipt,
   RotateCw,
+  FlaskConical,
   Search,
   Settings2,
   Star,
@@ -105,6 +107,8 @@ import { KardapLogo } from "@/components/brand/logo";
 import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
 import { DeliveryPage } from "./delivery-page";
 import { FinancialPage } from "./financial-page";
+import { OrdersPage, SalesOverview, SalesReport } from "./orders";
+import { DemoResetCard } from "./demo";
 import { MenuHero } from "@/components/menu/menu-hero";
 import { DishRow } from "@/components/menu/dish-row";
 import { MyPlanPage } from "@/components/billing/my-plan-page";
@@ -316,6 +320,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Operação",
     items: [
+      { label: "Pedidos", href: "/dashboard/pedidos", icon: Receipt },
       { label: "Delivery", href: "/dashboard/delivery", icon: Bike },
       { label: "Financeiro", href: "/dashboard/financeiro", icon: CreditCard },
     ],
@@ -515,6 +520,11 @@ export default function Dashboard(props: DashboardProps) {
           </div>
         </header>
         <main id="kd-main" className="kd-main" tabIndex={-1}>
+          {account.isDemo && (
+            <p className="kd-demo-strip" role="note">
+              <FlaskConical size={14} aria-hidden /> Ambiente de demonstração — dados simulados
+            </p>
+          )}
           {account.suspended && (
             <div className="kd-banner">
               <Callout
@@ -591,6 +601,19 @@ export default function Dashboard(props: DashboardProps) {
   );
 }
 
+function OrdersRoute({ account, notify }: DashboardProps) {
+  const entitlements = usePlanEntitlements(account);
+  const plan = usePlan(account);
+  if (!entitlements.features.orderManagement)
+    return (
+      <div className="kd-stack kd-narrow">
+        <PageHeader title="Pedidos" description="Pedidos do delivery, das mesas e do balcão num lugar só." />
+        <ProLock feature="Pedidos" plan={plan} />
+      </div>
+    );
+  return <OrdersPage notify={notify} isDemo={account.isDemo} />;
+}
+
 function DashboardRoutes(props: DashboardProps) {
   switch (props.path) {
     case "/dashboard":
@@ -609,6 +632,8 @@ function DashboardRoutes(props: DashboardProps) {
       return <QrPage {...props} />;
     case "/dashboard/avaliacoes":
       return <ReviewsPage {...props} />;
+    case "/dashboard/pedidos":
+      return <OrdersRoute {...props} />;
     case "/dashboard/delivery":
       return <DeliveryPage account={props.account} notify={props.notify} />;
     case "/dashboard/financeiro":
@@ -814,6 +839,8 @@ function Overview(props: DashboardProps) {
       )}
 
       <PlanLimitWarning usage={usage} limit={entitlements.limits.maxNativeOrdersPerMonth} />
+
+      {entitlements.features.orderManagement && <SalesOverview foods={foods} />}
 
       <Card className="kd-plan-summary k-enter" aria-labelledby="kd-plan-summary-title">
         <CardHead
@@ -2594,6 +2621,7 @@ function ReviewsPage({ settings, setSettings, notify, onSaved }: DashboardProps)
 
 function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, account }: DashboardProps) {
   const plan = usePlan(account);
+  const entitlements = usePlanEntitlements(account);
   const allowed = canAccessFeature(plan, "advanced_reports");
   const byType = useMemo(() => {
     const map = new Map<string, number>();
@@ -2631,11 +2659,15 @@ function ReportsPage({ calls, foods, categories, tables, chamadosHasMore, accoun
       <PageHeader
         title="Relatórios"
         description={
-          chamadosHasMore
+          entitlements.features.orderManagement
+            ? "Vendas calculadas a partir dos pedidos registrados, e os chamados das mesas."
+            : chamadosHasMore
             ? `Calculado com os ${calls.length} chamados mais recentes. Para incluir chamados anteriores, carregue mais na página Chamados.`
             : "Calculado com todos os chamados registrados e com o cardápio atual."
         }
       />
+      {entitlements.features.orderManagement && <SalesReport foods={foods} />}
+      {entitlements.features.orderManagement && <h2 className="kd-h3">Chamados das mesas</h2>}
       <div className="kd-stats">
         {stats.map(([value, label, Icon], i) => (
           <div key={label} className="kd-stat k-enter" style={stagger(i)}>
@@ -2901,6 +2933,7 @@ function SettingsPage({ settings, setSettings, notify, account, onSaved }: Dashb
           ))}
         </ul>
       </Card>
+      {account.isDemo && <DemoResetCard notify={notify} />}
     </div>
   );
 }

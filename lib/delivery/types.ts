@@ -34,12 +34,18 @@ const TRANSITIONS: Record<DeliveryOrderStatus, readonly DeliveryOrderStatus[]> =
   recusado: [],
 };
 
-export function canTransition(from: DeliveryOrderStatus, to: DeliveryOrderStatus): boolean {
-  return TRANSITIONS[from]?.indexOf(to) >= 0;
+/**
+ * Pedidos sem entrega no endereço (mesa, balcão, retirada) também podem ir de "Pronto" direto para "Entregue"
+ * (servido ou retirado). "Saiu para entrega" continua aceito para eles, como antes (o PDV pode usar).
+ * `delivery` omitido = fluxo de entrega, como antes.
+ */
+export function allowedTransitions(from: DeliveryOrderStatus, opts: { delivery?: boolean } = {}): readonly DeliveryOrderStatus[] {
+  if (opts.delivery === false && from === "pronto") return ["saiu_para_entrega", "entregue", "cancelado"];
+  return TRANSITIONS[from] || [];
 }
 
-export function allowedTransitions(from: DeliveryOrderStatus): readonly DeliveryOrderStatus[] {
-  return TRANSITIONS[from] || [];
+export function canTransition(from: DeliveryOrderStatus, to: DeliveryOrderStatus, opts: { delivery?: boolean } = {}): boolean {
+  return allowedTransitions(from, opts).indexOf(to) >= 0;
 }
 
 export const STATUS_LABELS: Record<DeliveryOrderStatus, string> = {

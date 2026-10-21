@@ -61,6 +61,7 @@ export default function PublicMenu({
   restaurantName,
   billAllowed,
   suspended,
+  isDemo = false,
 }: {
   status: "loading" | "ready" | "not-found" | "error";
   slow: boolean;
@@ -80,6 +81,8 @@ export default function PublicMenu({
   billAllowed: boolean;
   /** Restaurante suspenso pela administração do Kardap. */
   suspended: boolean;
+  /** Conta demonstrativa: aviso discreto de dados simulados no rodapé. */
+  isDemo?: boolean;
 }) {
   useRootPalette(brand.palette);
   const customColors = !isDefaultPalette(brand.palette);
@@ -227,6 +230,7 @@ export default function PublicMenu({
           onOpenDish={openDish}
           onOpenReels={videoDishes.length > 0 ? () => openViewer("reels", videoDishes, 0) : undefined}
         />
+        {isDemo && <p className="kd-menu-demo-note">Cardápio de demonstração do KARDAP · dados e pedidos simulados</p>}
       </div>
 
       {canCall && (

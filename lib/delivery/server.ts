@@ -19,6 +19,7 @@ import type {
   StatusHistoryEntry,
 } from "./types";
 import { canTransition, DEFAULT_DELIVERY_CONFIG, isDeliveryStatus, normalizeCity, slugifyNeighborhood, TERMINAL_STATUSES } from "./types";
+import { isDeliveryChannel, orderChannel } from "@/lib/orders/channels";
 
 const restaurantRef = (id: string) => adminDb().collection("restaurantes").doc(id);
 
@@ -362,10 +363,25 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
     uid: "delivery_public",
     source: "kardap_delivery",
     idempotencyKey,
-    order: orderData,
+    // O Firestore recusa campos undefined (cliente sem login não tem uid; complemento, referência e observações são
+    // opcionais): sem esta limpeza, todo pedido de cliente anônimo falhava com erro 500.
+    order: withoutUndefined(orderData),
   });
 
   return { orderId: result.orderId, orderNumber, duplicate: result.duplicate };
+}
+
+/** Cópia sem chaves undefined (em qualquer nível), no formato que o Firestore aceita. */
+function withoutUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => withoutUndefined(item)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, withoutUndefined(v)]),
+    ) as T;
+  }
+  return value;
 }
 
 async function nextOrderNumber(restaurantId: string): Promise<number> {
@@ -401,7 +417,7 @@ export async function updateOrderStatus(
     if (snap.get("establishmentId") !== restaurantId) throw new BillingError("forbidden", 403, "Pedido não pertence a este estabelecimento.");
 
     const currentStatus = snap.get("status") as DeliveryOrderStatus;
-    if (!canTransition(currentStatus, newStatus)) {
+    if (!canTransition(currentStatus, newStatus, { delivery: isDeliveryChannel(orderChannel(snap.get("origin"))) })) {
       throw new BillingError("invalid_transition", 400, `Não é possível alterar de "${currentStatus}" para "${newStatus}".`);
     }
 

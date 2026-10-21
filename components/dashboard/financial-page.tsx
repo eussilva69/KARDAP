@@ -10,7 +10,8 @@ import type { FinancialTransaction, RestaurantBalance, WithdrawalRequest } from 
 import type { Notify } from "./types";
 
 type Data = { balance: RestaurantBalance; transactions: FinancialTransaction[]; withdrawals: WithdrawalRequest[] };
-const money = (cents: number) => brl(cents / 100);
+// brl() já recebe centavos (lib/format.ts): dividir aqui de novo mostrava valores 100 vezes menores.
+const money = (cents: number) => brl(cents);
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const user = getFirebaseAuth().currentUser;

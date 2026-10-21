@@ -1138,3 +1138,6 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 @media (max-width: 359px) {
   .kd-checkout-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Conta demonstrativa: aviso discreto no rodapé do cardápio. */
+.kd-menu-demo-note { margin: var(--k-s6) var(--k-s4) var(--k-s4); color: var(--k-muted); font-size: var(--k-fs-xs); text-align: center; opacity: 0.85; }

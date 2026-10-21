@@ -51,7 +51,7 @@ import type { Notify } from "@/components/dashboard/types";
 
 /* ───────────────────────── Situação comercial ───────────────────────── */
 
-const STATE_LABEL: Record<AccountState, { label: string; tone: BadgeTone }> = {
+const STATE_LABEL: Record<AccountState | "demo", { label: string; tone: BadgeTone }> = {
   trial: { label: "Em teste", tone: "signal" },
   trial_ended: { label: "Teste encerrado", tone: "outline" },
   active: { label: "Assinante", tone: "success" },
@@ -59,13 +59,15 @@ const STATE_LABEL: Record<AccountState, { label: string; tone: BadgeTone }> = {
   canceled: { label: "Cancelada", tone: "outline" },
   expired: { label: "Expirada", tone: "outline" },
   none: { label: "Sem dados", tone: "neutral" },
+  demo: { label: "Demonstração", tone: "outline" },
 };
 
-export type Row = AdminRestaurant & { state: AccountState; daysLeft: number | null; mrr: number; planId: string };
+export type Row = AdminRestaurant & { state: AccountState | "demo"; daysLeft: number | null; mrr: number; planId: string };
 
 export function toRow(r: AdminRestaurant, now: number): Row {
   const sub = effectiveSubscription(r.subscription, r.rawCreatedAt);
-  const state = accountState(sub, now);
+  // A demonstração tem plano liberado sem cobrança: não é assinante, não conta na receita nem nos testes.
+  const state = r.isDemo ? "demo" : accountState(sub, now);
   return {
     ...r,
     state,

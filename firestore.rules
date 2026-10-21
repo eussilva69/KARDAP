@@ -42,7 +42,7 @@ service cloud.firestore {
     // Campos que o painel do restaurante não pode alterar.
     function touchesProtectedFields() {
       return request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['ownerId', 'subscription', 'trialActivatedAt', 'trialPlanId', 'status', 'suspendedAt', 'suspendedReason']);
+        .hasAny(['ownerId', 'subscription', 'trialActivatedAt', 'trialPlanId', 'status', 'suspendedAt', 'suspendedReason', 'isDemo', 'demo']);
     }
 
     // ───── Administração do sistema ─────
@@ -87,6 +87,10 @@ service cloud.firestore {
     match /planos/{planId} {
       allow read: if true;
       allow write: if false;
+    }
+    // Conta demonstrativa (lib/demo): dono e mídia publicada. Só o servidor (seed e restauração) lê e grava.
+    match /demoConfig/{restaurantId} {
+      allow read, write: if false;
     }
     // Overrides do catálogo cadastrados pelo painel administrativo (/admin/planos). Qualquer um lê (preço público);
     // só o servidor (Admin SDK, via /api/admin/planos) grava, para a validação e a auditoria passarem sempre por lá.
@@ -146,7 +150,7 @@ service cloud.firestore {
       // Quem cria é o próprio dono, sem assinatura e com situação ativa.
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid
-        && !request.resource.data.keys().hasAny(['subscription', 'suspendedAt', 'suspendedReason'])
+        && !request.resource.data.keys().hasAny(['subscription', 'suspendedAt', 'suspendedReason', 'isDemo', 'demo'])
         && request.resource.data.get('status', 'active') == 'active';
       allow update: if isAdmin()
         || ((isMember(restaurantId) || resource.data.ownerId == request.auth.uid) && !touchesProtectedFields());
