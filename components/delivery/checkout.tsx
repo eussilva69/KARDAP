@@ -13,7 +13,13 @@ import { OrderSummary, type PricedLine } from "./cart-sheet";
 import { useDeliveryFee, type DeliveryMenuConfig } from "./use-delivery";
 
 type Field = "name" | "phone" | "cep" | "street" | "number" | "district" | "city" | "payment" | "change";
+type CheckoutStep = 1 | 2 | 3;
 const FIELD_ORDER: Field[] = ["name", "phone", "cep", "street", "number", "district", "city", "payment", "change"];
+const STEP_FIELDS: Record<CheckoutStep, Field[]> = {
+  1: ["name", "phone"],
+  2: ["cep", "street", "number", "district", "city"],
+  3: ["payment", "change"],
+};
 
 function formatPhone(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 11);
@@ -65,6 +71,7 @@ export function Checkout({
   onEditCart: () => void;
   onSuccess: (result: { orderId: string; orderNumber: number; payment?: OnlinePaymentData; totalCents?: number }) => void;
 }) {
+  const [step, setStep] = useState<CheckoutStep>(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [cep, setCep] = useState("");
@@ -223,6 +230,33 @@ export function Checkout({
     return next;
   };
 
+  const focusField = (field: Field) => setTimeout(() => document.getElementById(`kd-co-${field}`)?.focus(), 0);
+  const moveToStep = (next: CheckoutStep) => {
+    setFormError("");
+    setStep(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const continueCheckout = () => {
+    const found = validate();
+    const first = STEP_FIELDS[step].find((field) => found[field]);
+    if (first) {
+      setErrors((current) => ({ ...current, [first]: found[first] }));
+      focusField(first);
+      return;
+    }
+    if (step === 2) {
+      if (fee.loading) {
+        setFormError("Aguarde o cálculo da entrega.");
+        return;
+      }
+      if (!fee.matched) {
+        setFormError(fee.reason || "Endereço fora da área de entrega.");
+        return;
+      }
+    }
+    moveToStep((step + 1) as CheckoutStep);
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (submittedRef.current) return;
@@ -231,7 +265,9 @@ export function Checkout({
     const first = FIELD_ORDER.find((field) => found[field]);
     if (first) {
       setFormError("");
-      document.getElementById(`kd-co-${first}`)?.focus();
+      const invalidStep = Number(Object.entries(STEP_FIELDS).find(([, fields]) => fields.includes(first))?.[0] || 1) as CheckoutStep;
+      setStep(invalidStep);
+      focusField(first);
       return;
     }
     if (fee.loading) {
@@ -334,7 +370,7 @@ export function Checkout({
   return (
     <>
       <header className="kd-checkout-head">
-        <button type="button" className="kd-menu-search-btn" onClick={onBack} aria-label="Voltar ao cardápio">
+        <button type="button" className="kd-menu-search-btn" onClick={() => (step === 1 ? onBack() : moveToStep((step - 1) as CheckoutStep))} aria-label={step === 1 ? "Voltar ao cardápio" : "Voltar à etapa anterior"}>
           <ArrowLeft size={18} />
         </button>
         <div>
@@ -343,7 +379,27 @@ export function Checkout({
         </div>
       </header>
 
+      <nav className="kd-checkout-progress" aria-label="Etapas do pedido">
+        <ol>
+          {(["Dados", "Entrega", "Confirmar"] as const).map((label, index) => {
+            const itemStep = (index + 1) as CheckoutStep;
+            const done = itemStep < step;
+            return (
+              <li key={label} className={itemStep === step ? "is-active" : done ? "is-done" : ""} aria-current={itemStep === step ? "step" : undefined}>
+                <button type="button" disabled={itemStep > step} onClick={() => moveToStep(itemStep)} aria-label={`${label}, etapa ${itemStep} de 3`}>
+                  <span>{done ? <Check size={14} aria-hidden /> : itemStep}</span>
+                  <small>{label}</small>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+        <p>Etapa {step} de 3</p>
+      </nav>
+
       <form id="kd-checkout" onSubmit={handleSubmit} noValidate>
+        {step === 1 && (
+          <div className="kd-checkout-step k-enter">
         <section className="kd-checkout-section" aria-labelledby="kd-co-order">
           <header className="kd-menu-section-head">
             <h2 id="kd-co-order" className="kd-menu-section-title">
@@ -385,7 +441,11 @@ export function Checkout({
             onChange={onField("phone", (value) => setPhone(formatPhone(value)))}
           />
         </section>
+          </div>
+        )}
 
+        {step === 2 && (
+          <div className="kd-checkout-step k-enter">
         <section className="kd-checkout-section" aria-labelledby="kd-co-address">
           <header className="kd-menu-section-head">
             <h2 id="kd-co-address" className="kd-menu-section-title">
@@ -491,7 +551,17 @@ export function Checkout({
             </div>
           )}
         </section>
+        {formError && (
+          <div className="kd-sheet-error kd-checkout-step-error" role="alert">
+            <AlertCircle size={18} aria-hidden />
+            <p>{formError}</p>
+          </div>
+        )}
+          </div>
+        )}
 
+        {step === 3 && (
+          <div className="kd-checkout-step k-enter">
         <section className="kd-checkout-section" aria-labelledby="kd-co-pay">
           <header className="kd-menu-section-head">
             <h2 id="kd-co-pay" className="kd-menu-section-title">
@@ -560,10 +630,22 @@ export function Checkout({
             </div>
           )}
         </section>
+          </div>
+        )}
       </form>
 
       <div className="kd-menu-bar">
         <div className="kd-menu-bar-actions">
+          {step > 1 && (
+            <Button type="button" variant="secondary" size="lg" onClick={() => moveToStep((step - 1) as CheckoutStep)}>
+              Voltar
+            </Button>
+          )}
+          {step < 3 ? (
+            <Button type="button" variant="signal" size="lg" loading={step === 2 && fee.loading} disabled={step === 2 && fee.loading} onClick={continueCheckout}>
+              {step === 1 ? "Continuar para entrega" : fee.loading ? "Calculando entrega…" : "Continuar para pagamento"}
+            </Button>
+          ) : (
           <Button
             type="submit"
             form="kd-checkout"
@@ -575,6 +657,7 @@ export function Checkout({
           >
             {submitting ? "Enviando pedido…" : fee.loading ? "Calculando frete…" : !fee.matched ? "Endereço não atendido" : `Confirmar pedido · ${brl(totalCents)}`}
           </Button>
+          )}
         </div>
       </div>
     </>

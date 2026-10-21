@@ -1048,6 +1048,22 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-checkout-head > div { display: grid; min-width: 0; }
 .kd-checkout-head .kd-overline { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kd-checkout-head h1 { margin: 0; font-size: var(--k-fs-lg); font-weight: 750; line-height: 1.2; }
+.kd-checkout-progress { display: grid; gap: var(--k-s2); padding: var(--k-s4) var(--k-s4) var(--k-s3); background: var(--k-canvas); }
+.kd-checkout-progress ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
+.kd-checkout-progress li { position: relative; min-width: 0; }
+.kd-checkout-progress li:not(:last-child)::after { content: ""; position: absolute; top: 15px; right: calc(-50% + 17px); left: calc(50% + 17px); height: 2px; background: var(--k-line-strong); }
+.kd-checkout-progress li.is-done::after { background: var(--k-ink); }
+.kd-checkout-progress button { position: relative; z-index: 1; display: grid; justify-items: center; gap: 6px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--k-muted); font: inherit; cursor: pointer; touch-action: manipulation; }
+.kd-checkout-progress button:disabled { cursor: default; opacity: 1; }
+.kd-checkout-progress button > span { display: grid; place-items: center; width: 32px; height: 32px; border: 2px solid var(--k-line-strong); border-radius: 50%; background: var(--k-canvas); color: var(--k-muted); font-size: var(--k-fs-xs); font-weight: 800; }
+.kd-checkout-progress small { max-width: 100%; overflow: hidden; font-size: var(--k-fs-xs); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.kd-checkout-progress .is-active button { color: var(--k-ink); }
+.kd-checkout-progress .is-active button > span { border-color: var(--k-cloche); background: var(--k-cloche); color: var(--k-on-cloche); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-cloche) 16%, transparent); }
+.kd-checkout-progress .is-done button { color: var(--k-text-2); }
+.kd-checkout-progress .is-done button > span { border-color: var(--k-ink); background: var(--k-ink); color: var(--k-on-ink); }
+.kd-checkout-progress > p { margin: 0; color: var(--k-muted); font-size: 0.6875rem; font-weight: 650; text-align: center; }
+.kd-checkout-step { display: grid; gap: var(--k-s6); padding: var(--k-s3) 0 var(--k-s7); }
+.kd-checkout-step-error { margin: 0 var(--k-s4); }
 .kd-checkout-section { display: grid; gap: var(--k-s4); padding: 0 var(--k-s4); }
 .kd-checkout-section .kd-menu-section-head { padding-bottom: 0; }
 .kd-checkout-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--k-s3); }
@@ -1056,6 +1072,13 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-checkout-items { display: grid; gap: var(--k-s2); margin: 0; padding: 0; list-style: none; font-size: var(--k-fs-md); }
 .kd-checkout-items li { display: flex; justify-content: space-between; gap: var(--k-s3); }
 .kd-checkout-items small { display: block; color: var(--k-muted); font-size: var(--k-fs-sm); }
+
+@media (min-width: 640px) {
+  .kd-checkout-progress,
+  .kd-checkout-step { width: 100%; max-width: 620px; margin-right: auto; margin-left: auto; }
+  .kd-checkout-step { padding-top: var(--k-s5); }
+  .kd-checkout-section { padding-right: var(--k-s6); padding-left: var(--k-s6); }
+}
 
 /* Informações (horários e entrega) */
 .kd-info-list { display: grid; gap: var(--k-s3); margin: 0; padding: 0; list-style: none; }
