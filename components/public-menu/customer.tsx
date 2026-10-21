@@ -19,7 +19,11 @@ import { Panel } from "./panel";
 
 type Notify = (message: string, tone?: "success" | "error") => void;
 
-export const signOutCustomer = () => signOut(getFirebaseAuth());
+export const signOutCustomer = async () => {
+  await signOut(getFirebaseAuth());
+  const { clearPrivateFirebaseState } = await import("@/lib/firebase");
+  await clearPrivateFirebaseState();
+};
 
 const saveError = (error: unknown, notify: Notify) =>
   notify(

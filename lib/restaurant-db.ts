@@ -2,6 +2,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot,
 import { getDb } from "./firebase";
 import { withTimeout, withWriteTimeout } from "./async";
 import type { PublishedVideo } from "@/services/video-worker/src/contract";
+import { subscribeShared } from "./firestore-shared-listener";
 
 export type SnapshotMeta = { fromCache: boolean };
 export type Pending = { pending?: boolean };
@@ -39,11 +40,12 @@ export function watchRestaurant(
   onData: (data: RestaurantData | null, meta: SnapshotMeta) => void,
   onError: (error: Error) => void,
 ) {
-  return onSnapshot(
-    restaurantRef(),
-    (snapshot) => onData(snapshot.exists() ? snapshot.data() : null, { fromCache: snapshot.metadata.fromCache }),
-    onError,
-  );
+  const restaurantId = getRestaurantId();
+  return subscribeShared<{ data: RestaurantData | null; meta: SnapshotMeta }>(`restaurant:${restaurantId}`, (emit, fail) => onSnapshot(
+    doc(getDb(), "restaurantes", restaurantId),
+    (snapshot) => emit({ data: snapshot.exists() ? snapshot.data() : null, meta: { fromCache: snapshot.metadata.fromCache } }, snapshot.exists() ? 1 : 0),
+    fail,
+  ), (value) => onData(value.data, value.meta), onError);
 }
 
 /** Observa o restaurante pelo slug para o cardápio público, sem depender da sessão do dono. */
@@ -52,14 +54,14 @@ export function watchPublicRestaurant(
   onData: (data: (RestaurantData & { id: string }) | null, meta: SnapshotMeta) => void,
   onError: (error: Error) => void,
 ) {
-  return onSnapshot(
+  return subscribeShared<{ data: (RestaurantData & { id: string }) | null; meta: SnapshotMeta }>(`public-restaurant:${slug}`, (emit, fail) => onSnapshot(
     query(collection(getDb(), "restaurantes"), where("slug", "==", slug), limit(1)),
     (snapshot) => {
       const restaurant = snapshot.docs[0];
-      onData(restaurant ? ({ id: restaurant.id, ...restaurant.data() } as RestaurantData & { id: string }) : null, { fromCache: snapshot.metadata.fromCache });
+      emit({ data: restaurant ? ({ id: restaurant.id, ...restaurant.data() } as RestaurantData & { id: string }) : null, meta: { fromCache: snapshot.metadata.fromCache } }, snapshot.size);
     },
-    onError,
-  );
+    fail,
+  ), (value) => onData(value.data, value.meta), onError);
 }
 
 export async function saveRestaurant(data: RestaurantData) {
@@ -72,17 +74,19 @@ export function watchRestaurantTables(
   onData: (tables: (RestaurantTable & Pending)[], meta: SnapshotMeta) => void,
   onError: (error: Error) => void,
 ) {
-  return onSnapshot(
+  const restaurantId = getRestaurantId();
+  return subscribeShared<{ data: (RestaurantTable & Pending)[]; meta: SnapshotMeta }>(`tables:${restaurantId}`, (emit, fail) => onSnapshot(
     query(collection(restaurantRef(), "mesas"), orderBy("number", "asc")),
     { includeMetadataChanges: true },
-    (snapshot) => onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantTable & Pending)), { fromCache: snapshot.metadata.fromCache }),
-    onError,
-  );
+    (snapshot) => emit({ data: snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantTable & Pending)), meta: { fromCache: snapshot.metadata.fromCache } }, snapshot.size),
+    fail,
+  ), (value) => onData(value.data, value.meta), onError);
 }
 
 export function watchRestaurantCategories(onData: (categories: (RestaurantCategory & Pending)[], meta: SnapshotMeta) => void, onError: (error: Error) => void) {
-  return onSnapshot(query(collection(restaurantRef(), "categorias"), orderBy("order", "asc")), { includeMetadataChanges: true }, (snapshot) =>
-    onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantCategory & Pending)), { fromCache: snapshot.metadata.fromCache }), onError);
+  const restaurantId = getRestaurantId();
+  return subscribeShared<{ data: (RestaurantCategory & Pending)[]; meta: SnapshotMeta }>(`categories:${restaurantId}`, (emit, fail) => onSnapshot(query(collection(restaurantRef(), "categorias"), orderBy("order", "asc")), { includeMetadataChanges: true }, (snapshot) =>
+    emit({ data: snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantCategory & Pending)), meta: { fromCache: snapshot.metadata.fromCache } }, snapshot.size), fail), (value) => onData(value.data, value.meta), onError);
 }
 
 export async function createRestaurantCategory(input: Pick<RestaurantCategory, "name" | "description" | "order" | "active">) {
@@ -101,8 +105,18 @@ export async function deleteRestaurantCategory(id: string) {
 }
 
 export function watchRestaurantProducts(onData: (products: (RestaurantProduct & Pending)[], meta: SnapshotMeta) => void, onError: (error: Error) => void) {
-  return onSnapshot(query(collection(restaurantRef(), "produtos"), orderBy("createdAt", "desc")), { includeMetadataChanges: true }, (snapshot) =>
-    onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantProduct & Pending)), { fromCache: snapshot.metadata.fromCache }), onError);
+  const restaurantId = getRestaurantId();
+  return subscribeShared<{ data: (RestaurantProduct & Pending)[]; meta: SnapshotMeta }>(`products:${restaurantId}`, (emit, fail) => onSnapshot(query(collection(restaurantRef(), "produtos"), orderBy("createdAt", "desc")), { includeMetadataChanges: true }, (snapshot) =>
+    emit({ data: snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantProduct & Pending)), meta: { fromCache: snapshot.metadata.fromCache } }, snapshot.size), fail), (value) => onData(value.data, value.meta), onError);
+}
+
+export async function reorderRestaurantCategories(changes: { id: string; order: number }[]) {
+  const valid = changes.filter((item) => item.id && Number.isInteger(item.order));
+  if (!valid.length) return;
+  const batch = writeBatch(getDb());
+  const updatedAt = new Date().toISOString();
+  valid.forEach((item) => batch.update(doc(restaurantRef(), "categorias", item.id), { order: item.order, updatedAt }));
+  await withWriteTimeout(batch.commit());
 }
 
 /**
@@ -110,26 +124,28 @@ export function watchRestaurantProducts(onData: (products: (RestaurantProduct & 
  * novo: produto que não mudou mantém o mesmo objeto, então a tela só renderiza de novo o prato alterado.
  */
 export function watchPublicRestaurantProducts(restaurantId: string, onData: (products: RestaurantProduct[], meta: SnapshotMeta) => void, onError: (error: Error) => void) {
-  let previous = new Map<string, { json: string; product: RestaurantProduct }>();
-  return onSnapshot(query(collection(getDb(), "restaurantes", restaurantId, "produtos"), where("available", "==", true)), (snapshot) => {
-    const next = new Map<string, { json: string; product: RestaurantProduct }>();
-    const products = snapshot.docs.map((item) => {
-      const data = item.data();
-      const json = JSON.stringify(data);
-      const known = previous.get(item.id);
-      const product = known && known.json === json ? known.product : ({ id: item.id, ...data } as RestaurantProduct);
-      next.set(item.id, { json, product });
-      return product;
-    });
-    previous = next;
-    onData(products.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), { fromCache: snapshot.metadata.fromCache });
-  }, onError);
+  return subscribeShared<{ data: RestaurantProduct[]; meta: SnapshotMeta }>(`public-products:${restaurantId}`, (emit, fail) => {
+    let previous = new Map<string, { json: string; product: RestaurantProduct }>();
+    return onSnapshot(query(collection(getDb(), "restaurantes", restaurantId, "produtos"), where("available", "==", true)), (snapshot) => {
+      const next = new Map<string, { json: string; product: RestaurantProduct }>();
+      const products = snapshot.docs.map((item) => {
+        const data = item.data();
+        const json = JSON.stringify(data);
+        const known = previous.get(item.id);
+        const product = known && known.json === json ? known.product : ({ id: item.id, ...data } as RestaurantProduct);
+        next.set(item.id, { json, product });
+        return product;
+      });
+      previous = next;
+      emit({ data: products.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), meta: { fromCache: snapshot.metadata.fromCache } }, snapshot.size);
+    }, fail);
+  }, (value) => onData(value.data, value.meta), onError);
 }
 
 /** Categorias do cardápio público: define a ordem das seções e quais ficam ocultas para o cliente. */
 export function watchPublicRestaurantCategories(restaurantId: string, onData: (categories: RestaurantCategory[]) => void, onError: (error: Error) => void) {
-  return onSnapshot(query(collection(getDb(), "restaurantes", restaurantId, "categorias"), orderBy("order", "asc")), (snapshot) =>
-    onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as RestaurantCategory))), onError);
+  return subscribeShared<RestaurantCategory[]>(`public-categories:${restaurantId}`, (emit, fail) => onSnapshot(query(collection(getDb(), "restaurantes", restaurantId, "categorias"), orderBy("order", "asc")), (snapshot) =>
+    emit(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as RestaurantCategory)), snapshot.size), fail), onData, onError);
 }
 
 /** Id de produto gerado antes de gravar: a foto sobe já com o id no nome do arquivo. */

@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { authenticate, json, errorResponse, preflight, readJson } from "@/lib/billing/http";
 import { availableOnlineMethods, getDeliveryConfigForTeam, getDeliveryMapOrigin, saveDeliveryConfig } from "@/lib/delivery/server";
-import { monthlyUsage, getSubscriptionEntitlements } from "@/lib/billing/server";
+import { getSubscriptionEntitlements } from "@/lib/billing/server";
+import { autocomplete, placeAddress } from "@/lib/delivery/geo";
 
 /**
  * GET  /api/restaurants/{id}/delivery — Configuração do delivery + uso do mês (autenticado)
@@ -15,24 +16,27 @@ export async function GET(req: NextRequest, { params }: { params: { restaurantId
   try {
     const caller = await authenticate(req);
     const { restaurantId } = params;
+    const originQuery = (req.nextUrl.searchParams.get("originQuery") || "").trim().slice(0, 160);
+    const originPlaceId = (req.nextUrl.searchParams.get("originPlaceId") || "").trim().slice(0, 300);
+    const session = (req.nextUrl.searchParams.get("session") || "").trim().slice(0, 100) || undefined;
+    if (originQuery || originPlaceId) {
+      await getDeliveryConfigForTeam(restaurantId, caller.uid);
+      if (originPlaceId) {
+        const address = await placeAddress(originPlaceId, session);
+        return json(req, { address: { placeId: address.placeId, formatted: address.formatted, location: address.location } });
+      }
+      const suggestions = originQuery.length >= 3 ? await autocomplete({ input: originQuery, kind: "address", sessionToken: session }) : [];
+      return json(req, { suggestions });
+    }
     const [config, entitlements, mapOrigin] = await Promise.all([
       getDeliveryConfigForTeam(restaurantId, caller.uid),
       getSubscriptionEntitlements(restaurantId),
       getDeliveryMapOrigin(restaurantId),
     ]);
-    const usage = await monthlyUsage(restaurantId, entitlements);
     const slug = await getRestaurantSlug(restaurantId);
 
     return json(req, {
       config,
-      usage: {
-        periodId: usage.periodId,
-        used: usage.nativeOrdersUsed,
-        limit: usage.nativeOrdersLimit,
-        remaining: usage.remaining,
-        level: usage.level,
-        blocked: usage.blocked,
-      },
       deliveryUrl: slug ? `/r/${slug}/delivery` : null,
       planAllowsDelivery: entitlements.features.deliveryManagement,
       subscriptionValid: entitlements.valid,

@@ -24,6 +24,7 @@ import { isDeliveryChannel, orderChannel } from "@/lib/orders/channels";
 import { shouldActivateOrder } from "./checkout-lifecycle";
 import { resolveMapDeliveryFee, sanitizeMapConfig } from "./map-areas";
 import { geocodeAddress, placeAddress } from "./geo";
+import { registerNeighborhoodCandidate } from "./neighborhoods";
 
 const restaurantRef = (id: string) => adminDb().collection("restaurantes").doc(id);
 
@@ -297,6 +298,7 @@ function validateAddress(addr: unknown): DeliveryAddress {
     district: str("district", 100, true),
     city: str("city", 100, true),
     uf: str("uf", 2, false).toUpperCase() || undefined,
+    ibgeCode: /^\d{7}$/.test(str("ibgeCode", 7, false)) ? str("ibgeCode", 7, false) : undefined,
     reference: str("reference", 200, false) || undefined,
     placeId: str("placeId", 300, false) || undefined,
   };
@@ -381,7 +383,7 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
     throw new BillingError("min_order", 400, `O pedido mínimo para delivery é R$ ${min}.`);
   }
 
-  const feeResult = await calculateDeliveryFee(restaurantId, address.city, address.district, address.uf, undefined, { placeId: address.placeId, street: address.street, number: address.number, cep: address.cep });
+  const feeResult = await calculateDeliveryFee(restaurantId, address.city, address.district, address.uf, address.ibgeCode, { placeId: address.placeId, street: address.street, number: address.number, cep: address.cep });
   if (!feeResult.matched) {
     throw new BillingError("address_not_served", 400, feeResult.reason || "Endereço fora da área de entrega.");
   }
@@ -435,6 +437,9 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
   });
 
   if (shouldActivateOrder(paymentMethod, "pendente")) await activateDeliveryOrder(restaurantId, orderId, "delivery_public");
+  if (feeResult.usedDefaultFee && address.ibgeCode && address.district) {
+    await registerNeighborhoodCandidate({ ibgeCode: address.ibgeCode, cityName: address.city, uf: address.uf || "", name: address.district, source: address.placeId ? "google" : "manual" }).catch(() => undefined);
+  }
   return { orderId, orderNumber: prepared.orderNumber, duplicate: prepared.duplicate };
 }
 

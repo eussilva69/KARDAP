@@ -20,15 +20,15 @@ import {
 import type { DeliveryConfig, DeliveryMapConfig, FeeMode, NeighborhoodEntry, ServedCity } from "@/lib/delivery/types";
 import { DEFAULT_DELIVERY_CONFIG, slugifyNeighborhood } from "@/lib/delivery/types";
 import { neighborhoodKey } from "@/lib/delivery/match";
-import { fetchOsmNeighborhoods, mergeNeighborhoods, type SourcedNeighborhood } from "@/lib/delivery/osm";
+import type { SourcedNeighborhood } from "@/lib/delivery/osm";
 import { DeliveryMapEditor } from "./delivery-map-editor";
+import { mergeGlobalIntoRestaurant } from "@/lib/delivery/global-cities-model";
 
 type Notify = (message: string, tone?: "success" | "error") => void;
 type Rows = Record<string, NeighborhoodEntry>;
 type CityOption = { ibgeCode: string | null; name: string; uf: string; placeId?: string };
 
 const PAGE_SIZE = 25;
-const BROWSER_OSM_TIMEOUT_MS = 60_000;
 
 // ───────────────────────── API ─────────────────────────
 
@@ -63,20 +63,14 @@ async function saveRows(restaurantId: string, city: ServedCity, neighborhoods: R
   return data.config;
 }
 
-/** Bairros conhecidos da cidade: servidor (cache, OSM rápido + IBGE); se o OSM não respondeu lá, tenta pelo navegador. */
+/** Bairros globais conhecidos: o backend reutiliza o Firestore e coordena qualquer importação necessária. */
 async function knownNeighborhoods(ibgeCode: string): Promise<SourcedNeighborhood[]> {
-  const data = await request<{ cityName: string; list: SourcedNeighborhood[]; partial: boolean }>(`/api/delivery/neighborhoods?ibgeCode=${ibgeCode}`, {}, false);
-  if (!data.partial) return data.list;
-  const osm = await fetchOsmNeighborhoods(ibgeCode, BROWSER_OSM_TIMEOUT_MS);
-  if (!osm) return data.list;
-  return mergeNeighborhoods(data.cityName, [
-    { names: osm, source: "osm" },
-    { names: data.list.map((n) => n.name), source: "ibge" },
-  ]);
+  const data = await request<{ list: SourcedNeighborhood[] }>(`/api/delivery/neighborhoods?ibgeCode=${ibgeCode}`, {}, false);
+  return data.list;
 }
 
 /** Acrescenta à lista os bairros que ainda não existem. */
-function withImported(rows: Rows, names: string[]): { rows: Rows; added: number } {
+function withImported(rows: Rows, names: string[], enabled = true): { rows: Rows; added: number } {
   const keys = new Set(Object.values(rows).map((r) => neighborhoodKey(r.name)));
   const next = { ...rows };
   let added = 0;
@@ -85,7 +79,7 @@ function withImported(rows: Rows, names: string[]): { rows: Rows; added: number 
     const slug = slugifyNeighborhood(name);
     if (!key || !slug || keys.has(key) || next[slug]) continue;
     keys.add(key);
-    next[slug] = { name, feeCents: null, enabled: true };
+    next[slug] = { name, feeCents: null, enabled };
     added += 1;
   }
   return { rows: next, added };
@@ -537,8 +531,12 @@ function CityNeighborhoodsEditor({
   const load = useCallback(async () => {
     setLoadError("");
     try {
-      const data = await loadRows(restaurantId, city.ibgeCode);
-      setRows(data);
+      const [data, global] = await Promise.all([
+        loadRows(restaurantId, city.ibgeCode),
+        knownNeighborhoods(city.ibgeCode).catch(() => [] as SourcedNeighborhood[]),
+      ]);
+      const merged = mergeGlobalIntoRestaurant(data, global.map((item) => item.name));
+      setRows(merged.rows);
       setSaved(data);
     } catch (err) {
       setLoadError(friendlyError(err, "Não foi possível carregar os bairros."));
@@ -624,6 +622,10 @@ function CityNeighborhoodsEditor({
     setNewName("");
     setFilter("");
     setStatus("all");
+    request("/api/delivery/neighborhoods", {
+      method: "POST",
+      body: JSON.stringify({ ibgeCode: city.ibgeCode, cityName: city.name, uf: city.uf, name }),
+    }).catch(() => undefined);
   };
 
   const reimport = async () => {
@@ -631,9 +633,9 @@ function CityNeighborhoodsEditor({
     setImporting(true);
     try {
       const known = await knownNeighborhoods(city.ibgeCode);
-      const { rows: next, added } = withImported(rows, known.map((n) => n.name));
+      const { rows: next, added } = mergeGlobalIntoRestaurant(rows, known.map((n) => n.name));
       setRows(next);
-      notify(added ? `${added} novos bairros adicionados. Revise e salve.` : "Nenhum novo bairro encontrado.");
+      notify(added ? `${added} novos bairros disponíveis foram adicionados desativados. Revise as taxas antes de ativar.` : "Nenhum novo bairro encontrado.");
     } catch (err) {
       notify(friendlyError(err, "Não foi possível buscar os bairros."), "error");
     } finally {
@@ -647,9 +649,7 @@ function CityNeighborhoodsEditor({
     try {
       const next = await saveRows(restaurantId, city, rows);
       onConfigReplace(next);
-      const fresh = await loadRows(restaurantId, city.ibgeCode);
-      setRows(fresh);
-      setSaved(fresh);
+      setSaved(rows);
       setSelected(new Set());
       notify(`Bairros de ${city.name} salvos.`);
       return true;

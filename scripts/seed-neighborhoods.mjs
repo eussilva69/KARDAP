@@ -1,5 +1,5 @@
 /**
- * Pré-carrega bairros de cidades prioritárias no Firestore (geo_cache/bairros_{ibgeCode}).
+ * Pré-carrega bairros de cidades prioritárias no Firestore (global_cities/{ibgeCode}/neighborhoods).
  * Reutiliza os documentos que ainda não expiraram (30 dias) e só reconsulta as APIs externas
  * quando necessário, reduzindo latência e custos para os restaurantes.
  *
@@ -14,7 +14,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { cert, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 
 // ─── Env ─────────────────────────────────────────────────────────────────────
 
@@ -195,12 +195,11 @@ async function fetchIbgeDistricts(ibgeCode) {
 // ─── Lógica de seed ───────────────────────────────────────────────────────────
 
 async function seedCity(city, force) {
-  const docRef = db.collection("geo_cache").doc(`bairros_${city.ibgeCode}`);
+  const docRef = db.collection("global_cities").doc(city.ibgeCode);
   const snap = await docRef.get();
 
-  if (!force && snap.exists && Number(snap.get("expiresAt")) > Date.now()) {
-    const list = snap.get("list") || [];
-    return { status: "cached", count: list.length };
+  if (!force && snap.exists && snap.get("status") === "ready" && (snap.get("expiresAt")?.toMillis?.() || 0) > Date.now()) {
+    return { status: "cached", count: Number(snap.get("neighborhoodCount")) || 0 };
   }
 
   const [osm, ibge] = await Promise.all([
@@ -217,16 +216,30 @@ async function seedCity(city, force) {
     return { status: "empty", count: 0 };
   }
 
-  const expiresAt = Date.now() + TTL_MS;
+  for (let index = 0; index < list.length; index += 400) {
+    const batch = db.batch();
+    list.slice(index, index + 400).forEach((item) => {
+      const id = item.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 120);
+      if (!id) return;
+      batch.set(docRef.collection("neighborhoods").doc(id), {
+        name: item.name,
+        normalizedName: neighborhoodKey(item.name),
+        source: item.source,
+        sources: FieldValue.arrayUnion(item.source),
+        active: true,
+        status: "verified",
+        lastSeenAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+    await batch.commit();
+  }
   await docRef.set({
-    ibgeCode: city.ibgeCode,
-    cityName: city.name,
-    uf: city.uf,
-    list,
-    fetchedAt: new Date().toISOString(),
-    expiresAt,
-    seededBy: "scripts/seed-neighborhoods.mjs",
-  });
+    ibgeCode: city.ibgeCode, name: city.name, state: city.uf, status: "ready",
+    partial: osm === null, neighborhoodCount: list.length, source: osm === null ? ["ibge"] : ["osm", "ibge"],
+    lastSyncedAt: FieldValue.serverTimestamp(), expiresAt: Timestamp.fromMillis(Date.now() + TTL_MS),
+    updatedAt: FieldValue.serverTimestamp(), seededBy: "scripts/seed-neighborhoods.mjs",
+    ...(snap.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+  }, { merge: true });
 
   return { status: osm === null ? "partial" : "seeded", count: list.length };
 }
@@ -244,13 +257,13 @@ console.log(`Cidades: ${PRIORITY_CITIES.length}\n`);
 if (listOnly) {
   console.log("Verificando status no Firestore…\n");
   for (const city of PRIORITY_CITIES) {
-    const snap = await db.collection("geo_cache").doc(`bairros_${city.ibgeCode}`).get();
+    const snap = await db.collection("global_cities").doc(city.ibgeCode).get();
     if (!snap.exists) {
       console.log(`  ✗  ${city.name.padEnd(25)} não cadastrada`);
     } else {
-      const expiry = Number(snap.get("expiresAt"));
+      const expiry = snap.get("expiresAt")?.toMillis?.() || 0;
       const fresh = expiry > Date.now();
-      const count = (snap.get("list") || []).length;
+      const count = Number(snap.get("neighborhoodCount")) || 0;
       const expires = new Date(expiry).toLocaleDateString("pt-BR");
       const icon = fresh ? "✓" : "↻";
       console.log(`  ${icon}  ${city.name.padEnd(25)} ${count} bairros · expira ${expires}${fresh ? "" : " · EXPIRADO"}`);

@@ -6,6 +6,7 @@ import { getDb } from "@/lib/firebase";
 import { useNow } from "@/lib/hooks";
 import { orderQuota, resolveEntitlements, usagePeriod, type Entitlements, type FeatureKey, type StoredSubscription } from "@/lib/billing/plans";
 import type { AccountInfo } from "@/components/dashboard/types";
+import { subscribeShared } from "@/lib/firestore-shared-listener";
 
 /**
  * Hooks de planos para as telas. Só controlam a experiência (o que aparece, travado ou liberado): toda operação
@@ -44,11 +45,11 @@ export function usePlanUsage(restaurantId: string, entitlements: Entitlements): 
   useEffect(() => {
     if (!restaurantId) return;
     setState({ periodId: period.periodId, used: 0, loading: true, error: false });
-    return onSnapshot(
+    return subscribeShared<number>(`usage:${restaurantId}:${period.periodId}`, (emit, fail) => onSnapshot(
       doc(getDb(), "restaurantes", restaurantId, "uso", period.periodId),
-      (snap) => setState({ periodId: period.periodId, used: Number(snap.get("nativeOrdersUsed")) || 0, loading: false, error: false }),
-      () => setState((s) => ({ ...s, loading: false, error: true })),
-    );
+      (snap) => emit(Number(snap.get("nativeOrdersUsed")) || 0, snap.exists() ? 1 : 0),
+      fail,
+    ), (used) => setState({ periodId: period.periodId, used, loading: false, error: false }), () => setState((s) => ({ ...s, loading: false, error: true })));
   }, [restaurantId, period.periodId]);
   const quota = orderQuota(state.used, entitlements.limits.maxNativeOrdersPerMonth);
   return { ...quota, loading: state.loading, error: state.error, periodId: period.periodId, periodStart: period.start, periodEnd: period.end };

@@ -3,17 +3,18 @@ import { getDb } from "@/lib/firebase";
 import { withTimeout } from "@/lib/async";
 import type { DeliveryOrderStatus } from "@/lib/delivery/types";
 import { toPanelOrder, type PanelOrder } from "./metrics";
+import { subscribeShared } from "@/lib/firestore-shared-listener";
 
 /**
  * Pedidos do estabelecimento a partir de `sinceIso`, em tempo real (as regras liberam a leitura só para a equipe).
  * Rascunhos do PDV ficam de fora: ainda não são pedidos.
  */
 export function watchOrders(restaurantId: string, sinceIso: string, onData: (orders: PanelOrder[]) => void, onError: (error: Error) => void) {
-  return onSnapshot(
+  return subscribeShared(`orders:${restaurantId}:${sinceIso}`, (emit, fail) => onSnapshot(
     query(collection(getDb(), "restaurantes", restaurantId, "pedidos"), where("createdAt", ">=", sinceIso), orderBy("createdAt", "desc"), limit(1500)),
-    (snap) => onData(snap.docs.filter((d) => d.get("operationalReady") !== false).map((d) => toPanelOrder(d.id, d.data())).filter((o) => o.status !== "rascunho")),
-    onError,
-  );
+    (snap) => emit(snap.docs.filter((d) => d.get("operationalReady") !== false).map((d) => toPanelOrder(d.id, d.data())).filter((o) => o.status !== "rascunho"), snap.size),
+    fail,
+  ), onData, onError);
 }
 
 /** Altera o status pelo servidor (valida a transição e a equipe; o navegador não grava status direto). */

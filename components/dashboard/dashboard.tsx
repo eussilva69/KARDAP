@@ -63,6 +63,7 @@ import {
   publicMenuPath,
   renameRestaurantTable,
   updateRestaurantCategory,
+  reorderRestaurantCategories,
   updateRestaurantProduct,
   searchGooglePlaces,
   getPlaceDetails,
@@ -439,6 +440,8 @@ export default function Dashboard(props: DashboardProps) {
       // Encerra antes a sessão compartilhada (PDV incluído); sem rede, o cookie ainda vence em até 5 dias.
       await endSsoSession();
       await signOut(getFirebaseAuth());
+      const { clearPrivateFirebaseState } = await import("@/lib/firebase");
+      await clearPrivateFirebaseState();
       clearAccountStorage();
       window.location.href = "/";
     } catch {
@@ -1209,7 +1212,7 @@ function CategoriesPage({ notify, categories, foods, loaded, loadErrors, onRetry
     const changes = list.map((c, order) => ({ c, order })).filter(({ c, order }) => c.order !== order);
     setMoving(categories[index].id);
     try {
-      await Promise.all(changes.map(({ c, order }) => updateRestaurantCategory(c.id, { order })));
+      await reorderRestaurantCategories(changes.map(({ c, order }) => ({ id: c.id, order })));
     } catch (error) {
       reportError(error, notify, "Não foi possível mudar a ordem. Tente de novo.");
     } finally {

@@ -24,12 +24,17 @@ export function useOrders(days: number, enabled = true) {
     if (!enabled) return;
     const restaurantId = getRestaurantId();
     if (!restaurantId || restaurantId === "unassigned") return;
-    const since = new Date(Date.now() - days * DAY).toISOString();
+    // Dashboard, vendas e relatórios reutilizam a mesma janela/listener; cada tela filtra localmente.
+    const sharedDays = days <= 35 ? 35 : days;
+    const sinceDate = new Date(Date.now() - sharedDays * DAY);
+    sinceDate.setUTCHours(0, 0, 0, 0);
+    const since = sinceDate.toISOString();
+    const visibleSince = Date.now() - days * DAY;
     return watchOrders(
       restaurantId,
       since,
       (items) => {
-        setOrders(items);
+        setOrders(items.filter((item) => Date.parse(item.createdAt) >= visibleSince));
         setError("");
       },
       (e) => setError(friendlyError(e, "Não foi possível carregar os pedidos.")),

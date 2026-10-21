@@ -26,6 +26,8 @@ export default function LogoutPage() {
     if (isFirebaseConfigured) {
       const [{ signOut }, { getFirebaseAuth }] = await Promise.all([import("firebase/auth"), import("@/lib/auth")]);
       await signOut(getFirebaseAuth()).catch(() => undefined);
+      const { clearPrivateFirebaseState } = await import("@/lib/firebase");
+      await clearPrivateFirebaseState();
     }
     clearAccountStorage();
     window.location.replace(target);

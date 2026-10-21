@@ -12,12 +12,12 @@ import type { DeliveryConfig, FeeMode } from "@/lib/delivery/types";
 import { ONLINE_PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@/lib/delivery/types";
 import { deliveryReadiness, type ReadinessArea } from "@/lib/delivery/readiness";
 import { DeliveryAreasModal, type MapOrigin } from "./delivery-areas";
+import { readPrivateCache, writePrivateCache } from "@/lib/private-memory-cache";
 
 type Notify = (message: string, tone?: "success" | "error") => void;
 
 type DeliveryState = {
   config: DeliveryConfig;
-  usage: { periodId: string; used: number; limit: number | null; remaining: number | null; level: string; blocked: boolean };
   deliveryUrl: string | null;
   planAllowsDelivery: boolean;
   subscriptionValid: boolean;
@@ -38,6 +38,8 @@ const SHORT_LABELS: Record<string, string> = {
   pix_online: "Pix",
   cartao_online: "Cartão de crédito",
 };
+const DELIVERY_CACHE_TTL_MS = 5 * 60_000;
+const deliveryCacheKey = (restaurantId: string) => `delivery:${restaurantId}`;
 
 async function fetchDeliveryState(restaurantId: string): Promise<DeliveryState> {
   const { getFirebaseAuth } = await import("@/lib/auth");
@@ -91,15 +93,24 @@ export function DeliveryPage({ account, notify }: { account: AccountInfo; notify
   const restaurantId = getRestaurantId();
   const usage = usePlanUsage(restaurantId, entitlements);
 
-  const [state, setState] = useState<DeliveryState | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialCache = readPrivateCache<DeliveryState>(deliveryCacheKey(restaurantId));
+  const [state, setState] = useState<DeliveryState | null>(() => initialCache?.value || null);
+  const [loading, setLoading] = useState(!initialCache);
   const [error, setError] = useState("");
 
   const load = useCallback(() => {
-    setLoading(true);
+    const current = readPrivateCache<DeliveryState>(deliveryCacheKey(restaurantId));
+    if (current) setState(current.value);
+    else {
+      setState(null);
+      setLoading(true);
+    }
     setError("");
     fetchDeliveryState(restaurantId)
-      .then(setState)
+      .then((next) => {
+        writePrivateCache(deliveryCacheKey(restaurantId), next, DELIVERY_CACHE_TTL_MS);
+        setState(next);
+      })
       .catch((err) => setError(friendlyError(err, "Não foi possível carregar as configurações do delivery.")))
       .finally(() => setLoading(false));
   }, [restaurantId]);
@@ -141,7 +152,19 @@ export function DeliveryPage({ account, notify }: { account: AccountInfo; notify
     );
   }
 
-  return <DeliveryConfigPanel state={state} usage={usage} restaurantId={restaurantId} notify={notify} onUpdate={(next) => setState((s) => (s ? { ...s, config: next } : s))} />;
+  return (
+    <DeliveryConfigPanel
+      state={state}
+      usage={usage}
+      restaurantId={restaurantId}
+      notify={notify}
+      onUpdate={(next) => setState((current) => {
+        const updated = current ? { ...current, config: next } : current;
+        if (updated) writePrivateCache(deliveryCacheKey(restaurantId), updated, DELIVERY_CACHE_TTL_MS);
+        return updated;
+      })}
+    />
+  );
 }
 
 function DeliveryConfigPanel({

@@ -313,6 +313,7 @@ export function Checkout({
           district: district.trim(),
           city: city.trim(),
           uf: uf.trim() || undefined,
+          ibgeCode: ibgeCode || undefined,
           reference: reference.trim() || undefined,
           placeId: placeId || undefined,
         },

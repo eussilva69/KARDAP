@@ -96,6 +96,8 @@ async function signOutHere() {
   clearAccountStorage();
   if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
   await signOut(getFirebaseAuth()).catch(() => undefined);
+  const { clearPrivateFirebaseState } = await import("@/lib/firebase");
+  await clearPrivateFirebaseState();
 }
 
 type PublicRestaurant = { id: string; name: string; brand: Brand; settings: RestaurantSettings; billAllowed: boolean; suspended: boolean; isDemo: boolean };

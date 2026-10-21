@@ -82,6 +82,7 @@ export type DeliveryAddress = {
   district: string;
   city: string;
   uf?: string;
+  ibgeCode?: string;
   reference?: string;
   /** Google Place ID do endereço escolhido no autocomplete (permitido armazenar sem prazo pelos termos do Google). */
   placeId?: string;

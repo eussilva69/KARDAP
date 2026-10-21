@@ -1,5 +1,7 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from "firebase/app";
-import { connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from "firebase/firestore";
+import { clearIndexedDbPersistence, connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, terminate, type Firestore } from "firebase/firestore";
+import { stopAllSharedListeners } from "./firestore-shared-listener";
+import { clearPrivateMemoryCache } from "./private-memory-cache";
 
 // Chaves públicas do projeto Firebase. As regras do Firestore continuam sendo
 // responsáveis por definir quem pode ler e alterar os dados.
@@ -47,4 +49,15 @@ export const getDb = () => {
   if (useEmulators) connectFirestoreEmulator(db, EMULATOR_HOST, 8080);
   return db;
 };
+
+/** Remove listeners e dados persistidos ao sair/trocar de conta para não cruzar dados privados entre sessões. */
+export async function clearPrivateFirebaseState() {
+  stopAllSharedListeners();
+  clearPrivateMemoryCache();
+  if (!db) return;
+  const current = db;
+  db = undefined;
+  await terminate(current).catch(() => undefined);
+  await clearIndexedDbPersistence(current).catch(() => undefined);
+}
 // O Storage é inicializado em lib/storage.ts, carregado só pelo painel e pela configuração inicial.
