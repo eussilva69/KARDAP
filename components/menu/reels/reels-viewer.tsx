@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, Clapperboard, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { productCents } from "@/lib/format";
-import { useConstrainedNetwork, useDialog } from "@/lib/hooks";
+import { useDialog } from "@/lib/hooks";
 import { shareDish } from "@/lib/reels";
+import { usePreloadBudget, type PreloadBudget } from "@/lib/video-playback";
 import type { Dish } from "../dish-row";
 import { ReelSlide } from "./reel-slide";
 import { SaveSheet } from "./save-sheet";
@@ -13,6 +14,21 @@ import type { Engagement, RestaurantRef } from "./use-engagement";
 
 export type ReelsMode = "reels" | "menu";
 type Toast = { id: number; text: string; action?: { label: string; run: () => void } };
+type Preload = "auto" | "metadata" | "none";
+
+/**
+ * Prioridade de download. Até o vídeo da tela ter o primeiro quadro, só ele baixa (nada disputa a conexão com
+ * ele). Depois: com rede boa, os primeiros segundos do próximo e o começo do anterior; com rede fraca, só o começo
+ * do próximo; em economia de dados ou 2G, nada além do atual. Parado (sem reprodução automática ou pausado pela
+ * pessoa), o atual e o próximo baixam só o começo: o resto vem quando ela tocar.
+ */
+function preloadFor(offset: number, ready: boolean, budget: PreloadBudget, paused: boolean): Preload {
+  if (offset === 0) return paused ? "metadata" : "auto";
+  if (!ready || budget === "minimal") return "none";
+  if (offset === 1) return budget === "full" && !paused ? "auto" : "metadata";
+  if (offset === -1) return budget === "full" ? "metadata" : "none";
+  return "none";
+}
 
 const SOUND_KEY = "kardap-reels-som";
 const HINT_KEY = "kardap-reels-dica";
@@ -34,8 +50,8 @@ const writeSession = (key: string, value: string) => {
  * Feed vertical de pratos em tela cheia, no padrão dos Reels: um por vez, deslizando para cima e para baixo.
  * "reels": só os pratos com vídeo (botão Reels do cardápio). "menu": todos os pratos (toque num prato da lista).
  *
- * Desempenho no celular: só o vídeo atual toca; o anterior e o próximo existem com pré-carregamento leve
- * (o próximo completo só com conexão boa e depois que o atual começou); slides mais distantes são só o espaço
+ * Desempenho no celular: só o vídeo atual toca; o anterior e o próximo existem como elemento de vídeo e baixam
+ * conforme `preloadFor` (nada antes de o atual mostrar o primeiro quadro); slides mais distantes são só o espaço
  * reservado. Cada slide é memorizado e recebe apenas valores simples, então trocar de prato renderiza poucos.
  */
 export function ReelsViewer({
@@ -71,13 +87,16 @@ export function ReelsViewer({
   const [paused, setPaused] = useState(!autoplay);
   const [holding, setHolding] = useState(false);
   const [hidden, setHidden] = useState(false);
-  const [activePlaying, setActivePlaying] = useState(false);
+  /** O slide atual já tem o primeiro quadro (ou não tem vídeo): libera o pré-carregamento dos vizinhos. */
+  const [activeReady, setActiveReady] = useState(false);
   const [sheet, setSheet] = useState<{ kind: "share" | "save"; dish: Dish } | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [hint] = useState(() => dishes.length > 1 && readSession(HINT_KEY) !== "1");
-  const constrained = useConstrainedNetwork();
+  const budget = usePreloadBudget();
   const indexRef = useRef(index);
   indexRef.current = index;
+  const autoplayRef = useRef(autoplay);
+  autoplayRef.current = autoplay;
   useDialog(ref, onClose);
 
   const { refresh, toggleLike, toggleSave, likeCount, liked, savedHere, account, notice, clearNotice } = engagement;
@@ -88,14 +107,23 @@ export function ReelsViewer({
 
   useEffect(() => {
     if (hint) writeSession(HINT_KEY, "1");
-    void refresh();
-  }, [hint, refresh]);
+  }, [hint]);
 
-  // Cada prato novo começa tocando (ou parado, sem reprodução automática).
+  // A conferência com o servidor carrega o Firebase Auth: fica para quando o primeiro vídeo já começou e o
+  // celular está ocioso, sem disputar a thread com a abertura do feed e o primeiro toque.
   useEffect(() => {
-    setPaused(!autoplay);
-    setActivePlaying(false);
-  }, [index, autoplay]);
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(() => void refresh(), { timeout: 3000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const timer = setTimeout(() => void refresh(), 1500);
+    return () => clearTimeout(timer);
+  }, [refresh]);
+
+  useEffect(() => {
+    setPaused(!autoplayRef.current);
+  }, [autoplay]);
 
   useEffect(() => {
     const update = () => setHidden(document.visibilityState === "hidden");
@@ -109,14 +137,21 @@ export function ReelsViewer({
     if (root) root.scrollTop = startIndex * root.clientHeight;
   }, [startIndex]);
 
-  // Prato atual: o slide com mais de 60% na tela (sem listeners de scroll).
+  // Prato atual: o slide com mais de 60% na tela (sem listeners de scroll). Cada prato novo começa tocando
+  // (ou parado, sem reprodução automática) no mesmo render da troca: o vídeo recebe a ordem sem esperar outro ciclo.
   useEffect(() => {
     const root = track.current;
     if (!root || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) setIndex(Number((entry.target as HTMLElement).dataset.index));
+          if (!entry.isIntersecting) return;
+          const next = Number((entry.target as HTMLElement).dataset.index);
+          if (next === indexRef.current) return;
+          indexRef.current = next;
+          setIndex(next);
+          setPaused(!autoplayRef.current);
+          setActiveReady(false);
         });
       },
       { root, threshold: 0.6 },
@@ -177,7 +212,8 @@ export function ReelsViewer({
 
   const onTap = useCallback(() => setPaused((p) => !p), []);
   const onHold = useCallback((value: boolean) => setHolding(value), []);
-  const onPlaying = useCallback((i: number) => i === indexRef.current && setActivePlaying(true), []);
+  const onReady = useCallback((i: number) => i === indexRef.current && setActiveReady(true), []);
+  const onAutoplayBlocked = useCallback(() => setPaused(true), []);
   const onSoundBlocked = useCallback(() => {
     setMuted(true);
     showToast({ text: "Toque no alto-falante para ouvir o som" });
@@ -268,7 +304,7 @@ export function ReelsViewer({
                 active={i === index}
                 near={distance <= 1}
                 render={distance <= 2}
-                preload={i === index ? "auto" : i === index + 1 && activePlaying && !constrained ? "auto" : distance === 1 ? "metadata" : "none"}
+                preload={preloadFor(i - index, activeReady, budget, paused)}
                 play={i === index && playing}
                 paused={i === index && paused}
                 muted={muted}
@@ -285,8 +321,9 @@ export function ReelsViewer({
                 onShare={onShare}
                 onSave={onSave}
                 onCall={onCallDish}
-                onPlaying={onPlaying}
+                onReady={onReady}
                 onSoundBlocked={onSoundBlocked}
+                onAutoplayBlocked={onAutoplayBlocked}
               />
             );
           })}

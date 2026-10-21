@@ -13,12 +13,12 @@ import type {
   DeliveryOrder,
   DeliveryOrderItem,
   DeliveryOrderStatus,
-  FeeMode,
   NeighborhoodEntry,
   ServedCity,
   StatusHistoryEntry,
 } from "./types";
-import { canTransition, DEFAULT_DELIVERY_CONFIG, isDeliveryStatus, normalizeCity, slugifyNeighborhood, TERMINAL_STATUSES } from "./types";
+import { canTransition, DEFAULT_DELIVERY_CONFIG, isDeliveryStatus, slugifyNeighborhood } from "./types";
+import { findServedCity, resolveDeliveryFee } from "./match";
 import { isDeliveryChannel, orderChannel } from "@/lib/orders/channels";
 
 const restaurantRef = (id: string) => adminDb().collection("restaurantes").doc(id);
@@ -30,6 +30,15 @@ export async function getDeliveryConfig(restaurantId: string): Promise<DeliveryC
   if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
   const raw = snap.get("delivery") as Partial<DeliveryConfig> | undefined;
   return { ...DEFAULT_DELIVERY_CONFIG, ...raw };
+}
+
+/** Configuração para o painel: só o dono ou a equipe do estabelecimento. */
+export async function getDeliveryConfigForTeam(restaurantId: string, uid: string): Promise<DeliveryConfig> {
+  const ref = restaurantRef(restaurantId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
+  await assertTeamMember(ref, snap, uid);
+  return configOf(snap);
 }
 
 export async function saveDeliveryConfig(restaurantId: string, uid: string, patch: Partial<DeliveryConfig>): Promise<DeliveryConfig> {
@@ -73,12 +82,12 @@ export async function saveDeliveryConfig(restaurantId: string, uid: string, patc
     if (typeof patch.feeMode === "string" && (patch.feeMode === "taxa_fixa" || patch.feeMode === "taxa_por_bairro")) {
       safe.feeMode = patch.feeMode;
     }
-    if (Array.isArray(patch.servedCities)) {
-      safe.servedCities = patch.servedCities
-        .filter((c): c is ServedCity => !!c && typeof c.ibgeCode === "string" && typeof c.name === "string" && typeof c.uf === "string")
-        .slice(0, 50)
-        .map((c) => ({ ibgeCode: c.ibgeCode.slice(0, 10), name: c.name.slice(0, 100), uf: c.uf.slice(0, 2) }));
+    if (Array.isArray(patch.servedCities)) safe.servedCities = sanitizeCities(patch.servedCities);
+    if (patch.defaultNeighborhoodFeeCents === null) safe.defaultNeighborhoodFeeCents = null;
+    else if (typeof patch.defaultNeighborhoodFeeCents === "number" && Number.isFinite(patch.defaultNeighborhoodFeeCents) && patch.defaultNeighborhoodFeeCents >= 0) {
+      safe.defaultNeighborhoodFeeCents = Math.round(patch.defaultNeighborhoodFeeCents);
     }
+    if (typeof patch.serveUnlistedNeighborhoods === "boolean") safe.serveUnlistedNeighborhoods = patch.serveUnlistedNeighborhoods;
 
     const next = { ...current, ...safe };
     tx.update(ref, { delivery: next, updatedAt: at });
@@ -88,51 +97,64 @@ export async function saveDeliveryConfig(restaurantId: string, uid: string, patc
 
 // ───────────────────────── Áreas de entrega e cálculo de frete ─────────────────────────
 
+const IBGE_CODE = /^\d{7}$/;
+
+async function assertTeamMember(ref: FirebaseFirestore.DocumentReference, snap: FirebaseFirestore.DocumentSnapshot, uid: string) {
+  if (snap.get("ownerId") === uid) return;
+  const member = await ref.collection("membros").doc(uid).get();
+  if (!member.exists) throw new BillingError("forbidden", 403, "Você não faz parte da equipe deste estabelecimento.");
+}
+
+/** Cidades atendidas como o servidor aceita gravar (o painel manda a lista inteira ao ativar/pausar uma cidade). */
+function sanitizeCities(list: unknown[]): ServedCity[] {
+  const seen = new Set<string>();
+  const out: ServedCity[] = [];
+  for (const c of list as Partial<ServedCity>[]) {
+    if (!c || typeof c.ibgeCode !== "string" || !IBGE_CODE.test(c.ibgeCode) || typeof c.name !== "string" || typeof c.uf !== "string") continue;
+    if (seen.has(c.ibgeCode)) continue;
+    seen.add(c.ibgeCode);
+    const city: ServedCity = { ibgeCode: c.ibgeCode, name: c.name.slice(0, 100), uf: c.uf.slice(0, 2).toUpperCase() };
+    if (c.enabled === false) city.enabled = false;
+    if (typeof c.placeId === "string" && c.placeId.length <= 300) city.placeId = c.placeId;
+    out.push(city);
+    if (out.length >= 50) break;
+  }
+  return out;
+}
+
+const configOf = (snap: FirebaseFirestore.DocumentSnapshot): DeliveryConfig => ({
+  ...DEFAULT_DELIVERY_CONFIG,
+  ...(snap.get("delivery") as Partial<DeliveryConfig> | undefined),
+});
+
 export async function calculateDeliveryFee(
   restaurantId: string,
   city: string,
   district: string,
   uf?: string,
+  ibgeCode?: string,
 ): Promise<DeliveryFeeResult> {
   const snap = await restaurantRef(restaurantId).get();
   if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
 
-  const config: DeliveryConfig = { ...DEFAULT_DELIVERY_CONFIG, ...(snap.get("delivery") as Partial<DeliveryConfig> | undefined) };
-  const feeMode: FeeMode = config.feeMode || "taxa_fixa";
-  const cities = config.servedCities || [];
+  const config = configOf(snap);
+  const address = { city, district, uf, ibgeCode: ibgeCode && IBGE_CODE.test(ibgeCode) ? ibgeCode : undefined };
+  const served = findServedCity(config.servedCities || [], address);
 
-  if (!cities.length) {
-    return { feeCents: config.deliveryFeeCents, feeMode: "taxa_fixa", cityName: city, neighborhoodName: null, matched: true };
+  let area: { neighborhoods: Record<string, NeighborhoodEntry> } | null = null;
+  if (served && served.enabled !== false) {
+    const areaDoc = await restaurantRef(restaurantId).collection("delivery_areas").doc(served.ibgeCode).get();
+    if (areaDoc.exists) area = { neighborhoods: (areaDoc.get("neighborhoods") || {}) as Record<string, NeighborhoodEntry> };
   }
-
-  const normCity = normalizeCity(city);
-  const matchedCity = cities.find((c) => normalizeCity(c.name) === normCity || (uf && normalizeCity(c.name) === normCity && c.uf.toLowerCase() === uf.toLowerCase()));
-  if (!matchedCity) {
-    return { feeCents: 0, feeMode, cityName: city, neighborhoodName: null, matched: false, reason: "Infelizmente, este restaurante ainda não realiza entregas na sua cidade." };
-  }
-
-  if (feeMode === "taxa_fixa") {
-    return { feeCents: config.deliveryFeeCents, feeMode, cityName: matchedCity.name, neighborhoodName: null, matched: true };
-  }
-
-  const areaDoc = await restaurantRef(restaurantId).collection("delivery_areas").doc(matchedCity.ibgeCode).get();
-  if (!areaDoc.exists) {
-    return { feeCents: 0, feeMode, cityName: matchedCity.name, neighborhoodName: null, matched: false, reason: "Nenhum bairro configurado para esta cidade." };
-  }
-
-  const neighborhoods = (areaDoc.get("neighborhoods") || {}) as Record<string, NeighborhoodEntry>;
-  const slug = slugifyNeighborhood(district);
-  const entry = neighborhoods[slug];
-
-  if (!entry || !entry.enabled) {
-    return { feeCents: 0, feeMode, cityName: matchedCity.name, neighborhoodName: district, matched: false, reason: "Infelizmente, este restaurante ainda não realiza entregas no endereço informado." };
-  }
-
-  return { feeCents: entry.feeCents, feeMode, cityName: matchedCity.name, neighborhoodName: entry.name, matched: true };
+  return resolveDeliveryFee(config, address, area, slugifyNeighborhood);
 }
 
-export async function getDeliveryAreas(restaurantId: string, cityIbgeCode: string): Promise<CityDeliveryArea | null> {
-  const doc = await restaurantRef(restaurantId).collection("delivery_areas").doc(cityIbgeCode).get();
+export async function getDeliveryAreas(restaurantId: string, uid: string, cityIbgeCode: string): Promise<CityDeliveryArea | null> {
+  const ref = restaurantRef(restaurantId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
+  await assertTeamMember(ref, snap, uid);
+  const doc = await ref.collection("delivery_areas").doc(cityIbgeCode).get();
   if (!doc.exists) return null;
   return doc.data() as CityDeliveryArea;
 }
@@ -141,65 +163,61 @@ export async function saveDeliveryAreas(
   restaurantId: string,
   uid: string,
   cityIbgeCode: string,
-  data: { cityName: string; uf: string; neighborhoods: Record<string, NeighborhoodEntry> },
-): Promise<void> {
+  data: { cityName: string; uf: string; placeId?: string; neighborhoods: Record<string, NeighborhoodEntry> },
+): Promise<DeliveryConfig> {
+  if (!IBGE_CODE.test(cityIbgeCode)) throw new BillingError("invalid_city", 400, "Código IBGE inválido.");
   const db = adminDb();
   const ref = restaurantRef(restaurantId);
   const snap = await ref.get();
   if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
-  if (snap.get("ownerId") !== uid) {
-    const member = await ref.collection("membros").doc(uid).get();
-    if (!member.exists) throw new BillingError("forbidden", 403, "Você não faz parte da equipe deste estabelecimento.");
-  }
+  await assertTeamMember(ref, snap, uid);
   const entitlements = entitlementsFrom(snap);
   if (!entitlements.features.deliveryManagement) throw new BillingError("plan_required", 402, "O delivery está disponível a partir do plano Pro.");
 
   const safeNeighborhoods: Record<string, NeighborhoodEntry> = {};
-  const entries = Object.entries(data.neighborhoods);
+  const entries = Object.entries(data.neighborhoods || {});
   if (entries.length > 2000) throw new BillingError("too_many_neighborhoods", 400, "Limite de 2000 bairros por cidade.");
   for (const [key, val] of entries) {
-    if (!val || typeof val.name !== "string") continue;
-    const slug = slugifyNeighborhood(val.name) || key;
-    safeNeighborhoods[slug] = {
-      name: val.name.slice(0, 100),
-      feeCents: Math.max(0, Math.round(Number(val.feeCents) || 0)),
-      enabled: val.enabled !== false,
-    };
+    if (!val || typeof val.name !== "string" || !val.name.trim()) continue;
+    const name = val.name.replace(/\s+/g, " ").trim().slice(0, 100);
+    const slug = slugifyNeighborhood(name) || key;
+    const fee = val.feeCents === null || val.feeCents === undefined || (val.feeCents as unknown) === "" ? null : Number(val.feeCents);
+    if (fee !== null && (!Number.isFinite(fee) || fee < 0 || fee > 100_000_00)) {
+      throw new BillingError("invalid_fee", 400, `Taxa inválida para o bairro ${name}.`);
+    }
+    safeNeighborhoods[slug] = { name, feeCents: fee === null ? null : Math.round(fee), enabled: val.enabled !== false };
   }
 
   const at = new Date().toISOString();
   const areaDoc: CityDeliveryArea = {
     cityName: data.cityName.slice(0, 100),
-    uf: data.uf.slice(0, 2),
+    uf: data.uf.slice(0, 2).toUpperCase(),
     ibgeCode: cityIbgeCode,
     neighborhoods: safeNeighborhoods,
     updatedAt: at,
   };
 
+  const config = configOf(snap);
+  const cities = config.servedCities || [];
+  const nextCities = cities.some((c) => c.ibgeCode === cityIbgeCode)
+    ? cities
+    : sanitizeCities([...cities, { ibgeCode: cityIbgeCode, name: areaDoc.cityName, uf: areaDoc.uf, placeId: data.placeId }]);
+
   const batch = db.batch();
   batch.set(ref.collection("delivery_areas").doc(cityIbgeCode), areaDoc);
-
-  const config = (snap.get("delivery") as Partial<DeliveryConfig>) || {};
-  const cities: ServedCity[] = config.servedCities || [];
-  if (!cities.some((c) => c.ibgeCode === cityIbgeCode)) {
-    const updated = [...cities, { ibgeCode: cityIbgeCode, name: data.cityName.slice(0, 100), uf: data.uf.slice(0, 2) }];
-    batch.update(ref, { "delivery.servedCities": updated, updatedAt: at });
-  }
-
+  if (nextCities !== cities) batch.update(ref, { "delivery.servedCities": nextCities, updatedAt: at });
   await batch.commit();
+  return { ...config, servedCities: nextCities };
 }
 
-export async function removeDeliveryCity(restaurantId: string, uid: string, cityIbgeCode: string): Promise<void> {
+export async function removeDeliveryCity(restaurantId: string, uid: string, cityIbgeCode: string): Promise<DeliveryConfig> {
   const db = adminDb();
   const ref = restaurantRef(restaurantId);
   const snap = await ref.get();
   if (!snap.exists) throw new BillingError("not_found", 404, "Estabelecimento não encontrado.");
-  if (snap.get("ownerId") !== uid) {
-    const member = await ref.collection("membros").doc(uid).get();
-    if (!member.exists) throw new BillingError("forbidden", 403, "Você não faz parte da equipe deste estabelecimento.");
-  }
+  await assertTeamMember(ref, snap, uid);
 
-  const config = (snap.get("delivery") as Partial<DeliveryConfig>) || {};
+  const config = configOf(snap);
   const cities = (config.servedCities || []).filter((c) => c.ibgeCode !== cityIbgeCode);
   const at = new Date().toISOString();
 
@@ -207,15 +225,15 @@ export async function removeDeliveryCity(restaurantId: string, uid: string, city
   batch.delete(ref.collection("delivery_areas").doc(cityIbgeCode));
   batch.update(ref, { "delivery.servedCities": cities, updatedAt: at });
   await batch.commit();
+  return { ...config, servedCities: cities };
 }
 
-export async function getServedNeighborhoods(restaurantId: string, cityName: string): Promise<{ name: string; slug: string }[]> {
+export async function getServedNeighborhoods(restaurantId: string, cityName: string, uf?: string, ibgeCode?: string): Promise<{ name: string; slug: string }[]> {
   const snap = await restaurantRef(restaurantId).get();
   if (!snap.exists) return [];
-  const config: DeliveryConfig = { ...DEFAULT_DELIVERY_CONFIG, ...(snap.get("delivery") as Partial<DeliveryConfig> | undefined) };
-  const normCity = normalizeCity(cityName);
-  const matchedCity = (config.servedCities || []).find((c) => normalizeCity(c.name) === normCity);
-  if (!matchedCity) return [];
+  const config = configOf(snap);
+  const matchedCity = findServedCity(config.servedCities || [], { city: cityName, uf, ibgeCode });
+  if (!matchedCity || matchedCity.enabled === false) return [];
   const areaDoc = await restaurantRef(restaurantId).collection("delivery_areas").doc(matchedCity.ibgeCode).get();
   if (!areaDoc.exists) return [];
   const neighborhoods = (areaDoc.get("neighborhoods") || {}) as Record<string, NeighborhoodEntry>;
@@ -242,8 +260,9 @@ function validateAddress(addr: unknown): DeliveryAddress {
     complement: str("complement", 100, false) || undefined,
     district: str("district", 100, true),
     city: str("city", 100, true),
-    uf: str("uf", 2, false) || undefined,
+    uf: str("uf", 2, false).toUpperCase() || undefined,
     reference: str("reference", 200, false) || undefined,
+    placeId: str("placeId", 300, false) || undefined,
   };
 }
 
@@ -349,7 +368,10 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
     feeCalculation: {
       feeMode: feeResult.feeMode,
       cityMatched: feeResult.cityName,
+      cityIbgeCode: feeResult.cityIbgeCode,
       neighborhoodMatched: feeResult.neighborhoodName ?? undefined,
+      matchType: feeResult.matchType,
+      usedDefaultFee: feeResult.usedDefaultFee,
       feeCents: feeResult.feeCents,
     },
     origin: { source: "kardap_delivery", channel: "web", isNativeOrder: true },
@@ -443,7 +465,7 @@ export async function updateOrderStatus(
 
 // ───────────────────────── Consulta pública (acompanhamento) ─────────────────────────
 
-export async function getPublicOrderStatus(restaurantId: string, orderId: string): Promise<{ status: DeliveryOrderStatus; orderNumber: number; statusHistory: StatusHistoryEntry[]; updatedAt: string } | null> {
+export async function getPublicOrderStatus(restaurantId: string, orderId: string): Promise<{ status: DeliveryOrderStatus; orderNumber: number; statusHistory: StatusHistoryEntry[]; updatedAt: string; paymentStatus?: string } | null> {
   const snap = await restaurantRef(restaurantId).collection("pedidos").doc(orderId).get();
   if (!snap.exists || snap.get("establishmentId") !== restaurantId) return null;
   if (snap.get("origin.source") !== "kardap_delivery") return null;
@@ -452,6 +474,7 @@ export async function getPublicOrderStatus(restaurantId: string, orderId: string
     orderNumber: snap.get("orderNumber"),
     statusHistory: snap.get("statusHistory") || [],
     updatedAt: snap.get("updatedAt"),
+    paymentStatus: snap.get("paymentStatus"),
   };
 }
 

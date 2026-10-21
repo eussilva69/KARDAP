@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, Check, LoaderCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, LoaderCircle, MapPin, Search } from "lucide-react";
 import { friendlyError } from "@/lib/async";
 import { brl } from "@/lib/format";
-import { PAYMENT_METHOD_LABELS, type DeliveryCheckoutPayload } from "@/lib/delivery/types";
+import { ONLINE_PAYMENT_METHODS, PAYMENT_METHOD_LABELS, type DeliveryCheckoutPayload } from "@/lib/delivery/types";
+import type { OnlinePaymentData } from "./payment-step";
 import { Button, SelectField, TextArea, TextField } from "@/components/ui/primitives";
+import { Autocomplete, newSessionToken } from "@/components/ui/autocomplete";
+import { neighborhoodKey } from "@/lib/delivery/match";
 import { OrderSummary, type PricedLine } from "./cart-sheet";
 import { useDeliveryFee, type DeliveryMenuConfig } from "./use-delivery";
 
@@ -30,15 +33,14 @@ function parseCents(raw: string): number {
   return clean ? Math.round(Number(clean) * 100) : NaN;
 }
 
-async function fetchCep(cep: string): Promise<{ street: string; district: string; city: string; uf: string } | null> {
-  const digits = cep.replace(/\D/g, "");
-  if (digits.length !== 8) return null;
+type FoundAddress = { placeId?: string; street: string; number: string; district: string; city: string; uf: string; cep: string; ibgeCode?: string; formatted?: string };
+type AddressSuggestion = { placeId: string; main: string; secondary: string };
+
+async function lookupAddress(params: Record<string, string>): Promise<FoundAddress | null> {
   try {
-    const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`/api/delivery/address?${new URLSearchParams(params)}`, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) return null;
-    const data = await res.json();
-    if (data.erro) return null;
-    return { street: data.logradouro || "", district: data.bairro || "", city: data.localidade || "", uf: data.uf || "" };
+    return (await res.json()) as FoundAddress;
   } catch {
     return null;
   }
@@ -52,14 +54,16 @@ export function Checkout({
   onBack,
   onEditCart,
   onSuccess,
+  slug,
 }: {
   restaurantId: string;
   restaurantName: string;
+  slug?: string;
   config: DeliveryMenuConfig;
   lines: PricedLine[];
   onBack: () => void;
   onEditCart: () => void;
-  onSuccess: (result: { orderId: string; orderNumber: number }) => void;
+  onSuccess: (result: { orderId: string; orderNumber: number; payment?: OnlinePaymentData; totalCents?: number }) => void;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -70,6 +74,11 @@ export function Checkout({
   const [district, setDistrict] = useState("");
   const [city, setCity] = useState("");
   const [uf, setUf] = useState("");
+  const [ibgeCode, setIbgeCode] = useState("");
+  const [placeId, setPlaceId] = useState("");
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressNotice, setAddressNotice] = useState("");
+  const sessionRef = useRef(newSessionToken());
   const [reference, setReference] = useState("");
   const [paymentMethod, setPaymentMethod] = useState(config.paymentMethods[0] || "");
   const [changeFor, setChangeFor] = useState("");
@@ -81,7 +90,7 @@ export function Checkout({
   const submittedRef = useRef(false);
   const idempotencyKey = useRef(`del_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
 
-  const fee = useDeliveryFee(restaurantId, config, city, district, uf);
+  const fee = useDeliveryFee(restaurantId, config, city, district, uf, ibgeCode);
   const feeCents = fee.feeCents ?? 0;
   const subtotal = lines.reduce((sum, line) => sum + line.priceCents * line.quantity, 0);
   const count = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -132,20 +141,68 @@ export function Checkout({
     clearError(field);
   };
 
+  /** Endereço encontrado (Google ou CEP): substitui rua, bairro, cidade e UF; número só quando veio junto. */
+  const applyAddress = useCallback((found: FoundAddress, opts: { keepNumber: boolean }) => {
+    setStreet(found.street || "");
+    setDistrict(found.district || "");
+    if (found.city) setCity(found.city);
+    setUf(found.uf || "");
+    setIbgeCode(found.ibgeCode || "");
+    setPlaceId(found.placeId || "");
+    if (found.cep) setCep(formatCep(found.cep));
+    if (!opts.keepNumber) {
+      setNumber(found.number || "");
+      setComplement("");
+    }
+    setErrors((current) => ({ ...current, cep: undefined, street: undefined, district: undefined, city: undefined, number: undefined }));
+  }, []);
+
   const handleCep = useCallback(async (raw: string) => {
     const formatted = formatCep(raw);
     setCep(formatted);
     setErrors((current) => ({ ...current, cep: undefined }));
-    if (formatted.replace(/\D/g, "").length !== 8) return;
+    const digits = formatted.replace(/\D/g, "");
+    if (digits.length !== 8) return;
     setCepLoading(true);
-    const result = await fetchCep(formatted);
+    const result = await lookupAddress({ restaurantId, cep: digits });
     setCepLoading(false);
-    if (!result) return;
-    if (result.street) setStreet(result.street);
-    if (result.district) setDistrict(result.district);
-    if (result.city) setCity(result.city);
-    if (result.uf) setUf(result.uf);
-  }, []);
+    if (!result) {
+      setErrors((current) => ({ ...current, cep: "CEP não encontrado. Confira os números ou preencha o endereço." }));
+      return;
+    }
+    // Mesmo logradouro: o número digitado continua valendo; outra rua: o número antigo não serve mais.
+    applyAddress({ ...result, placeId: "" }, { keepNumber: !result.street || neighborhoodKey(result.street) === neighborhoodKey(street) });
+  }, [restaurantId, applyAddress, street]);
+
+  const searchAddress = useCallback(async (q: string, signal: AbortSignal): Promise<AddressSuggestion[]> => {
+    const res = await fetch(`/api/delivery/address?${new URLSearchParams({ restaurantId, q, session: sessionRef.current })}`, { signal });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Busca indisponível. Preencha pelo CEP.");
+    return data.suggestions || [];
+  }, [restaurantId]);
+
+  const chooseAddress = async (item: AddressSuggestion) => {
+    const session = sessionRef.current;
+    sessionRef.current = newSessionToken();
+    setAddressLoading(true);
+    setAddressNotice("");
+    const found = await lookupAddress({ restaurantId, placeId: item.placeId, session });
+    setAddressLoading(false);
+    if (!found) {
+      setAddressNotice("Não foi possível carregar este endereço. Tente outra sugestão ou preencha pelo CEP.");
+      return;
+    }
+    applyAddress(found, { keepNumber: false });
+    if (!found.district) setAddressNotice("Não identificamos o bairro deste endereço. Informe o bairro abaixo.");
+    setTimeout(() => document.getElementById(found.number ? "kd-co-complement" : "kd-co-number")?.focus(), 0);
+  };
+
+  /** Edição manual de rua/bairro/cidade desfaz o vínculo com a sugestão escolhida. */
+  const manual = (field: Field, set: (value: string) => void) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    set(event.target.value);
+    setPlaceId("");
+    clearError(field);
+  };
 
   const validate = () => {
     const next: Partial<Record<Field, string>> = {};
@@ -207,6 +264,7 @@ export function Checkout({
           city: city.trim(),
           uf: uf.trim() || undefined,
           reference: reference.trim() || undefined,
+          placeId: placeId || undefined,
         },
         items: lines.map((line) => ({ productId: line.productId, quantity: line.quantity, notes: line.notes || undefined })),
         paymentMethod,
@@ -238,6 +296,25 @@ export function Checkout({
         }
       } catch {}
 
+      // Pagamento online: gera PIX ou preference do Mercado Pago antes de avançar.
+      if (ONLINE_PAYMENT_METHODS.has(paymentMethod)) {
+        const payRes = await fetch("/api/delivery/payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId,
+            orderId: data.orderId,
+            paymentMethod,
+            restaurantName,
+            slug: slug || "",
+          }),
+        });
+        const payData = await payRes.json().catch(() => ({}));
+        if (!payRes.ok) throw new Error(payData.message || "Não foi possível iniciar o pagamento online.");
+        onSuccess({ orderId: data.orderId, orderNumber: data.orderNumber, payment: payData as OnlinePaymentData, totalCents: subtotal + feeCents });
+        return;
+      }
+
       onSuccess({ orderId: data.orderId, orderNumber: data.orderNumber });
     } catch (err) {
       submittedRef.current = false;
@@ -251,6 +328,8 @@ export function Checkout({
   const districtOptions = fee.servedNeighborhoods;
   const districtInList = districtOptions.some((n) => n.name.toLowerCase() === district.trim().toLowerCase());
   const busy = submitting || fee.loading;
+  const recognized = !fee.loading && fee.matched && fee.neighborhoodName && neighborhoodKey(fee.neighborhoodName) !== neighborhoodKey(district) ? fee.neighborhoodName : "";
+  const districtHint = recognized ? `Bairro reconhecido como ${recognized}.` : undefined;
 
   return (
     <>
@@ -314,6 +393,29 @@ export function Checkout({
             </h2>
             {config.deliveryArea && <p>Atendemos: {config.deliveryArea}</p>}
           </header>
+          {config.addressSearch && (
+            <Autocomplete<AddressSuggestion>
+              id="kd-co-search"
+              label="Buscar endereço"
+              placeholder="Digite a rua e o número"
+              icon={<Search size={17} />}
+              fetchItems={searchAddress}
+              itemKey={(item) => item.placeId}
+              renderItem={(item) => (
+                <>
+                  <MapPin size={16} />
+                  <span className="kd-ac-item">
+                    <b>{item.main}</b>
+                    {item.secondary && <small>{item.secondary}</small>}
+                  </span>
+                </>
+              )}
+              onSelect={chooseAddress}
+              busy={addressLoading}
+              emptyText="Nenhum endereço encontrado. Tente pelo CEP."
+              hint={addressNotice || "Ou preencha pelo CEP abaixo."}
+            />
+          )}
           <TextField
             id="kd-co-cep"
             label="CEP"
@@ -327,10 +429,10 @@ export function Checkout({
             trailing={cepLoading ? <LoaderCircle className="k-spin" size={18} aria-hidden style={{ margin: "0 12px" }} /> : undefined}
             onChange={(e) => handleCep(e.target.value)}
           />
-          <TextField id="kd-co-street" label="Rua" autoComplete="address-line1" value={street} error={errors.street} onChange={onField("street", setStreet)} />
+          <TextField id="kd-co-street" label="Rua" autoComplete="address-line1" value={street} error={errors.street} onChange={manual("street", setStreet)} />
           <div className="kd-checkout-grid">
             <TextField id="kd-co-number" label="Número" inputMode="text" value={number} error={errors.number} maxLength={20} onChange={onField("number", setNumber)} />
-            <TextField label="Complemento" optional autoComplete="address-line2" placeholder="Apto, bloco…" value={complement} maxLength={80} onChange={(e) => setComplement(e.target.value)} />
+            <TextField id="kd-co-complement" label="Complemento" optional autoComplete="address-line2" placeholder="Apto, bloco…" value={complement} maxLength={80} onChange={(e) => setComplement(e.target.value)} />
           </div>
           {cities.length > 0 ? (
             <SelectField
@@ -341,7 +443,9 @@ export function Checkout({
               onChange={(e) => {
                 const chosen = cityOptions.find((c) => c.name === e.target.value);
                 setCity(e.target.value);
-                if (chosen?.uf) setUf(chosen.uf);
+                setUf(chosen?.uf || "");
+                setIbgeCode(chosen?.ibgeCode || "");
+                setPlaceId("");
                 clearError("city");
               }}
             >
@@ -354,10 +458,20 @@ export function Checkout({
               ))}
             </SelectField>
           ) : (
-            <TextField id="kd-co-city" label="Cidade" autoComplete="address-level2" value={city} error={errors.city} onChange={onField("city", setCity)} />
+            <TextField
+              id="kd-co-city"
+              label="Cidade"
+              autoComplete="address-level2"
+              value={city}
+              error={errors.city}
+              onChange={manual("city", (value) => {
+                setCity(value);
+                setIbgeCode("");
+              })}
+            />
           )}
           {districtOptions.length > 0 ? (
-            <SelectField id="kd-co-district" label="Bairro" value={district} error={errors.district} onChange={onField("district", setDistrict)}>
+            <SelectField id="kd-co-district" label="Bairro" value={district} error={errors.district} hint={districtHint} onChange={manual("district", setDistrict)}>
               <option value="">Selecione seu bairro</option>
               {!districtInList && district.trim() && <option value={district}>{district}</option>}
               {districtOptions.map((n) => (
@@ -367,7 +481,7 @@ export function Checkout({
               ))}
             </SelectField>
           ) : (
-            <TextField id="kd-co-district" label="Bairro" autoComplete="address-level3" value={district} error={errors.district} onChange={onField("district", setDistrict)} />
+            <TextField id="kd-co-district" label="Bairro" autoComplete="address-level3" value={district} error={errors.district} hint={districtHint} onChange={manual("district", setDistrict)} />
           )}
           <TextField label="Ponto de referência" optional placeholder="Próximo a…" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} />
           {!fee.loading && !fee.matched && fee.reason && (
@@ -383,7 +497,11 @@ export function Checkout({
             <h2 id="kd-co-pay" className="kd-menu-section-title">
               Pagamento
             </h2>
-            <p>Pago na entrega.</p>
+            {ONLINE_PAYMENT_METHODS.has(paymentMethod) ? (
+              <p>Pagamento online seguro via Mercado Pago.</p>
+            ) : (
+              <p>Pago na entrega.</p>
+            )}
           </header>
           <fieldset className="kd-checkout-options" aria-describedby={errors.payment ? "kd-co-payment-msg" : undefined}>
             <legend className="kd-sr">Forma de pagamento</legend>

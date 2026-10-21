@@ -36,6 +36,15 @@
     --k-danger-ink: #ffb4a8;
     --k-danger-soft: #3a1d18;
     --k-danger-line: #6b3329;
+    --k-warning-ink: #ffc27a;
+    --k-warning-soft: #3a2a12;
+    --k-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23f4eedf' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    /* O vidro de :root foi calculado com a superfície clara: recalcula sobre a escura. */
+    --k-glass: rgb(21 35 26 / 0.55);
+    --k-glass-2: rgb(21 35 26 / 0.72);
+    --k-glass-3: rgb(21 35 26 / 0.88);
+    --k-glass-rim: var(--k-line);
+    --k-shadow-card: 0 20px 44px -28px rgb(0 0 0 / 0.55);
     --k-focus: var(--k-giz);
     /* Recalculadas aqui porque o padrão de :root aponta para a tinta clara. */
     --k-primary: var(--k-ink);
@@ -1139,5 +1148,14 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
   .kd-checkout-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Tela de pagamento online (PIX / Checkout Pro) */
+.kd-payment-step { display: grid; gap: var(--k-s6); padding: var(--k-s7) var(--k-s4) var(--k-s6); }
+.kd-payment-total { font-size: var(--k-fs-2xl); font-weight: 800; color: var(--k-ink); }
+.kd-pix-qr-wrap { display: flex; justify-content: center; padding: var(--k-s2) 0; }
+.kd-pix-qr { width: 200px; height: 200px; border-radius: 12px; border: 1px solid var(--k-line); }
+.kd-pix-actions { display: grid; gap: var(--k-s2); }
+.kd-pix-timer { display: flex; align-items: center; gap: var(--k-s2); justify-content: center; color: var(--k-muted); font-size: var(--k-fs-sm); }
+.kd-pix-waiting { display: flex; align-items: center; gap: var(--k-s2); justify-content: center; color: var(--k-muted); font-size: var(--k-fs-sm); }
+
 /* Conta demonstrativa: aviso discreto no rodapé do cardápio. */
-.kd-menu-demo-note { margin: var(--k-s6) var(--k-s4) var(--k-s4); color: var(--k-muted); font-size: var(--k-fs-xs); text-align: center; opacity: 0.85; }
+.kd-menu-demo-note { margin: var(--k-s6) var(--k-s4) var(--k-s4); color: var(--k-muted); font-size: var(--k-fs-xs); text-align: center; }

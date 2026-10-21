@@ -1,48 +1,50 @@
 import type { NextRequest } from "next/server";
 import { json, errorResponse, preflight } from "@/lib/billing/http";
-import { normalizeCity } from "@/lib/delivery/types";
+import { rateLimit } from "@/lib/sso/server";
+import { searchIbgeCities } from "@/lib/delivery/ibge";
+import { cityFromPlace, citySuggestions, isGoogleConfigured } from "@/lib/delivery/geo";
 
-type IbgeCity = { id: number; nome: string; microrregiao: { mesorregiao: { UF: { sigla: string } } } };
-type CityResult = { ibgeCode: string; name: string; uf: string };
-
-let cachedCities: CityResult[] | null = null;
-let cacheExpiry = 0;
-const CACHE_TTL = 24 * 60 * 60 * 1000;
-
-async function loadCities(): Promise<CityResult[]> {
-  if (cachedCities && Date.now() < cacheExpiry) return cachedCities;
-  const res = await fetch(
-    "https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome",
-    { signal: AbortSignal.timeout(15000) },
-  );
-  if (!res.ok) throw new Error(`IBGE API ${res.status}`);
-  const raw: IbgeCity[] = await res.json();
-  cachedCities = raw
-    .filter((c) => c.microrregiao?.mesorregiao?.UF?.sigla)
-    .map((c) => ({
-      ibgeCode: String(c.id),
-      name: c.nome,
-      uf: c.microrregiao.mesorregiao.UF.sigla,
-    }));
-  cacheExpiry = Date.now() + CACHE_TTL;
-  return cachedCities;
-}
-
+/**
+ * GET /api/delivery/cities?q=campi&session=… — cidades para o painel "Áreas de entrega".
+ * Google Places Autocomplete (cidades do Brasil) ligado ao município do IBGE; sem Google, busca direto no IBGE.
+ * GET /api/delivery/cities?placeId=…&session=… — resolve a cidade de uma sugestão sem município identificado.
+ */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
 
 export async function GET(req: NextRequest) {
   try {
-    const q = (req.nextUrl.searchParams.get("q") || "").trim();
-    if (!q || q.length < 2) return json(req, []);
+    rateLimit(req, "delivery-cities", 60, 60_000);
+    const params = req.nextUrl.searchParams;
+    const session = (params.get("session") || "").slice(0, 100) || undefined;
 
-    const cities = await loadCities();
-    const norm = normalizeCity(q);
-    const results = cities
-      .filter((c) => normalizeCity(c.name).startsWith(norm) || normalizeCity(`${c.name} ${c.uf}`).includes(norm))
-      .slice(0, 20);
+    const placeId = (params.get("placeId") || "").trim();
+    if (placeId) {
+      if (placeId.length > 300) return json(req, { error: "invalid_place", message: "Cidade inválida." }, 400);
+      const city = await cityFromPlace(placeId, session);
+      if (!city?.ibgeCode) return json(req, { error: "city_not_found", message: "Não encontramos esta cidade no IBGE." }, 404);
+      return json(req, city);
+    }
 
+    const q = (params.get("q") || "").trim().slice(0, 80);
+    if (q.length < 2) return json(req, []);
+
+    if (isGoogleConfigured()) {
+      try {
+        const results = await citySuggestions(q, session);
+        // Sugestões que não são municípios brasileiros (bairros, distritos) ficam de fora.
+        const seen = new Set<string>();
+        return json(
+          req,
+          results.filter((c) => c.ibgeCode && !seen.has(c.ibgeCode) && seen.add(c.ibgeCode)).map((c) => ({ ibgeCode: c.ibgeCode, name: c.name, uf: c.uf, placeId: c.placeId })),
+        );
+      } catch (error) {
+        console.error("[delivery/cities] Google indisponível, usando IBGE:", (error as Error).message);
+      }
+    }
+
+    const results = await searchIbgeCities(q);
     return json(req, results);
   } catch (error) {
     return errorResponse(req, "city search", error);

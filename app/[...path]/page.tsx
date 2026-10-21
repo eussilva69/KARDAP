@@ -69,6 +69,10 @@ export default async function Page({ params, searchParams }: { params: { path?: 
   return (
     <>
       {first === "planos" && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: plansJsonLd() }} />}
+      {/* Cardápio: capas, fotos e vídeos vêm do Firebase Storage. A conexão abre enquanto o JS e o Firestore
+          carregam, em vez de só quando a primeira imagem é pedida. Sem crossorigin: <img> e <video> usam a
+          conexão com credenciais. */}
+      {first === "r" && <link rel="preconnect" href="https://firebasestorage.googleapis.com" />}
       <Suspense>
         <App />
       </Suspense>

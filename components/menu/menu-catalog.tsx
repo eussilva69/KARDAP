@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clapperboard, Search, UtensilsCrossed, X } from "lucide-react";
 import { plural } from "@/lib/format";
 import { Button } from "@/components/ui/primitives";
@@ -16,6 +16,19 @@ export const normalize = (value: string) =>
     .toLowerCase();
 
 /**
+ * Prato com o nome da categoria. Fica guardado por produto: enquanto o produto e a categoria não mudam,
+ * o objeto é o mesmo e a linha do prato não renderiza de novo (uma curtida nos Reels muda só um produto).
+ */
+const categorized = new WeakMap<Dish, Dish>();
+function withCategory(food: Dish, category: string): Dish {
+  const known = categorized.get(food);
+  if (known && known.category === category) return known;
+  const dish = { ...food, category };
+  categorized.set(food, dish);
+  return dish;
+}
+
+/**
  * Seções na ordem definida no painel, sem as categorias ocultas.
  * Sem acesso às categorias, agrupa pelo nome salvo em cada produto (comportamento anterior).
  */
@@ -29,7 +42,7 @@ export function buildSections(foods: Dish[], categories: PublicCategory[] | null
         id: c.id,
         name: c.name,
         description: c.description,
-        dishes: foods.filter((f) => f.categoryId === c.id).map((f) => ({ ...f, category: c.name })),
+        dishes: foods.filter((f) => f.categoryId === c.id).map((f) => withCategory(f, c.name)),
       }))
       .filter((s) => s.dishes.length > 0);
     const others = foods.filter((f) => !f.categoryId || (!known.has(f.categoryId) && !hidden.has(f.categoryId)));
@@ -44,11 +57,32 @@ export function buildSections(foods: Dish[], categories: PublicCategory[] | null
   return Array.from(groups.entries()).map(([name, dishes], i) => ({ id: `secao-${i}`, name, dishes }));
 }
 
+type DishNote = (dish: Dish) => React.ReactNode;
+
+/** Linha memorizada: abrir o feed, curtir ou receber o contador novo de outro prato não a renderiza de novo. */
+const CatalogRow = memo(function CatalogRow({
+  dish,
+  index,
+  autoplay,
+  categoryLabel,
+  onOpen,
+  dishNote,
+}: {
+  dish: Dish;
+  index: number;
+  autoplay: boolean;
+  categoryLabel?: string;
+  onOpen: (index: number) => void;
+  dishNote?: DishNote;
+}) {
+  return <DishRow dish={dish} categoryLabel={categoryLabel} autoplay={autoplay} onOpen={() => onOpen(index)} note={dishNote?.(dish)} />;
+});
+
 /**
  * Corpo do cardápio público: barra de seções com busca, lista de pratos por seção e resultados da busca.
  * Compartilhado pelo cardápio da mesa e pelo delivery: a aparência é uma só, cada tela decide o que o toque no prato faz.
  */
-export function MenuCatalog({
+export const MenuCatalog = memo(function MenuCatalog({
   sections,
   allDishes,
   autoplay,
@@ -69,7 +103,7 @@ export function MenuCatalog({
   /** Botão de vídeos ao lado da busca (só aparece quando informado). */
   onOpenReels?: () => void;
   /** Informação extra abaixo do preço (ex.: quantidade no carrinho do delivery). */
-  dishNote?: (dish: Dish) => React.ReactNode;
+  dishNote?: DishNote;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -79,8 +113,17 @@ export function MenuCatalog({
   const searchButton = useRef<HTMLButtonElement>(null);
 
   const term = normalize(query.trim());
-  const results = searchOpen && term ? allDishes.filter((d) => normalize(d.name).includes(term) || normalize(d.description || "").includes(term)) : null;
+  const results = useMemo(
+    () => (searchOpen && term ? allDishes.filter((d) => normalize(d.name).includes(term) || normalize(d.description || "").includes(term)) : null),
+    [searchOpen, term, allDishes],
+  );
   const hasResults = Boolean(results);
+
+  // Toque no prato com callbacks fixos (as linhas memorizadas não mudam), sempre com a lista mais recente.
+  const latest = useRef({ allDishes, results, onOpenDish });
+  latest.current = { allDishes, results, onOpenDish };
+  const openInMenu = useCallback((index: number) => latest.current.onOpenDish(latest.current.allDishes, index), []);
+  const openInResults = useCallback((index: number) => latest.current.results && latest.current.onOpenDish(latest.current.results, index), []);
 
   // Seção ativa conforme o scroll, sem listeners de scroll: a primeira seção na faixa superior da tela.
   useEffect(() => {
@@ -195,14 +238,7 @@ export function MenuCatalog({
           {results.length ? (
             <ul className="kd-dish-list">
               {results.map((dish, i) => (
-                <DishRow
-                  key={dish.id || `${dish.name}-${i}`}
-                  dish={dish}
-                  categoryLabel={dish.category}
-                  autoplay={autoplay}
-                  onOpen={() => onOpenDish(results, i)}
-                  note={dishNote?.(dish)}
-                />
+                <CatalogRow key={dish.id || `${dish.name}-${i}`} dish={dish} index={i} categoryLabel={dish.category} autoplay={autoplay} onOpen={openInResults} dishNote={dishNote} />
               ))}
             </ul>
           ) : (
@@ -228,7 +264,7 @@ export function MenuCatalog({
               </header>
               <ul className="kd-dish-list">
                 {section.dishes.map((dish, j) => (
-                  <DishRow key={dish.id || `${dish.name}-${j}`} dish={dish} autoplay={autoplay} onOpen={() => onOpenDish(allDishes, start + j)} note={dishNote?.(dish)} />
+                  <CatalogRow key={dish.id || `${dish.name}-${j}`} dish={dish} index={start + j} autoplay={autoplay} onOpen={openInMenu} dishNote={dishNote} />
                 ))}
               </ul>
             </section>
@@ -237,4 +273,4 @@ export function MenuCatalog({
       )}
     </>
   );
-}
+});

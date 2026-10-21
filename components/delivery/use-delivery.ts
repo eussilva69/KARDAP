@@ -14,12 +14,19 @@ export type DeliveryMenuConfig = {
   paymentMethods: string[];
   notes: string;
   feeMode: FeeMode;
+  /** Só as cidades ativas (as pausadas não aparecem para o cliente). */
   servedCities: ServedCity[];
+  /** Há cidades cadastradas (mesmo pausadas): o servidor valida a cidade do endereço. */
+  hasServedCities?: boolean;
+  /** Busca de endereço pelo Google disponível. */
+  addressSearch?: boolean;
 };
 
-/** A taxa só é conhecida antes do endereço na taxa fixa sem cidades cadastradas. */
+const hasCities = (config: DeliveryMenuConfig) => config.hasServedCities ?? config.servedCities.length > 0;
+
+/** A taxa só é conhecida antes do endereço na taxa fixa ou quando não há cidades cadastradas. */
 export const flatFee = (config: DeliveryMenuConfig | null) =>
-  config && (config.feeMode === "taxa_fixa" || !config.servedCities.length) ? config.deliveryFeeCents : null;
+  config && (config.feeMode === "taxa_fixa" || !hasCities(config)) ? config.deliveryFeeCents : null;
 
 /** Mesmo critério do servidor (calculateDeliveryFee): sem cidades cadastradas, vale a taxa fixa em qualquer modo. */
 export function feeLabel(config: DeliveryMenuConfig, long = false) {
@@ -55,24 +62,26 @@ export function useDeliveryConfig(restaurantId: string) {
   return { config, loading, error };
 }
 
-export type FeeState = { feeCents: number | null; loading: boolean; matched: boolean; reason?: string };
+export type FeeState = { feeCents: number | null; loading: boolean; matched: boolean; reason?: string; neighborhoodName?: string | null; usedDefaultFee?: boolean };
 
 /**
  * Frete para o endereço digitado (GET /api/delivery/fee), com espera de 500 ms entre as digitações.
  * Guarda a lista de bairros atendidos da cidade, que a API só devolve enquanto o bairro não é reconhecido.
+ * O valor aqui é só a prévia: o servidor recalcula a taxa ao criar o pedido.
  */
-export function useDeliveryFee(restaurantId: string, config: DeliveryMenuConfig, city: string, district: string, uf: string) {
-  const { feeMode, deliveryFeeCents: flatFeeCents, servedCities } = config;
+export function useDeliveryFee(restaurantId: string, config: DeliveryMenuConfig, city: string, district: string, uf: string, ibgeCode = "") {
+  const { deliveryFeeCents: flatFeeCents } = config;
+  const anyCity = hasCities(config);
   const [state, setState] = useState<FeeState>({ feeCents: flatFeeCents, loading: false, matched: true });
   const [neighborhoods, setNeighborhoods] = useState<{ city: string; list: { name: string; slug: string }[] }>({ city: "", list: [] });
   const lastQuery = useRef("");
 
   useEffect(() => {
-    if (feeMode === "taxa_fixa" && !servedCities.length) {
+    if (!anyCity) {
       setState({ feeCents: flatFeeCents, loading: false, matched: true });
       return;
     }
-    const q = `${city}|${district}|${uf}`;
+    const q = `${city}|${district}|${uf}|${ibgeCode}`;
     // Voltou ao último endereço calculado antes de a nova consulta sair: o resultado anterior continua valendo.
     if (q === lastQuery.current) {
       setState((s) => (s.loading ? { ...s, loading: false } : s));
@@ -87,22 +96,30 @@ export function useDeliveryFee(restaurantId: string, config: DeliveryMenuConfig,
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ restaurantId, city, district, uf });
+        const params = new URLSearchParams({ restaurantId, city, district, uf, ibgeCode });
         const res = await fetch(`/api/delivery/fee?${params}`);
         const data = await res.json();
         if (cancelled) return;
+        if (!res.ok) throw new Error(data.message);
         lastQuery.current = q;
-        setState({ feeCents: data.matched ? data.feeCents : null, loading: false, matched: Boolean(data.matched), reason: data.reason });
+        setState({
+          feeCents: data.matched ? data.feeCents : null,
+          loading: false,
+          matched: Boolean(data.matched),
+          reason: data.reason,
+          neighborhoodName: data.neighborhoodName,
+          usedDefaultFee: Boolean(data.usedDefaultFee),
+        });
         if (Array.isArray(data.servedNeighborhoods) && data.servedNeighborhoods.length) setNeighborhoods({ city: city.trim().toLowerCase(), list: data.servedNeighborhoods });
-      } catch {
-        if (!cancelled) setState({ feeCents: flatFeeCents, loading: false, matched: true });
+      } catch (err) {
+        if (!cancelled) setState({ feeCents: null, loading: false, matched: false, reason: (err as Error)?.message || "Não foi possível calcular a taxa de entrega agora. Tente de novo." });
       }
     }, 500);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [restaurantId, feeMode, city, district, uf, flatFeeCents, servedCities]);
+  }, [restaurantId, anyCity, city, district, uf, ibgeCode, flatFeeCents]);
 
   const served = neighborhoods.city === city.trim().toLowerCase() ? neighborhoods.list : [];
   return { ...state, servedNeighborhoods: served };

@@ -27,8 +27,9 @@ const SavedSheet = dynamic(() => import("@/components/menu/reels/saved-sheet").t
 const InfoSheet = dynamic(() => import("./info-sheet").then((m) => m.InfoSheet), { ssr: false });
 const Checkout = dynamic(() => import("./checkout").then((m) => m.Checkout), { ssr: false, loading: () => <MenuSkeleton /> });
 const OrderTracking = dynamic(() => import("./order-tracking").then((m) => m.OrderTracking), { ssr: false });
+const PaymentStep = dynamic(() => import("./payment-step").then((m) => m.PaymentStep), { ssr: false });
 
-type Step = "menu" | "checkout" | "done";
+type Step = "menu" | "checkout" | "payment" | "done";
 type Sheet = { kind: "product"; dish: Dish; edit?: CartLine } | { kind: "cart" } | { kind: "info" } | null;
 
 /**
@@ -79,7 +80,8 @@ export default function DeliveryMenu({
   const open = useOpenStatus(settings.hours);
 
   const [step, setStep] = useState<Step>("menu");
-  const [order, setOrder] = useState<{ orderId: string; orderNumber: number } | null>(null);
+  const [order, setOrder] = useState<{ orderId: string; orderNumber: number; totalCents?: number } | null>(null);
+  const [onlinePayment, setOnlinePayment] = useState<import("./payment-step").OnlinePaymentData | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [viewer, setViewer] = useState<{ mode: ReelsMode; list: Dish[]; index: number; key: number } | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
@@ -162,6 +164,22 @@ export default function DeliveryMenu({
   }, [ready, saveData, videoDishes.length]);
 
   const openProduct = useCallback((dish: Dish) => setSheet({ kind: "product", dish: (dish.id && liveDishes.get(dish.id)) || dish }), [liveDishes]);
+  // Callbacks fixos: abrir o feed, abrir um produto ou curtir não renderiza de novo o trilho nem a lista de pratos.
+  const openDishProduct = useCallback((list: Dish[], index: number) => openProduct(list[index]), [openProduct]);
+  const openReelsAt = useCallback((index: number) => openViewer("reels", videoDishes, index), [openViewer, videoDishes]);
+  const openReels = useCallback(() => openViewer("reels", videoDishes, 0), [openViewer, videoDishes]);
+  const dishNote = useCallback(
+    (dish: Dish) => {
+      const qty = dish.id ? inCart.get(dish.id) : 0;
+      return qty ? (
+        <p className="kd-dish-incart">
+          <ShoppingBag size={12} aria-hidden />
+          {qty} no carrinho
+        </p>
+      ) : null;
+    },
+    [inCart],
+  );
 
   // Checkout ganha uma entrada no histórico: o "voltar" do celular retorna ao cardápio com o carrinho.
   const goToCheckout = () => {
@@ -256,7 +274,7 @@ export default function DeliveryMenu({
           </div>
         </MenuHero>
 
-        <ReelsRail dishes={videoDishes} onOpen={(index) => openViewer("reels", videoDishes, index)} />
+        <ReelsRail dishes={videoDishes} onOpen={openReelsAt} />
 
         <MenuCatalog
           sections={sections}
@@ -264,17 +282,9 @@ export default function DeliveryMenu({
           autoplay={autoplay && step === "menu"}
           reducedMotion={reducedMotion}
           emptyText="O restaurante ainda está cadastrando os produtos do delivery."
-          onOpenDish={(list, index) => openProduct(list[index])}
-          onOpenReels={videoDishes.length > 0 ? () => openViewer("reels", videoDishes, 0) : undefined}
-          dishNote={(dish) => {
-            const qty = dish.id ? inCart.get(dish.id) : 0;
-            return qty ? (
-              <p className="kd-dish-incart">
-                <ShoppingBag size={12} aria-hidden />
-                {qty} no carrinho
-              </p>
-            ) : null;
-          }}
+          onOpenDish={openDishProduct}
+          onOpenReels={videoDishes.length > 0 ? openReels : undefined}
+          dishNote={dishNote}
         />
         {isDemo && <p className="kd-menu-demo-note">Cardápio de demonstração do KARDAP · dados e pedidos simulados</p>}
       </div>
@@ -284,6 +294,7 @@ export default function DeliveryMenu({
           <Checkout
             restaurantId={restaurantId}
             restaurantName={restaurantName}
+            slug={slug}
             config={config}
             lines={validLines}
             onBack={leaveCheckout}
@@ -292,11 +303,33 @@ export default function DeliveryMenu({
               setSheet({ kind: "cart" });
             }}
             onSuccess={(result) => {
-              setOrder(result);
+              setOrder({ orderId: result.orderId, orderNumber: result.orderNumber, totalCents: result.totalCents });
               cart.clear();
               try {
                 window.history.replaceState(null, "");
               } catch {}
+              if (result.payment) {
+                setOnlinePayment(result.payment);
+                setStep("payment");
+              } else {
+                setStep("done");
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {step === "payment" && order && onlinePayment && (
+        <div className="kd-menu-column">
+          <PaymentStep
+            payment={onlinePayment}
+            orderId={order.orderId}
+            restaurantId={restaurantId}
+            orderNumber={order.orderNumber}
+            restaurantName={restaurantName}
+            totalCents={order.totalCents || 0}
+            onPaid={() => {
+              setOnlinePayment(null);
               setStep("done");
             }}
           />

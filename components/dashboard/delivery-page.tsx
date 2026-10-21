@@ -16,6 +16,7 @@ import {
   CardHead,
   Modal,
   PageHeader,
+  RadioCard,
   Skeleton,
   Switch,
   TextArea,
@@ -209,10 +210,10 @@ function DeliveryConfigPanel({
 
       <Card style={{ marginBottom: 16 }}>
         <CardHead title="Status do delivery" />
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 16px 16px" }}>
+        <div className="kd-dl-status">
           <Switch label="Ativar delivery" checked={config.enabled} onChange={toggleEnabled} disabled={saving} />
-          <span style={{ fontWeight: 500 }}>{config.enabled ? "Ativado" : "Desativado"}</span>
-          {config.enabled && <Badge tone="neutral">Recebendo pedidos</Badge>}
+          <span className="kd-dl-status-text">{config.enabled ? "Ativado" : "Desativado"}</span>
+          {config.enabled && <Badge tone="success">Recebendo pedidos</Badge>}
         </div>
       </Card>
 
@@ -224,7 +225,7 @@ function DeliveryConfigPanel({
               <Link2 size={15} />
               <code style={{ fontSize: 13, wordBreak: "break-all", flex: 1 }}>{fullUrl}</code>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="kd-row">
               <Button size="sm" icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={copyUrl}>
                 {copied ? "Copiado" : "Copiar link"}
               </Button>
@@ -239,7 +240,7 @@ function DeliveryConfigPanel({
       <Card style={{ marginBottom: 16 }}>
         <CardHead title="Uso mensal de pedidos" />
         <div style={{ padding: "0 16px 16px" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 28, fontWeight: 700 }}>{usage.used}</span>
             <span style={{ color: "var(--k-muted)" }}>
               {usage.limit !== null ? `de ${usage.limit} pedidos próprios` : "pedidos próprios (ilimitado)"}
@@ -300,12 +301,15 @@ function DeliveryConfigPanel({
           try {
             const next = await saveDeliveryConfig(restaurantId, patch);
             onUpdate(next);
+            return true;
           } catch (err) {
             notify(friendlyError(err, "Não foi possível salvar."), "error");
+            return false;
           } finally {
             setSaving(false);
           }
         }}
+        onConfigReplace={onUpdate}
       />
     </div>
   );
@@ -372,71 +376,42 @@ function DeliverySetupModal({
         </div>
       }
     >
-      {/* stepper */}
-      <div style={{ display: "flex", gap: 0, marginBottom: 24, borderRadius: 8, overflow: "hidden", border: "1px solid var(--k-line)" }}>
+      <ol className="kd-stepper">
         {stepLabels.map((label, i) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => setStep(i as Step)}
-            disabled={saving}
-            style={{
-              flex: 1,
-              padding: "8px 4px",
-              fontSize: 12,
-              fontWeight: 600,
-              border: "none",
-              borderRight: i < 2 ? "1px solid var(--k-line)" : "none",
-              cursor: "pointer",
-              background: i === step ? "var(--k-primary)" : "transparent",
-              color: i === step ? "#fff" : i < step ? "var(--k-primary)" : "var(--k-muted)",
-              transition: "background 0.15s",
-            }}
-          >
-            {i < step ? `✓ ${label}` : `${i + 1}. ${label}`}
-          </button>
+          <li key={label}>
+            <button
+              type="button"
+              onClick={() => setStep(i as Step)}
+              disabled={saving}
+              aria-current={i === step ? "step" : undefined}
+              className={i < step ? "is-done" : undefined}
+            >
+              {i < step ? <Check size={13} aria-hidden /> : <span aria-hidden>{i + 1}.</span>}
+              {label}
+            </button>
+          </li>
         ))}
-      </div>
+      </ol>
 
       {step === 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ fontSize: 14, color: "var(--k-muted)", marginBottom: 4 }}>
-            Como você cobra a taxa de entrega?
-          </p>
+        <fieldset className="kd-dl-fieldset">
+          <legend className="kd-muted">Como você cobra a taxa de entrega?</legend>
           {(["taxa_fixa", "taxa_por_bairro"] as FeeMode[]).map((mode) => (
-            <label
+            <RadioCard
               key={mode}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 12,
-                padding: "14px 16px",
-                borderRadius: 8,
-                border: `2px solid ${feeMode === mode ? "var(--k-primary)" : "var(--k-line)"}`,
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="radio"
-                name="feeMode"
-                value={mode}
-                checked={feeMode === mode}
-                onChange={() => setFeeMode(mode)}
-                style={{ marginTop: 2 }}
-              />
-              <div>
-                <p style={{ fontWeight: 600, margin: 0, fontSize: 14 }}>
-                  {mode === "taxa_fixa" ? "Taxa fixa" : "Taxa por bairro"}
-                </p>
-                <p style={{ fontSize: 12, color: "var(--k-muted)", margin: "2px 0 0" }}>
-                  {mode === "taxa_fixa"
-                    ? "Todos os clientes pagam o mesmo valor de entrega."
-                    : "Cada bairro tem uma taxa diferente. Configure os bairros na seção de áreas abaixo."}
-                </p>
-              </div>
-            </label>
+              name="feeMode"
+              value={mode}
+              checked={feeMode === mode}
+              onChange={setFeeMode}
+              title={mode === "taxa_fixa" ? "Taxa fixa" : "Taxa por bairro"}
+              description={
+                mode === "taxa_fixa"
+                  ? "Todos os clientes pagam o mesmo valor de entrega."
+                  : "Cada bairro tem uma taxa diferente. Configure os bairros na seção de áreas abaixo."
+              }
+            />
           ))}
-        </div>
+        </fieldset>
       )}
 
       {step === 1 && (
@@ -463,37 +438,18 @@ function DeliverySetupModal({
           <p style={{ fontSize: 14, color: "var(--k-muted)", marginBottom: 4 }}>
             Quais formas de pagamento você aceita na entrega?
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div className="kd-row" role="group" aria-label="Formas de pagamento">
             {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => {
               const on = methods.includes(key);
               return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => toggleMethod(key)}
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 20,
-                    border: `2px solid ${on ? "var(--k-primary)" : "var(--k-line)"}`,
-                    background: on ? "var(--k-primary)" : "var(--k-surface)",
-                    color: on ? "#fff" : "var(--k-ink)",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    lineHeight: 1,
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {on && <span style={{ marginRight: 4 }}>✓</span>}{label}
+                <button key={key} type="button" className="kd-chip-toggle" aria-pressed={on} onClick={() => toggleMethod(key)}>
+                  {on && <Check size={14} aria-hidden />}
+                  {label}
                 </button>
               );
             })}
           </div>
-          {methods.length === 0 && (
-            <p style={{ fontSize: 12, color: "var(--k-danger)", margin: 0 }}>
-              Selecione ao menos uma forma de pagamento.
-            </p>
-          )}
+          {methods.length === 0 && <p className="kd-error">Selecione ao menos uma forma de pagamento.</p>}
         </div>
       )}
     </Modal>

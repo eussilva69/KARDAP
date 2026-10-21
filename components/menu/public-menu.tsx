@@ -139,6 +139,9 @@ export default function PublicMenu({
 
   /** Prato da lista: abre o feed com todos os pratos do cardápio, começando nele. */
   const openDish = useCallback((list: Dish[], index: number) => openViewer("menu", list, index), [openViewer]);
+  // Callbacks fixos: abrir o feed ou curtir não renderiza de novo o trilho nem a lista de pratos.
+  const openReelsAt = useCallback((index: number) => openViewer("reels", videoDishes, index), [openViewer, videoDishes]);
+  const openReels = useCallback(() => openViewer("reels", videoDishes, 0), [openViewer, videoDishes]);
 
   // Com o cardápio na tela e o celular ocioso, adianta o download do feed: o primeiro toque abre na hora.
   // Com economia de dados, espera o toque.
@@ -219,7 +222,7 @@ export default function PublicMenu({
           )}
         </MenuHero>
 
-        <ReelsRail dishes={videoDishes} onOpen={(index) => openViewer("reels", videoDishes, index)} />
+        <ReelsRail dishes={videoDishes} onOpen={openReelsAt} />
 
         <MenuCatalog
           sections={sections}
@@ -228,7 +231,7 @@ export default function PublicMenu({
           reducedMotion={reducedMotion}
           emptyText={`A equipe ainda está cadastrando os pratos. ${settings.waiter ? "Se quiser, chame alguém para ver as opções do dia." : ""}`}
           onOpenDish={openDish}
-          onOpenReels={videoDishes.length > 0 ? () => openViewer("reels", videoDishes, 0) : undefined}
+          onOpenReels={videoDishes.length > 0 ? openReels : undefined}
         />
         {isDemo && <p className="kd-menu-demo-note">Cardápio de demonstração do KARDAP · dados e pedidos simulados</p>}
       </div>

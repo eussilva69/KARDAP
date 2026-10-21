@@ -340,7 +340,7 @@
   cursor: pointer;
   transition: background 0.15s;
 }
-.kd-place-result:hover { background: var(--k-bg-hover, rgba(0,0,0,.04)); }
+.kd-place-result:hover { background: var(--k-sunken); }
 .kd-place-result + .kd-place-result { border-top: 1px solid var(--k-line); }
 .kd-place-result-icon { flex-shrink: 0; margin-top: 2px; color: var(--k-muted); }
 .kd-place-result-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -357,16 +357,16 @@
   gap: var(--k-s3);
 }
 .kd-place-confirmed-head { display: flex; gap: var(--k-s3); align-items: flex-start; }
-.kd-place-confirmed-head > svg { flex-shrink: 0; margin-top: 2px; color: #F7EA48; }
+.kd-place-confirmed-head > svg { flex-shrink: 0; margin-top: 2px; color: var(--k-success-ink); }
 .kd-place-confirmed-head b { display: block; font-weight: 650; }
 .kd-place-confirmed-head small { font-size: var(--k-fs-xs); color: var(--k-muted); }
-.kd-place-review-ok { display: flex; align-items: center; gap: var(--k-s1); font-size: var(--k-fs-sm); color: var(--k-success, #22863a); font-weight: 600; }
+.kd-place-review-ok { display: flex; align-items: center; gap: var(--k-s1); font-size: var(--k-fs-sm); color: var(--k-success-ink); font-weight: 600; }
 .kd-place-no-review p { font-size: var(--k-fs-sm); color: var(--k-muted); margin: 0 0 var(--k-s2); }
 .kd-place-loading { display: flex; align-items: center; gap: var(--k-s2); margin-top: var(--k-s3); font-size: var(--k-fs-sm); color: var(--k-muted); }
 .kd-link-btn {
   background: none;
   border: none;
-  color: var(--k-accent, #111);
+  color: var(--k-ink);
   font-size: var(--k-fs-sm);
   cursor: pointer;
   padding: 0;

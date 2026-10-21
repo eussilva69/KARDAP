@@ -43,7 +43,8 @@
   --k-ink-hover: #26352c;
   --k-text-2: #3f4a42;
   --k-muted: #5e665b;
-  --k-placeholder: #7a7468;
+  --k-placeholder: #6f695d; /* 4,9:1 sobre a superfície dos campos */
+  --k-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2314201a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --k-on-ink: #fffefb;
   --k-skel-hi: #f6f4ee;
 
@@ -62,6 +63,11 @@
   --k-danger-ink: #8a261b;
   --k-danger-soft: #fbe9e5;
   --k-danger-line: #edbbb2;
+  /* Atenção que não é chamado de mesa (pendências, uso do plano perto do limite).
+     --k-warning é preenchimento (barras, pontos; 3:1); --k-warning-ink é texto (4,5:1). */
+  --k-warning: #c27400;
+  --k-warning-ink: #8a4b00;
+  --k-warning-soft: #fdecd6;
   --k-focus: var(--k-ink);
 
   /* Escala tipográfica */
@@ -97,10 +103,12 @@
   --k-shadow-raise: 0 1px 2px rgb(20 32 26 / 0.06), 0 6px 16px -8px rgb(20 32 26 / 0.18);
   --k-shadow-float: 0 22px 48px -18px rgb(14 25 18 / 0.42), 0 2px 8px rgb(14 25 18 / 0.08);
 
-  /* Glass (inspirado no padrão de cards semi-transparentes) */
-  --k-glass: rgb(255 254 251 / 0.55);
-  --k-glass-2: rgb(255 254 251 / 0.72);
-  --k-glass-3: rgb(255 254 251 / 0.88);
+  /* Glass (inspirado no padrão de cards semi-transparentes). Derivado da superfície para
+     acompanhar a paleta do restaurante (aplicada em <html>); o brilho da borda é só decorativo:
+     controles (campos, botões, interruptores) usam --k-control-line para continuar visíveis. */
+  --k-glass: color-mix(in srgb, var(--k-surface) 55%, transparent);
+  --k-glass-2: color-mix(in srgb, var(--k-surface) 72%, transparent);
+  --k-glass-3: color-mix(in srgb, var(--k-surface) 88%, transparent);
   --k-glass-rim: rgb(255 255 255 / 0.78);
   --k-shadow-card: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 20px 44px -28px rgb(20 32 26 / 0.22);
   --k-shadow-card-hover: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 24px 52px -24px rgb(20 32 26 / 0.3);
@@ -268,13 +276,19 @@ button, input, select, textarea { font: inherit; letter-spacing: inherit; }
 .kd-btn--primary { background: var(--k-primary); color: var(--k-on-primary); }
 .kd-btn--primary:hover:not(:disabled) { background: var(--k-primary-hover); }
 
-.kd-btn--secondary { background: var(--k-glass); border-color: var(--k-glass-rim); }
-.kd-btn--secondary:hover:not(:disabled) { background: var(--k-glass-2); border-color: var(--k-line-strong); }
+/* Contorno em --k-control-line (3:1): o secundário fica visível em qualquer fundo sem competir com o primário cheio. */
+.kd-btn--secondary { background: var(--k-surface); border-color: var(--k-control-line); }
+.kd-btn--secondary:hover:not(:disabled) { background: var(--k-sunken); border-color: var(--k-ink); }
 
 .kd-btn--ghost:hover:not(:disabled) { background: var(--k-sunken); }
 
 .kd-btn--danger { background: var(--k-danger); color: #fff; }
 .kd-btn--danger:hover:not(:disabled) { background: var(--k-danger-hover); }
+
+/* Ação destrutiva fora do diálogo de confirmação: secundário ou fantasma em vermelho. */
+.kd-btn.is-destructive { color: var(--k-danger-ink); }
+.kd-btn--secondary.is-destructive { border-color: var(--k-danger); }
+.kd-btn.is-destructive:hover:not(:disabled) { background: var(--k-danger-soft); border-color: var(--k-danger); }
 
 /* Chamar a equipe: a única ação que usa o amarelo da cloche. */
 .kd-btn--signal { background: var(--k-cloche); color: var(--k-on-cloche); border-color: color-mix(in srgb, var(--k-on-cloche) 14%, transparent); }
@@ -490,9 +504,9 @@ button, input, select, textarea { font: inherit; letter-spacing: inherit; }
   width: 100%;
   min-height: 46px;
   padding: 11px 16px;
-  border: 1px solid var(--k-glass-rim);
+  border: 1px solid var(--k-control-line);
   border-radius: var(--k-r-pill);
-  background: var(--k-glass-2);
+  background: var(--k-surface);
   color: var(--k-ink);
   font-size: 16px; /* evita o zoom automático do iOS */
   line-height: 1.35;
@@ -514,7 +528,8 @@ button, input, select, textarea { font: inherit; letter-spacing: inherit; }
 .kd-input-trailing { position: absolute; top: 50%; right: 3px; display: flex; transform: translateY(-50%); }
 select.kd-input {
   padding-right: 40px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2314201a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  /* Seta na cor do texto: paletas e o tema escuro do cardápio redefinem --k-select-chevron. */
+  background-image: var(--k-select-chevron);
   background-position: right 14px center;
   background-repeat: no-repeat;
   cursor: pointer;
@@ -578,7 +593,7 @@ textarea.kd-input { min-height: 96px; border-radius: var(--k-r-lg); resize: vert
   position: absolute;
   inset: 0;
   border-radius: var(--k-r-pill);
-  background: var(--k-line-strong);
+  background: var(--k-control-line); /* desligado continua visível (3:1); ligado usa o destaque */
   transition: background-color var(--k-dur-3) var(--k-ease-out);
 }
 .kd-switch span::after {
@@ -627,8 +642,52 @@ textarea.kd-input { min-height: 96px; border-radius: var(--k-r-lg); resize: vert
   transition: background-color var(--k-dur-2) var(--k-ease-out), color var(--k-dur-2) var(--k-ease-out), box-shadow var(--k-dur-2) var(--k-ease-out);
 }
 .kd-seg button:hover { background: color-mix(in srgb, var(--k-ink) 6%, transparent); color: var(--k-ink); }
-.kd-seg button[aria-pressed="true"] { background: var(--k-glass-3); color: var(--k-ink); box-shadow: 0 2px 8px rgb(20 32 26 / 0.08); }
+/* Contorno em --k-muted: o grupo fica sobre --k-sunken, onde --k-control-line não chega a 3:1. */
+.kd-seg button[aria-pressed="true"] { background: var(--k-surface); color: var(--k-ink); font-weight: 700; box-shadow: inset 0 0 0 1px var(--k-muted), 0 2px 8px rgb(20 32 26 / 0.08); }
 .kd-seg-count { font-size: var(--k-fs-xs); font-weight: 600; color: var(--k-muted); font-variant-numeric: tabular-nums; }
+
+/* Opção que liga/desliga (várias ao mesmo tempo): contorno sempre visível; ligada vira destaque cheio com ✓. */
+.kd-chip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--k-control-line);
+  border-radius: var(--k-r-pill);
+  background: var(--k-surface);
+  color: var(--k-ink);
+  font-size: var(--k-fs-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--k-dur-2) var(--k-ease-out), border-color var(--k-dur-2) var(--k-ease-out), color var(--k-dur-2) var(--k-ease-out);
+}
+.kd-chip-toggle:hover { border-color: var(--k-ink); }
+.kd-chip-toggle[aria-pressed="true"] { border-color: var(--k-primary); background: var(--k-primary); color: var(--k-on-primary); }
+
+/* Etapas de um assistente: a atual em destaque, as concluídas com ✓. */
+.kd-stepper { display: flex; margin: 0 0 var(--k-s6); padding: 0; list-style: none; border: 1px solid var(--k-control-line); border-radius: var(--k-r-pill); overflow: hidden; }
+.kd-stepper li { flex: 1; min-width: 0; }
+.kd-stepper li + li { border-left: 1px solid var(--k-control-line); }
+.kd-stepper button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--k-muted);
+  font-size: var(--k-fs-sm);
+  font-weight: 650;
+  cursor: pointer;
+}
+.kd-stepper button:hover:not(:disabled) { background: var(--k-sunken); color: var(--k-ink); }
+.kd-stepper button.is-done { color: var(--k-primary-ink); }
+.kd-stepper button[aria-current="step"] { background: var(--k-primary); color: var(--k-on-primary); }
+.kd-stepper button:focus-visible { outline-offset: -3px; }
 
 .kd-radio-card {
   position: relative;
@@ -637,7 +696,7 @@ textarea.kd-input { min-height: 96px; border-radius: var(--k-r-lg); resize: vert
   gap: var(--k-s3);
   min-height: 56px;
   padding: var(--k-s3) var(--k-s4);
-  border: 1px solid var(--k-glass-rim);
+  border: 1px solid var(--k-line-strong);
   border-radius: var(--k-r-lg);
   background: var(--k-glass);
   cursor: pointer;
@@ -752,7 +811,7 @@ textarea.kd-input { min-height: 96px; border-radius: var(--k-r-lg); resize: vert
 .kd-usage-track { height: 8px; overflow: hidden; border-radius: var(--k-r-pill); background: var(--k-sunken); }
 .kd-usage-track span { display: block; height: 100%; border-radius: inherit; background: var(--k-ink); transition: width var(--k-dur-3) var(--k-ease-out); }
 .kd-usage-bar.is-warn70 .kd-usage-track span { background: var(--k-cloche); }
-.kd-usage-bar.is-warn90 .kd-usage-track span { background: #e8890c; }
+.kd-usage-bar.is-warn90 .kd-usage-track span { background: var(--k-warning); }
 .kd-usage-bar.is-full .kd-usage-track span { background: var(--k-danger); }
 .kd-usage-foot { margin: 6px 0 0; color: var(--k-muted); font-size: var(--k-fs-sm); line-height: 1.45; }
 .kd-usage-renew { margin: 0; padding-top: var(--k-s4); border-top: 1px solid var(--k-line); color: var(--k-text-2); font-size: var(--k-fs-md); }
@@ -839,6 +898,7 @@ textarea.kd-input { min-height: 96px; border-radius: var(--k-r-lg); resize: vert
 }
 .kd-modal:focus { outline: none; }
 .kd-modal--sm { max-width: 440px; }
+.kd-modal--lg { max-width: 780px; }
 .kd-modal-head {
   display: flex;
   align-items: flex-start;
@@ -880,7 +940,8 @@ textarea.kd-input { min-height: 96px; border-radius: var(--k-r-lg); resize: vert
 @media (max-width: 639px) {
   .kd-modal-layer { place-items: end stretch; padding: 0; }
   .kd-modal,
-  .kd-modal--sm {
+  .kd-modal--sm,
+  .kd-modal--lg {
     max-width: none;
     max-height: 92vh;
     max-height: 92dvh;
@@ -1059,3 +1120,45 @@ textarea.kd-input { min-height: 96px; border-radius: var(--k-r-lg); resize: vert
   .kd-skel { animation: none !important; }
   .kd-live::after { display: none; }
 }
+
+/* ───────────── Autocomplete (cidades no painel, endereço no checkout) ───────────── */
+
+.kd-ac-control { position: relative; }
+.kd-ac-control.has-icon .kd-input { padding-left: 42px; }
+.kd-ac-control .kd-input { padding-right: 44px; }
+.kd-ac-control .kd-input::-webkit-search-cancel-button { display: none; }
+.kd-ac-icon { position: absolute; top: 50%; left: 16px; display: flex; color: var(--k-muted); transform: translateY(-50%); pointer-events: none; }
+.kd-ac-spin { position: absolute; top: 50%; right: 16px; margin-top: -8.5px; color: var(--k-muted); }
+.kd-ac-list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: min(320px, 50vh);
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--k-line);
+  border-radius: var(--k-r-md);
+  background: var(--k-surface);
+  box-shadow: var(--k-shadow-float);
+}
+.kd-ac-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--k-s2);
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: var(--k-r-sm);
+  cursor: pointer;
+  font-size: var(--k-fs-md);
+  color: var(--k-ink);
+}
+.kd-ac-list li.is-active { background: var(--k-sunken); }
+.kd-ac-list li.kd-ac-empty { cursor: default; color: var(--k-muted); }
+.kd-ac-list li > svg { flex: none; color: var(--k-muted); }
+.kd-ac-item { display: grid; flex: 1; min-width: 0; gap: 1px; }
+.kd-ac-item b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.kd-ac-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--k-muted); font-size: var(--k-fs-sm); }

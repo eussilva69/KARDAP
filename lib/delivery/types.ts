@@ -83,6 +83,8 @@ export type DeliveryAddress = {
   city: string;
   uf?: string;
   reference?: string;
+  /** Google Place ID do endereço escolhido no autocomplete (permitido armazenar sem prazo pelos termos do Google). */
+  placeId?: string;
 };
 
 export type DeliveryCustomer = {
@@ -100,7 +102,10 @@ export type StatusHistoryEntry = {
 export type FeeCalculation = {
   feeMode: FeeMode;
   cityMatched: string;
+  cityIbgeCode?: string;
   neighborhoodMatched?: string;
+  matchType?: NeighborhoodMatchType;
+  usedDefaultFee?: boolean;
   feeCents: number;
 };
 
@@ -145,13 +150,19 @@ export type ServedCity = {
   ibgeCode: string;
   name: string;
   uf: string;
+  /** false = cidade pausada (continua cadastrada, mas não recebe entregas). Ausente = ativa. */
+  enabled?: boolean;
+  placeId?: string;
 };
 
 export type NeighborhoodEntry = {
   name: string;
-  feeCents: number;
+  /** null = sem valor próprio: usa a taxa padrão do restaurante (se houver). */
+  feeCents: number | null;
   enabled: boolean;
 };
+
+export type NeighborhoodMatchType = "exact" | "normalized" | "core" | "similar";
 
 export type CityDeliveryArea = {
   cityName: string;
@@ -165,7 +176,10 @@ export type DeliveryFeeResult = {
   feeCents: number;
   feeMode: FeeMode;
   cityName: string;
+  cityIbgeCode?: string;
   neighborhoodName: string | null;
+  matchType?: NeighborhoodMatchType;
+  usedDefaultFee?: boolean;
   matched: boolean;
   reason?: string;
 };
@@ -199,6 +213,10 @@ export type DeliveryConfig = {
   notes?: string;
   feeMode?: FeeMode;
   servedCities?: ServedCity[];
+  /** Taxa por bairro: valor usado em bairros sem taxa própria. null = esses bairros não são atendidos. */
+  defaultNeighborhoodFeeCents?: number | null;
+  /** Taxa por bairro: atende bairros que não estão na lista da cidade, cobrando a taxa padrão. */
+  serveUnlistedNeighborhoods?: boolean;
 };
 
 export const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
@@ -211,14 +229,21 @@ export const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
   notes: "",
   feeMode: "taxa_fixa",
   servedCities: [],
+  defaultNeighborhoodFeeCents: null,
+  serveUnlistedNeighborhoods: false,
 };
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   dinheiro: "Dinheiro",
-  pix: "Pix",
-  cartao_credito: "Cartão de crédito",
-  cartao_debito: "Cartão de débito",
+  pix: "Pix (na entrega)",
+  cartao_credito: "Cartão de crédito (na entrega)",
+  cartao_debito: "Cartão de débito (na entrega)",
+  pix_online: "Pix (pague agora)",
+  cartao_online: "Cartão de crédito (pague agora)",
 };
+
+/** Métodos que exigem geração de pagamento online antes de confirmar. */
+export const ONLINE_PAYMENT_METHODS = new Set(["pix_online", "cartao_online"]);
 
 // ───────────────────────── Checkout (dados enviados pelo cliente) ─────────────────────────
 

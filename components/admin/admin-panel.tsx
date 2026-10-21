@@ -1059,10 +1059,10 @@ function SystemResetPage({ notify }: { notify: Notify }) {
 
       <Card>
         <div style={{ padding: "4px 0" }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderBottom: "2px solid #dc2626" }}>
-            <AlertTriangle size={24} style={{ color: "#dc2626", flexShrink: 0 }} />
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderBottom: "2px solid var(--k-danger)" }}>
+            <AlertTriangle size={24} style={{ color: "var(--k-danger-ink)", flexShrink: 0 }} />
             <div>
-              <b style={{ color: "#dc2626", fontSize: "var(--k-fs-lg)" }}>Zona de perigo — Reset completo do sistema</b>
+              <b style={{ color: "var(--k-danger-ink)", fontSize: "var(--k-fs-lg)" }}>Zona de perigo — Reset completo do sistema</b>
               <p style={{ color: "var(--k-muted)", fontSize: "var(--k-fs-sm)", marginTop: 4 }}>
                 Esta ferramenta permite excluir permanentemente todas as contas e dados operacionais do sistema,
                 preservando somente os administradores globais e seus registros protegidos.
@@ -1106,11 +1106,11 @@ function SystemResetPage({ notify }: { notify: Notify }) {
               <tbody>
                 <tr style={{ borderBottom: "1px solid var(--k-line)" }}>
                   <td style={{ padding: "6px 0" }}>Usuários comuns</td>
-                  <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "#dc2626" }}>{scan.authUsers.toDelete} — Excluir</td>
+                  <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "var(--k-danger-ink)" }}>{scan.authUsers.toDelete} — Excluir</td>
                 </tr>
                 <tr style={{ borderBottom: "1px solid var(--k-line)" }}>
                   <td style={{ padding: "6px 0" }}>Administradores globais</td>
-                  <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "#22863a" }}>{scan.authUsers.protected} — Preservar</td>
+                  <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "var(--k-success-ink)" }}>{scan.authUsers.protected} — Preservar</td>
                 </tr>
               </tbody>
             </table>
@@ -1129,7 +1129,7 @@ function SystemResetPage({ notify }: { notify: Notify }) {
                   <tr key={c.name} style={{ borderBottom: "1px solid var(--k-line)" }}>
                     <td style={{ padding: "6px 0", fontFamily: "monospace" }}>{c.name}</td>
                     <td style={{ padding: "6px 0", textAlign: "right" }}>{c.count}</td>
-                    <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: c.action === "preserve" ? "#22863a" : "#dc2626" }}>
+                    <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: c.action === "preserve" ? "var(--k-success-ink)" : "var(--k-danger-ink)" }}>
                       {c.action === "preserve" ? "Preservar" : "Excluir"}
                     </td>
                   </tr>
@@ -1146,7 +1146,7 @@ function SystemResetPage({ notify }: { notify: Notify }) {
                       <tr key={`${s.parent}/${s.name}`} style={{ borderBottom: "1px solid var(--k-line)" }}>
                         <td style={{ padding: "6px 0", fontFamily: "monospace" }}>{s.parent}/{s.name}</td>
                         <td style={{ padding: "6px 0", textAlign: "right" }}>~{s.estimatedCount}</td>
-                        <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "#dc2626" }}>Excluir</td>
+                        <td style={{ padding: "6px 0", textAlign: "right", fontWeight: 600, color: "var(--k-danger-ink)" }}>Excluir</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1167,9 +1167,9 @@ function SystemResetPage({ notify }: { notify: Notify }) {
           </div>
 
           {!scan.productionBlocked && step === "scanned" && (
-            <div style={{ marginTop: 20, borderTop: "2px solid #dc2626", paddingTop: 16 }}>
+            <div style={{ marginTop: 20, borderTop: "2px solid var(--k-danger)", paddingTop: 16 }}>
               <Button
-                style={{ background: "#dc2626", borderColor: "#dc2626" }}
+                variant="danger"
                 onClick={() => setStep("confirming")}
                 icon={<Trash2 size={15} />}
               >
@@ -1204,7 +1204,7 @@ function SystemResetPage({ notify }: { notify: Notify }) {
               />
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <Button
-                  style={{ background: "#dc2626", borderColor: "#dc2626" }}
+                  variant="danger"
                   disabled={confirmation !== "RESETAR KARDAPP" || executing}
                   loading={executing}
                   onClick={executeReset}
@@ -1241,7 +1241,7 @@ function SystemResetPage({ notify }: { notify: Notify }) {
             </dl>
 
             <h3 style={{ fontWeight: 700, margin: "16px 0 8px" }}>Log de execução</h3>
-            <div style={{ background: "var(--k-bg, #f5f5f3)", borderRadius: "var(--k-r-md)", padding: 12, maxHeight: 300, overflowY: "auto", fontFamily: "monospace", fontSize: "var(--k-fs-xs)", lineHeight: 1.6 }}>
+            <div style={{ background: "var(--k-sunken)", borderRadius: "var(--k-r-md)", padding: 12, maxHeight: 300, overflowY: "auto", fontFamily: "monospace", fontSize: "var(--k-fs-xs)", lineHeight: 1.6 }}>
               {result.log.map((line, i) => (
                 <div key={i}>{line}</div>
               ))}
@@ -1249,8 +1249,8 @@ function SystemResetPage({ notify }: { notify: Notify }) {
 
             {result.errors.length > 0 && (
               <>
-                <h3 style={{ fontWeight: 700, margin: "16px 0 8px", color: "#dc2626" }}>Erros</h3>
-                <ul style={{ margin: 0, padding: "0 0 0 20px", color: "#dc2626" }}>
+                <h3 style={{ fontWeight: 700, margin: "16px 0 8px", color: "var(--k-danger-ink)" }}>Erros</h3>
+                <ul style={{ margin: 0, padding: "0 0 0 20px", color: "var(--k-danger-ink)" }}>
                   {result.errors.map((err, i) => (
                     <li key={i}>{err}</li>
                   ))}

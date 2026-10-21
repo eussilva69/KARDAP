@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { authenticate, json, errorResponse, preflight, readJson } from "@/lib/billing/http";
-import { getDeliveryConfig, saveDeliveryConfig } from "@/lib/delivery/server";
+import { getDeliveryConfigForTeam, saveDeliveryConfig } from "@/lib/delivery/server";
 import { monthlyUsage, getSubscriptionEntitlements } from "@/lib/billing/server";
 
 /**
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: { restaurantId
     const caller = await authenticate(req);
     const { restaurantId } = params;
     const [config, entitlements] = await Promise.all([
-      getDeliveryConfig(restaurantId),
+      getDeliveryConfigForTeam(restaurantId, caller.uid),
       getSubscriptionEntitlements(restaurantId),
     ]);
     const usage = await monthlyUsage(restaurantId, entitlements);

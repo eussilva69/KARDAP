@@ -7,13 +7,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
 
+const IBGE_CODE = /^\d{7}$/;
+const badCode = (req: NextRequest) => json(req, { error: "invalid_code", message: "Código IBGE da cidade inválido." }, 400);
+
 export async function GET(req: NextRequest, { params }: { params: { restaurantId: string } }) {
   try {
-    await authenticate(req);
+    const caller = await authenticate(req);
     const cityCode = req.nextUrl.searchParams.get("cityCode") || "";
-    if (!cityCode) return json(req, { error: "missing_code", message: "Informe o código da cidade." }, 400);
+    if (!IBGE_CODE.test(cityCode)) return badCode(req);
 
-    const data = await getDeliveryAreas(params.restaurantId, cityCode);
+    const data = await getDeliveryAreas(params.restaurantId, caller.uid, cityCode);
     return json(req, data || { neighborhoods: {} });
   } catch (error) {
     return errorResponse(req, "delivery areas get", error);
@@ -26,16 +29,17 @@ export async function POST(req: NextRequest, { params }: { params: { restaurantI
     const body = await readJson(req);
 
     const cityCode = String(body.cityCode || "");
-    const cityName = String(body.cityName || "");
-    const uf = String(body.uf || "");
-    if (!cityCode || !cityName || !uf) {
-      return json(req, { error: "missing_fields", message: "cityCode, cityName e uf são obrigatórios." }, 400);
+    const cityName = String(body.cityName || "").trim();
+    const uf = String(body.uf || "").trim();
+    if (!IBGE_CODE.test(cityCode)) return badCode(req);
+    if (!cityName || uf.length !== 2) {
+      return json(req, { error: "missing_fields", message: "Informe a cidade e a UF." }, 400);
     }
+    const neighborhoods = body.neighborhoods && typeof body.neighborhoods === "object" ? (body.neighborhoods as Record<string, NeighborhoodEntry>) : {};
+    const placeId = typeof body.placeId === "string" ? body.placeId : undefined;
 
-    const neighborhoods = (body.neighborhoods || {}) as Record<string, NeighborhoodEntry>;
-    await saveDeliveryAreas(params.restaurantId, caller.uid, cityCode, { cityName, uf, neighborhoods });
-
-    return json(req, { ok: true });
+    const config = await saveDeliveryAreas(params.restaurantId, caller.uid, cityCode, { cityName, uf, placeId, neighborhoods });
+    return json(req, { ok: true, config });
   } catch (error) {
     return errorResponse(req, "delivery areas save", error);
   }
@@ -45,10 +49,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { restauran
   try {
     const caller = await authenticate(req);
     const cityCode = req.nextUrl.searchParams.get("cityCode") || "";
-    if (!cityCode) return json(req, { error: "missing_code", message: "Informe o código da cidade." }, 400);
+    if (!IBGE_CODE.test(cityCode)) return badCode(req);
 
-    await removeDeliveryCity(params.restaurantId, caller.uid, cityCode);
-    return json(req, { ok: true });
+    const config = await removeDeliveryCity(params.restaurantId, caller.uid, cityCode);
+    return json(req, { ok: true, config });
   } catch (error) {
     return errorResponse(req, "delivery areas delete", error);
   }

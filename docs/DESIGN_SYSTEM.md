@@ -43,7 +43,47 @@ Use sempre as variáveis; não escreva cores soltas nos componentes.
 - **Superfícies:** `--k-canvas` (fundo), `--k-surface` (cartões), `--k-sunken` (poços, controles segmentados)
 - **Texto:** `--k-ink` (principal, 14,8:1 sobre o fundo), `--k-text-2`, `--k-muted` (mínimo 4,8:1)
 - **Linhas:** `--k-line` (divisórias), `--k-line-strong`, `--k-control-line` (borda de campos, 3,4:1)
-- **Estados:** `--k-success*`, `--k-danger*`, `--k-cloche*`
+- **Estados:** `--k-success*`, `--k-danger*`, `--k-warning*`, `--k-cloche*`
+- **Vidro:** `--k-glass`, `--k-glass-2`, `--k-glass-3` são a superfície translúcida (derivadas de `--k-surface`, então
+  acompanham a paleta do restaurante); `--k-glass-rim` é só o brilho decorativo da borda de cartões.
+
+Os tokens `--k-*` são os únicos que existem. Uma variável que não está em `:root` (por exemplo `--k-text`,
+`--k-border`, `--k-accent`) não dá erro: o navegador simplesmente descarta a declaração, e o resultado é borda
+sumindo ou texto branco sobre transparente. Antes de usar um nome, confira em `app/globals.css`.
+
+### Nomes semânticos
+
+Para quem vem de outros sistemas (shadcn, Tailwind), a correspondência é:
+
+| Papel | Token Kardap | Observação |
+| --- | --- | --- |
+| background | `--k-canvas` | |
+| foreground | `--k-ink` | |
+| card / popover | `--k-surface` (ou `--k-glass*`) | |
+| primary / primary-foreground | `--k-primary` / `--k-on-primary` | Nunca `#fff` fixo sobre o destaque: a paleta pode deixá-lo claro |
+| primary como texto/ícone | `--k-primary-ink` | Garante 4,5:1 sobre fundo e superfície |
+| secondary | `Button variant="secondary"` (superfície + `--k-control-line`) | |
+| muted / muted-foreground | `--k-sunken` / `--k-muted` | |
+| accent | `--k-cloche` / `--k-on-cloche` | Só chamado de mesa e avisos que pedem atenção agora |
+| border | `--k-line` (divisórias), `--k-line-strong` (cartões) | Decorativas: podem ficar abaixo de 3:1 |
+| input | `--k-control-line` | Obrigatória em todo controle: campo, select, busca, interruptor desligado, botão secundário |
+| ring | `--k-focus` | Vira giz sobre a lousa |
+| destructive | `--k-danger` (preenchimento), `--k-danger-ink` (texto) | |
+| success | `--k-success` (preenchimento), `--k-success-ink` (texto) | |
+| warning | `--k-warning` (preenchimento), `--k-warning-ink` (texto), `--k-warning-soft` (fundo) | Pendências e uso do plano; o amarelo continua reservado à cloche |
+
+Regra de par: cor viva (`--k-success`, `--k-danger`, `--k-warning`, `--k-cloche`) é preenchimento de barra, ponto ou
+fundo de ícone; texto colorido usa sempre a versão `-ink`.
+
+### Visibilidade de controles
+
+- Todo controle interativo precisa de um limite com 3:1 contra o fundo onde está: borda `--k-control-line`,
+  preenchimento `--k-primary`/`--k-danger`, ou a combinação. `--k-glass-rim` e `--k-line` não contam.
+- Estado selecionado nunca depende só de um fundo levemente diferente: some contorno, peso de fonte ou ✓.
+- Sobre a lousa, use os tons do giz (`--k-giz`, `--k-giz-muted`, `color-mix` com `--k-giz`), nunca branco fixo:
+  com uma cor de marca clara o giz vira escuro.
+- Grades de página (`.kd-stack`, `.kd-group`) usam `minmax(0, 1fr)` para nenhum filho largo empurrar a página
+  para fora da tela no celular.
 - **Escala de espaço:** `--k-s1` a `--k-s10` (4, 8, 12, 16, 20, 24, 32, 40, 48, 64 px)
 - **Raios:** `--k-r-xs` 6 · `--k-r-sm` 8 (botões, campos) · `--k-r-md` 12 (cartões) · `--k-r-lg` 16 (diálogos)
 - **Sombras:** só em camadas que flutuam: `--k-shadow-raise` (hover de cartão interativo) e `--k-shadow-float` (diálogos, gaveta, notificação). Cartões em repouso usam só borda.
@@ -66,6 +106,8 @@ Archivo variável, auto-hospedada com `next/font` (sem requisição ao Google Fo
 `primary` (ação principal, tinta), `secondary`, `ghost`, `danger` (ações destrutivas), `link` e `signal`
 (amarelo, exclusivo de chamar a equipe). Todos têm hover, foco visível, pressionado e `loading`
 (gira o ícone, mantém o texto e bloqueia clique duplo). Ícone sem texto: `IconButton` com `label` obrigatório.
+Opções que ligam/desligam juntas: `.kd-chip-toggle` com `aria-pressed`. Etapas de assistente: `.kd-stepper` com
+`aria-current="step"`. Opção exclusiva com descrição: `RadioCard`.
 
 ## Movimento
 
@@ -135,7 +177,7 @@ Separar por espaço antes de separar por borda; borda só quando o espaço não 
 | Principal | `Button` `primary` | A ação que conclui a tarefa da tela. No máximo uma por área |
 | Secundária | `secondary` | Alternativas úteis (copiar link, imprimir, ver planos) |
 | Terciária | `ghost` ou `link` | Voltar, pular, ver todos, sair |
-| Destrutiva | `secondary` com `.is-destructive` na zona de risco; `danger` cheio só dentro do `ConfirmDialog` | Suspender, excluir, cancelar |
+| Destrutiva | `secondary` (ou `ghost`) com `.is-destructive`; `danger` cheio só dentro do `ConfirmDialog` ou na confirmação final | Suspender, excluir, cancelar |
 
 Quando a ação principal não pode ser concluída (por exemplo, limite de mesas do plano), ela desce para
 `secondary` e um `Callout` explica o motivo antes do clique.

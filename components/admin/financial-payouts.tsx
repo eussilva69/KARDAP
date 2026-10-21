@@ -30,15 +30,15 @@ const centsToReal = (cents: number) => brl(cents / 100);
 // ─── Badge de status ──────────────────────────────────────────────────────
 
 const PAYOUT_STATUS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  pendente: { label: "Pendente", icon: <Clock size={14} />, color: "#f97316" },
-  em_processamento: { label: "Em processamento", icon: <LoaderCircle size={14} className="k-spin" />, color: "#3b82f6" },
-  concluido: { label: "Concluído", icon: <CheckCircle2 size={14} />, color: "#22c55e" },
-  falhou: { label: "Falhou", icon: <AlertCircle size={14} />, color: "#ef4444" },
-  cancelado: { label: "Cancelado", icon: <XCircle size={14} />, color: "#6b7280" },
+  pendente: { label: "Pendente", icon: <Clock size={14} />, color: "var(--k-warning-ink)" },
+  em_processamento: { label: "Em processamento", icon: <LoaderCircle size={14} className="k-spin" />, color: "var(--k-ink)" },
+  concluido: { label: "Concluído", icon: <CheckCircle2 size={14} />, color: "var(--k-success-ink)" },
+  falhou: { label: "Falhou", icon: <AlertCircle size={14} />, color: "var(--k-danger-ink)" },
+  cancelado: { label: "Cancelado", icon: <XCircle size={14} />, color: "var(--k-muted)" },
 };
 
 function PayoutStatusBadge({ status }: { status: string }) {
-  const meta = PAYOUT_STATUS[status] || { label: status, icon: null, color: "#6b7280" };
+  const meta = PAYOUT_STATUS[status] || { label: status, icon: null, color: "var(--k-muted)" };
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: meta.color, fontWeight: 500 }}>
       {meta.icon}
@@ -84,7 +84,7 @@ function ConfirmPayoutModal({
     <div className="kd-modal-overlay" onClick={onClose}>
       <div className="kd-modal kd-fin-modal" onClick={(e) => e.stopPropagation()}>
         <h2 className="kd-modal-title">Confirmar repasse</h2>
-        <p style={{ color: "#6b7280", marginBottom: 20 }}>
+        <p style={{ color: "var(--k-muted)", marginBottom: 20 }}>
           Repasse de <strong>{centsToReal(payout.amount_cents)}</strong> para restaurante <code>{payout.restaurant_id}</code>.
           <br />
           <strong>O repasse não será marcado como concluído sem comprovação bancária.</strong>
@@ -112,7 +112,7 @@ function ConfirmPayoutModal({
         </div>
 
         {error && (
-          <p style={{ color: "#ef4444", marginTop: 12, fontSize: 13 }}>
+          <p className="kd-form-error" style={{ marginTop: 12 }}>
             <AlertCircle size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
             {error}
           </p>
@@ -170,8 +170,8 @@ function NewPayoutModal({
     <div className="kd-modal-overlay" onClick={onClose}>
       <div className="kd-modal kd-fin-modal" onClick={(e) => e.stopPropagation()}>
         <h2 className="kd-modal-title">Novo repasse</h2>
-        <p style={{ color: "#6b7280", marginBottom: 20 }}>
-          Saldo disponível: <strong style={{ color: "#22c55e" }}>{centsToReal(available)}</strong>
+        <p style={{ color: "var(--k-muted)", marginBottom: 20 }}>
+          Saldo disponível: <strong className="kd-fin-amt--net">{centsToReal(available)}</strong>
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -196,7 +196,7 @@ function NewPayoutModal({
         </div>
 
         {error && (
-          <p style={{ color: "#ef4444", marginTop: 12, fontSize: 13 }}>
+          <p className="kd-form-error" style={{ marginTop: 12 }}>
             <AlertCircle size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
             {error}
           </p>
@@ -285,15 +285,15 @@ export function FinancialPayouts({
         <div className="kd-fin__balance-grid" style={{ marginBottom: 20 }}>
           <div className="kd-fin-bal">
             <span className="kd-fin-bal__label">Pendente</span>
-            <span className="kd-fin-bal__value" style={{ color: "#f97316" }}>{centsToReal(balance.pending_cents)}</span>
+            <span className="kd-fin-bal__value" style={{ color: "var(--k-warning-ink)" }}>{centsToReal(balance.pending_cents)}</span>
           </div>
           <div className="kd-fin-bal">
             <span className="kd-fin-bal__label">Disponível</span>
-            <span className="kd-fin-bal__value" style={{ color: "#22c55e" }}>{centsToReal(balance.available_cents)}</span>
+            <span className="kd-fin-bal__value kd-fin-amt--net">{centsToReal(balance.available_cents)}</span>
           </div>
           <div className="kd-fin-bal">
             <span className="kd-fin-bal__label">Reservado</span>
-            <span className="kd-fin-bal__value" style={{ color: "#3b82f6" }}>{centsToReal(balance.reserved_cents)}</span>
+            <span className="kd-fin-bal__value">{centsToReal(balance.reserved_cents)}</span>
           </div>
           <div className="kd-fin-bal">
             <span className="kd-fin-bal__label">Total repassado</span>
@@ -320,7 +320,7 @@ export function FinancialPayouts({
             <span>Carregando repasses…</span>
           </div>
         ) : payouts.length === 0 ? (
-          <p style={{ padding: "16px 20px", color: "#6b7280" }}>Nenhum repasse registrado.</p>
+          <p style={{ padding: "16px 20px", color: "var(--k-muted)" }}>Nenhum repasse registrado.</p>
         ) : (
           <div className="kd-table-scroll">
             <table className="kd-data-table kd-fin-table">
@@ -348,10 +348,10 @@ export function FinancialPayouts({
                     )}
                     <td style={{ textAlign: "right", fontWeight: 600 }}>{centsToReal(p.amount_cents)}</td>
                     <td><PayoutStatusBadge status={p.status} /></td>
-                    <td style={{ fontSize: 12, color: "#6b7280" }}>{p.pix_key_reference || "—"}</td>
-                    <td style={{ fontSize: 12, color: "#6b7280" }}>{p.gateway_transfer_id || "—"}</td>
-                    <td style={{ fontSize: 12, color: "#6b7280" }}>{p.created_by}</td>
-                    <td style={{ fontSize: 12, color: "#6b7280" }}>
+                    <td style={{ fontSize: 12, color: "var(--k-muted)" }}>{p.pix_key_reference || "—"}</td>
+                    <td style={{ fontSize: 12, color: "var(--k-muted)" }}>{p.gateway_transfer_id || "—"}</td>
+                    <td style={{ fontSize: 12, color: "var(--k-muted)" }}>{p.created_by}</td>
+                    <td style={{ fontSize: 12, color: "var(--k-muted)" }}>
                       {p.completed_at ? new Date(p.completed_at).toLocaleDateString("pt-BR") : "—"}
                     </td>
                     <td>
@@ -365,8 +365,7 @@ export function FinancialPayouts({
                             Confirmar
                           </button>
                           <button
-                            className="kd-btn kd-btn--ghost kd-btn--sm"
-                            style={{ color: "#ef4444" }}
+                            className="kd-btn kd-btn--ghost kd-btn--sm is-destructive"
                             onClick={() => handleCancel(p.id)}
                             title="Cancelar repasse"
                           >

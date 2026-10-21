@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { json, errorResponse, preflight } from "@/lib/billing/http";
 import { getDeliveryConfig } from "@/lib/delivery/server";
+import { isGoogleConfigured } from "@/lib/delivery/geo";
 
 /**
  * GET /api/delivery/menu?restaurantId=X — Configuração pública do delivery (sem autenticação).
@@ -26,7 +27,9 @@ export async function GET(req: NextRequest) {
       paymentMethods: config.paymentMethods,
       notes: config.notes || "",
       feeMode: config.feeMode || "taxa_fixa",
-      servedCities: config.servedCities || [],
+      servedCities: (config.servedCities || []).filter((c) => c.enabled !== false).map(({ ibgeCode, name, uf }) => ({ ibgeCode, name, uf })),
+      hasServedCities: (config.servedCities || []).length > 0,
+      addressSearch: isGoogleConfigured(),
     });
   } catch (error) {
     return errorResponse(req, "delivery menu", error);

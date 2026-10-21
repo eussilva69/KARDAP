@@ -51,7 +51,7 @@ export function SavedSheet({
   const { saved, account, removeSaved, onSignedIn, onSignedOut, refresh } = engagement;
 
   useEffect(() => {
-    void refresh();
+    void refresh(true);
   }, [refresh]);
 
   const here = saved.filter((item) => item.restaurantId === restaurant.id);

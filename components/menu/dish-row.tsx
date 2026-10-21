@@ -31,7 +31,7 @@ export type Dish = {
  * rede e memória quando se afasta), só toca visível e um de cada vez. Antes de carregar,
  * aparece a capa gerada na otimização, então não há quadro preto nem salto de layout.
  */
-export function DishMedia({ dish, autoplay }: { dish: Dish; autoplay: boolean }) {
+export function DishMedia({ dish, autoplay, onClick }: { dish: Dish; autoplay: boolean; onClick?: () => void }) {
   const [nearRef, near] = useInView<HTMLSpanElement>({ rootMargin: "400px 0px" });
   const [visibleRef, visible] = useInView<HTMLSpanElement>({ threshold: 0.6 });
   const video = useRef<HTMLVideoElement>(null);
@@ -60,7 +60,7 @@ export function DishMedia({ dish, autoplay }: { dish: Dish; autoplay: boolean })
 
   if (!dish.image && !dish.videoUrl) return null;
   return (
-    <span ref={setRefs} className="kd-dish-media">
+    <span ref={setRefs} className="kd-dish-media" onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onKeyDown={onClick ? (e) => (e.key === "Enter" || e.key === " ") && onClick() : undefined}>
       {dish.videoUrl && near ? (
         <video
           ref={video}
@@ -118,7 +118,7 @@ export function DishRow({
         <p className="kd-dish-price kd-num">{brl(productCents(dish))}</p>
         {note}
       </div>
-      <DishMedia dish={dish} autoplay={autoplay} />
+      <DishMedia dish={dish} autoplay={autoplay} onClick={onOpen} />
     </li>
   );
 }

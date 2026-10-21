@@ -135,6 +135,8 @@ export function normalizeHex(input: string): string | null {
 const toRgb = (hex: string): RGB => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 const toHex = ([r, g, b]: RGB) => "#" + [r, g, b].map((n) => Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, "0")).join("");
 
+const withAlpha = (hex: string, alpha: number) => `rgb(${toRgb(hex).join(" ")} / ${alpha})`;
+
 /** Mistura `a` com `b` (t = 0 → a, t = 1 → b). */
 export function mix(a: string, b: string, t: number) {
   const x = toRgb(a);
@@ -249,6 +251,11 @@ export function paletteVars(colors: PaletteColors): Record<string, string> {
     "--k-primary-ink": ensureContrast(primary, [bg, surface], 4.5, ink),
     "--k-logo-bg": brand,
     "--k-focus": ink,
+    // Vidro sobre a superfície da paleta: explícito para valer também na prévia, que aplica as cores num contêiner.
+    "--k-glass": withAlpha(surface, 0.55),
+    "--k-glass-2": withAlpha(surface, 0.72),
+    "--k-glass-3": withAlpha(surface, 0.88),
+    "--k-select-chevron": `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23${ink.slice(1)}' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
   };
 
   if (dark) {
@@ -259,6 +266,12 @@ export function paletteVars(colors: PaletteColors): Record<string, string> {
       "--k-danger-ink": "#ffb4a8",
       "--k-danger-soft": "#3a1d18",
       "--k-danger-line": "#6b3329",
+      "--k-warning-ink": "#ffc27a",
+      "--k-warning-soft": "#3a2a12",
+      // O brilho branco do vidro vira uma linha clara no escuro: a borda passa a ser a linha da paleta.
+      "--k-glass-rim": line,
+      "--k-shadow-card": "0 20px 44px -28px rgb(0 0 0 / 0.55)",
+      "--k-shadow-card-hover": "0 24px 52px -24px rgb(0 0 0 / 0.65)",
     });
   }
   return vars;

@@ -171,22 +171,3 @@ export function useRootPalette(palette: BrandPalette | null, enabled = true) {
     };
   }, [colors]);
 }
-
-type NetworkInformation = { saveData?: boolean; effectiveType?: string; addEventListener?: (type: "change", listener: () => void) => void; removeEventListener?: (type: "change", listener: () => void) => void };
-
-/**
- * true em conexão lenta (2G/3G) ou com economia de dados ligada: vídeos vizinhos não são
- * pré-carregados para não competir com o que está na tela. Sem a API (Safari), assume conexão boa.
- */
-export function useConstrainedNetwork() {
-  const [constrained, setConstrained] = useState(false);
-  useEffect(() => {
-    const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection;
-    if (!connection) return;
-    const update = () => setConstrained(Boolean(connection.saveData) || /(^|-)(2g|3g)$/.test(connection.effectiveType || ""));
-    update();
-    connection.addEventListener?.("change", update);
-    return () => connection.removeEventListener?.("change", update);
-  }, []);
-  return constrained;
-}

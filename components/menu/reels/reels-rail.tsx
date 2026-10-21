@@ -1,12 +1,13 @@
 "use client";
 
+import { memo } from "react";
 import { Clapperboard, Play } from "lucide-react";
 import type { Dish } from "../dish-row";
 
 const MAX_BUBBLES = 20;
 
 /** Entrada dos Reels no topo do cardápio: bolhas com os pratos em vídeo (como os stories). */
-export function ReelsRail({ dishes, onOpen }: { dishes: Dish[]; onOpen: (index: number) => void }) {
+export const ReelsRail = memo(function ReelsRail({ dishes, onOpen }: { dishes: Dish[]; onOpen: (index: number) => void }) {
   if (!dishes.length) return null;
   return (
     <section className="kd-reels-rail" aria-labelledby="kd-reels-rail-title">
@@ -36,4 +37,4 @@ export function ReelsRail({ dishes, onOpen }: { dishes: Dish[]; onOpen: (index: 
       </ul>
     </section>
   );
-}
+});

@@ -19,6 +19,8 @@ export type RestaurantRef = { id: string; slug: string; name: string; logo: stri
 export type SaveInput = Pick<SavedItem, "productId" | "name" | "priceCents" | "image">;
 export type Engagement = ReturnType<typeof useEngagement>;
 
+const REFRESH_TTL_MS = 60_000;
+
 /**
  * Curtidas e salvos do cardápio. A tela muda na hora do toque; a gravação segue atrás numa fila por prato
  * que termina sempre no estado do último toque (curtir e descurtir rápido não gera gravações cruzadas).
@@ -39,6 +41,8 @@ export function useEngagement(restaurant: RestaurantRef) {
   // Contam toques em curtir/salvar: uma leitura do servidor que começou antes de um toque não o desfaz.
   const likeOps = useRef(0);
   const saveOps = useRef(0);
+  /** Última conferência com o servidor que deu certo: abrir e fechar o feed não repete a leitura. */
+  const refreshedAt = useRef(0);
 
   const applyLiked = (next: Set<string>) => {
     likedRef.current = next;
@@ -54,24 +58,37 @@ export function useEngagement(restaurant: RestaurantRef) {
     setSavedList(localSaved());
   }, [restaurant.id]);
 
-  /** Confere com o servidor: quem está usando, as curtidas desta pessoa e os salvos da conta. */
-  const refresh = useCallback(async () => {
-    if (!restaurant.id) return;
-    const likeGen = likeOps.current;
-    const saveGen = saveOps.current;
-    try {
-      const who = await currentCustomer();
-      setCustomer(who);
-      if (!who) return;
-      const [likes, account] = await Promise.all([fetchMyLikes(restaurant.id), accountSaved()]);
-      if (likeOps.current === likeGen && busy.current.size === 0) {
-        counted.current = new Set(likes);
-        applyLiked(new Set(likes));
+  /**
+   * Confere com o servidor: quem está usando, as curtidas desta pessoa e os salvos da conta.
+   * Sem `force`, não repete uma conferência feita há menos de um minuto.
+   */
+  const refresh = useCallback(
+    async (force = false) => {
+      if (!restaurant.id) return;
+      if (!force && Date.now() - refreshedAt.current < REFRESH_TTL_MS) return;
+      refreshedAt.current = Date.now();
+      const likeGen = likeOps.current;
+      const saveGen = saveOps.current;
+      try {
+        const who = await currentCustomer();
+        setCustomer(who);
+        if (!who) return;
+        const [likes, account] = await Promise.all([fetchMyLikes(restaurant.id), accountSaved()]);
+        if (likeOps.current === likeGen && busy.current.size === 0) {
+          counted.current = new Set(likes);
+          applyLiked(new Set(likes));
+        }
+        if (saveOps.current === saveGen && account.length) setSavedList(mergeSaved(localSaved(), account));
+      } catch {
+        // Sem rede: fica valendo o que está no celular, e a próxima abertura tenta de novo.
+        refreshedAt.current = 0;
       }
-      if (saveOps.current === saveGen && account.length) setSavedList(mergeSaved(localSaved(), account));
-    } catch {
-      // Sem rede: fica valendo o que está no celular.
-    }
+    },
+    [restaurant.id],
+  );
+
+  useEffect(() => {
+    refreshedAt.current = 0;
   }, [restaurant.id]);
 
   const flush = useCallback(
@@ -174,7 +191,7 @@ export function useEngagement(restaurant: RestaurantRef) {
         const account = await accountSaved();
         if (saveOps.current === saveGen) setSavedList(mergeSaved(localSaved(), account));
       } catch {}
-      void refresh();
+      void refresh(true);
     },
     [refresh],
   );

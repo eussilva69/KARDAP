@@ -105,9 +105,25 @@ export function watchRestaurantProducts(onData: (products: (RestaurantProduct & 
     onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data(), pending: item.metadata.hasPendingWrites } as RestaurantProduct & Pending)), { fromCache: snapshot.metadata.fromCache }), onError);
 }
 
+/**
+ * Produtos do cardápio público, em tempo real. Cada curtida muda o contador de um produto e gera um snapshot
+ * novo: produto que não mudou mantém o mesmo objeto, então a tela só renderiza de novo o prato alterado.
+ */
 export function watchPublicRestaurantProducts(restaurantId: string, onData: (products: RestaurantProduct[], meta: SnapshotMeta) => void, onError: (error: Error) => void) {
-  return onSnapshot(query(collection(getDb(), "restaurantes", restaurantId, "produtos"), where("available", "==", true)), (snapshot) =>
-    onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as RestaurantProduct)).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), { fromCache: snapshot.metadata.fromCache }), onError);
+  let previous = new Map<string, { json: string; product: RestaurantProduct }>();
+  return onSnapshot(query(collection(getDb(), "restaurantes", restaurantId, "produtos"), where("available", "==", true)), (snapshot) => {
+    const next = new Map<string, { json: string; product: RestaurantProduct }>();
+    const products = snapshot.docs.map((item) => {
+      const data = item.data();
+      const json = JSON.stringify(data);
+      const known = previous.get(item.id);
+      const product = known && known.json === json ? known.product : ({ id: item.id, ...data } as RestaurantProduct);
+      next.set(item.id, { json, product });
+      return product;
+    });
+    previous = next;
+    onData(products.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), { fromCache: snapshot.metadata.fromCache });
+  }, onError);
 }
 
 /** Categorias do cardápio público: define a ordem das seções e quais ficam ocultas para o cliente. */

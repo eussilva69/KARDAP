@@ -111,16 +111,16 @@ function periodDates(period: FilterState["period"]): { from: string; to: string 
 // ─── Tabela de transações ─────────────────────────────────────────────────
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  aprovado: { label: "Aprovado", color: "#22c55e" },
-  pendente: { label: "Pendente", color: "#f7ea48" },
-  recusado: { label: "Recusado", color: "#ef4444" },
-  cancelado: { label: "Cancelado", color: "#6b7280" },
-  estornado: { label: "Estornado", color: "#f97316" },
-  chargeback: { label: "Chargeback", color: "#dc2626" },
+  aprovado: { label: "Aprovado", color: "var(--k-success)" },
+  pendente: { label: "Pendente", color: "var(--k-warning)" },
+  recusado: { label: "Recusado", color: "var(--k-danger)" },
+  cancelado: { label: "Cancelado", color: "var(--k-muted)" },
+  estornado: { label: "Estornado", color: "var(--k-warning)" },
+  chargeback: { label: "Chargeback", color: "var(--k-danger)" },
 };
 
 function StatusDot({ status }: { status: string }) {
-  const meta = STATUS_LABEL[status] || { label: status, color: "#6b7280" };
+  const meta = STATUS_LABEL[status] || { label: status, color: "var(--k-muted)" };
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
       <span style={{ width: 8, height: 8, borderRadius: "50%", background: meta.color, display: "inline-block" }} />
@@ -165,12 +165,12 @@ function TransactionsTable({ transactions, loading }: { transactions: FinancialT
               </td>
               <td>{t.gateway}</td>
               <td style={{ textAlign: "right" }}>{centsToReal(t.gross_amount_cents)}</td>
-              <td style={{ textAlign: "right", color: "#ef4444" }}>
+              <td className="kd-fin-amt--fee" style={{ textAlign: "right" }}>
                 -{centsToReal(t.gateway_fee_cents)}
-                {!t.gateway_fee_confirmed && <span title="Estimado" style={{ color: "#f97316", marginLeft: 3 }}>~</span>}
+                {!t.gateway_fee_confirmed && <span title="Estimado" className="kd-fin-amt--pending" style={{ marginLeft: 3 }}>~</span>}
               </td>
-              <td style={{ textAlign: "right", color: "#f7ea48" }}>-{centsToReal(t.kardap_fee_cents)}</td>
-              <td style={{ textAlign: "right", color: "#22c55e", fontWeight: 600 }}>{centsToReal(t.restaurant_net_cents)}</td>
+              <td className="kd-fin-amt--kardap" style={{ textAlign: "right" }}>-{centsToReal(t.kardap_fee_cents)}</td>
+              <td className="kd-fin-amt--net kd-fin-amt--strong" style={{ textAlign: "right" }}>{centsToReal(t.restaurant_net_cents)}</td>
               <td>
                 <StatusDot status={t.payment_status} />
               </td>
@@ -227,17 +227,17 @@ function RestaurantsTable({
             <tr key={r.restaurant_id}>
               <td>
                 <div style={{ fontWeight: 600 }}>{r.restaurant_name}</div>
-                <div style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>{r.restaurant_id}</div>
+                <div style={{ fontSize: 11, color: "var(--k-muted)", fontFamily: "monospace" }}>{r.restaurant_id}</div>
               </td>
               <td style={{ textAlign: "right" }}>{r.approved_count}</td>
               <td style={{ textAlign: "right" }}>{centsToReal(r.gross_cents)}</td>
-              <td style={{ textAlign: "right", color: "#ef4444" }}>-{centsToReal(r.gateway_fee_cents)}</td>
-              <td style={{ textAlign: "right", color: "#f7ea48" }}>-{centsToReal(r.kardap_fee_cents)}</td>
+              <td className="kd-fin-amt--fee" style={{ textAlign: "right" }}>-{centsToReal(r.gateway_fee_cents)}</td>
+              <td className="kd-fin-amt--kardap" style={{ textAlign: "right" }}>-{centsToReal(r.kardap_fee_cents)}</td>
               <td style={{ textAlign: "right", fontWeight: 600 }}>{centsToReal(r.restaurant_net_cents)}</td>
-              <td style={{ textAlign: "right", color: "#22c55e" }}>{centsToReal(r.paid_out_cents)}</td>
-              <td style={{ textAlign: "right", color: "#f97316" }}>{centsToReal(r.pending_cents)}</td>
-              <td style={{ textAlign: "right", fontWeight: 600, color: "#22c55e" }}>{centsToReal(r.available_cents)}</td>
-              <td style={{ fontSize: 12, color: "#6b7280" }}>
+              <td className="kd-fin-amt--net" style={{ textAlign: "right" }}>{centsToReal(r.paid_out_cents)}</td>
+              <td className="kd-fin-amt--pending" style={{ textAlign: "right" }}>{centsToReal(r.pending_cents)}</td>
+              <td className="kd-fin-amt--net kd-fin-amt--strong" style={{ textAlign: "right" }}>{centsToReal(r.available_cents)}</td>
+              <td style={{ fontSize: 12, color: "var(--k-muted)" }}>
                 {r.last_payout_at ? new Date(r.last_payout_at).toLocaleDateString("pt-BR") : "—"}
               </td>
               <td>
@@ -326,10 +326,10 @@ function FinancialSettingsPanel({ notify }: { notify: Notify }) {
           <div className="kd-fin-example">
             <strong>Exemplo com R$ 100,00:</strong>
             <ul>
-              <li>Gateway ({gw}%): <span style={{ color: "#ef4444" }}>-R$ {((100 * Number(gw)) / 100).toFixed(2)}</span></li>
+              <li>Gateway ({gw}%): <span className="kd-fin-amt--fee">-R$ {((100 * Number(gw)) / 100).toFixed(2)}</span></li>
               <li>Após gateway: R$ {(100 - (100 * Number(gw)) / 100).toFixed(2)}</li>
-              <li>KARDAP ({kd}%): <span style={{ color: "#f7ea48" }}>-R$ {(((100 - (100 * Number(gw)) / 100) * Number(kd)) / 100).toFixed(2)}</span></li>
-              <li>Restaurante: <span style={{ color: "#22c55e", fontWeight: 600 }}>R$ {(100 - (100 * Number(gw)) / 100 - ((100 - (100 * Number(gw)) / 100) * Number(kd)) / 100).toFixed(2)}</span></li>
+              <li>KARDAP ({kd}%): <span className="kd-fin-amt--kardap">-R$ {(((100 - (100 * Number(gw)) / 100) * Number(kd)) / 100).toFixed(2)}</span></li>
+              <li>Restaurante: <span className="kd-fin-amt--net kd-fin-amt--strong">R$ {(100 - (100 * Number(gw)) / 100 - ((100 - (100 * Number(gw)) / 100) * Number(kd)) / 100).toFixed(2)}</span></li>
             </ul>
           </div>
         )}
@@ -457,7 +457,7 @@ export function FinancialDashboard({ notify }: { notify: Notify }) {
               value={filters.from}
               onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))}
             />
-            <span style={{ color: "#6b7280" }}>até</span>
+            <span style={{ color: "var(--k-muted)" }}>até</span>
             <TextField
               label=""
               type="date"

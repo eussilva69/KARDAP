@@ -26,7 +26,7 @@ export function Modal({
   onClose: () => void;
   footer?: React.ReactNode;
   children: React.ReactNode;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   dirty?: boolean;
   busy?: boolean;
 }) {
