@@ -445,7 +445,6 @@ export function SalesOverview({ foods }: { foods: any[] }) {
     <section className="kd-stack kd-sales" aria-labelledby="kd-sales-title">
       <div className="kd-section-head">
         <h2 id="kd-sales-title" className="kd-h3">Vendas</h2>
-        <ButtonLink href="/dashboard/pedidos" variant="link" size="sm">Abrir pedidos</ButtonLink>
       </div>
       <SalesTiles s={s} />
       <div className="kd-split">
@@ -459,7 +458,7 @@ export function SalesOverview({ foods }: { foods: any[] }) {
           />
         </Card>
         <Card aria-labelledby="kd-sales-open">
-          <CardHead id="kd-sales-open" title={s.open ? `${plural(s.open, "pedido", "pedidos")} em andamento` : "Nenhum pedido em andamento"} action={<Link href="/dashboard/pedidos" className="kd-link-sm">Ver fila</Link>} />
+          <CardHead id="kd-sales-open" title={s.open ? `${plural(s.open, "pedido", "pedidos")} em andamento` : "Nenhum pedido em andamento"} />
           <OpenOrdersStrip s={s} />
           <p className="kd-muted kd-sales-foot">
             Nos últimos 30 dias: {plural(s.completed30, "pedido concluído", "pedidos concluídos")}, {plural(s.canceled30, "cancelado", "cancelados")} (fora do faturamento).

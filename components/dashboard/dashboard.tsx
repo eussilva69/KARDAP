@@ -36,7 +36,6 @@ import {
   Plus,
   Printer,
   QrCode,
-  Receipt,
   RotateCw,
   FlaskConical,
   Search,
@@ -106,7 +105,7 @@ import {
 } from "@/components/ui";
 import { KardapLogo } from "@/components/brand/logo";
 import { clearAccountStorage, endSsoSession } from "@/lib/sso/client";
-import { OrdersPage, SalesOverview, SalesReport } from "./orders";
+import { SalesOverview, SalesReport } from "./orders";
 import { DemoResetCard } from "./demo";
 import { MenuHero } from "@/components/menu/menu-hero";
 import { DishRow } from "@/components/menu/dish-row";
@@ -334,7 +333,6 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Operação",
     items: [
-      { label: "Pedidos", href: "/dashboard/pedidos", icon: Receipt },
       { label: "Delivery", href: "/dashboard/delivery", icon: Bike },
       { label: "Financeiro", href: "/dashboard/financeiro", icon: CreditCard },
     ],
@@ -635,19 +633,6 @@ export default function Dashboard(props: DashboardProps) {
   );
 }
 
-function OrdersRoute({ account, notify }: DashboardProps) {
-  const entitlements = usePlanEntitlements(account);
-  const plan = usePlan(account);
-  if (!entitlements.features.orderManagement)
-    return (
-      <div className="kd-stack kd-narrow">
-        <PageHeader title="Pedidos" description="Pedidos do delivery, das mesas e do balcão num lugar só." />
-        <ProLock feature="Pedidos" plan={plan} />
-      </div>
-    );
-  return <OrdersPage notify={notify} isDemo={account.isDemo} />;
-}
-
 function DashboardRoutes(props: DashboardProps) {
   switch (props.path) {
     case "/dashboard":
@@ -666,8 +651,6 @@ function DashboardRoutes(props: DashboardProps) {
       return <QrPage {...props} />;
     case "/dashboard/avaliacoes":
       return <ReviewsPage {...props} />;
-    case "/dashboard/pedidos":
-      return <OrdersRoute {...props} />;
     case "/dashboard/delivery":
       return <DeliveryPage account={props.account} notify={props.notify} />;
     case "/dashboard/financeiro":
