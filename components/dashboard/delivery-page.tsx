@@ -1,31 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Bike, Check, Copy, ExternalLink, Link2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Bike, Check, Copy, ExternalLink, MapPin, Wallet } from "lucide-react";
 import { getRestaurantId } from "@/lib/restaurant-db";
 import { friendlyError } from "@/lib/async";
-import { brl } from "@/lib/format";
+import { brl, centsToInput, parseMoneyCents } from "@/lib/format";
 import { usePlanEntitlements, usePlanUsage } from "@/components/billing/hooks";
 import type { AccountInfo } from "./types";
-import {
-  Badge,
-  Button,
-  ButtonLink,
-  Callout,
-  Card,
-  CardHead,
-  Modal,
-  PageHeader,
-  RadioCard,
-  Skeleton,
-  Switch,
-  TextArea,
-  TextField,
-  type BadgeTone,
-} from "@/components/ui";
+import { Badge, Button, ButtonLink, Callout, ConfirmDialog, Modal, PageHeader, TextArea, TextField, type BadgeTone } from "@/components/ui";
 import type { DeliveryConfig, FeeMode } from "@/lib/delivery/types";
-import { PAYMENT_METHOD_LABELS, DEFAULT_DELIVERY_CONFIG } from "@/lib/delivery/types";
-import { DeliveryAreasManager } from "./delivery-areas";
+import { ONLINE_PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@/lib/delivery/types";
+import { deliveryReadiness, type ReadinessArea } from "@/lib/delivery/readiness";
+import { DeliveryAreasModal, type MapOrigin } from "./delivery-areas";
 
 type Notify = (message: string, tone?: "success" | "error") => void;
 
@@ -35,12 +21,28 @@ type DeliveryState = {
   deliveryUrl: string | null;
   planAllowsDelivery: boolean;
   subscriptionValid: boolean;
+  mapOrigin?: MapOrigin | null;
+  /** Formas online que funcionam neste ambiente (as demais não aparecem para o cliente). */
+  onlinePaymentMethods?: string[];
+};
+
+const FEE_MODE_LABELS: Record<FeeMode, string> = { taxa_fixa: "Taxa fixa", taxa_por_bairro: "Taxa por bairro", area_mapa: "Área no mapa" };
+const ON_DELIVERY_METHODS = ["dinheiro", "pix", "cartao_credito", "cartao_debito"];
+const ONLINE_METHODS = ["pix_online", "cartao_online"];
+/** Rótulos curtos dentro de cada grupo ("Na entrega" / "Online"): o grupo já diz quando a pessoa paga. */
+const SHORT_LABELS: Record<string, string> = {
+  dinheiro: "Dinheiro",
+  pix: "Pix",
+  cartao_credito: "Cartão de crédito",
+  cartao_debito: "Cartão de débito",
+  pix_online: "Pix",
+  cartao_online: "Cartão de crédito",
 };
 
 async function fetchDeliveryState(restaurantId: string): Promise<DeliveryState> {
   const { getFirebaseAuth } = await import("@/lib/auth");
   const token = await getFirebaseAuth().currentUser?.getIdToken();
-  if (!token) throw new Error("Sessão expirada.");
+  if (!token) throw new Error("Sua sessão expirou. Entre de novo.");
   const res = await fetch(`/api/restaurants/${encodeURIComponent(restaurantId)}/delivery`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -54,7 +56,7 @@ async function fetchDeliveryState(restaurantId: string): Promise<DeliveryState> 
 async function saveDeliveryConfig(restaurantId: string, patch: Partial<DeliveryConfig>): Promise<DeliveryConfig> {
   const { getFirebaseAuth } = await import("@/lib/auth");
   const token = await getFirebaseAuth().currentUser?.getIdToken();
-  if (!token) throw new Error("Sessão expirada.");
+  if (!token) throw new Error("Sua sessão expirou. Entre de novo.");
   const res = await fetch(`/api/restaurants/${encodeURIComponent(restaurantId)}/delivery`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -68,6 +70,22 @@ async function saveDeliveryConfig(restaurantId: string, patch: Partial<DeliveryC
   return data.config;
 }
 
+function DeliverySkeleton() {
+  return (
+    <div className="kd-dl-page" aria-busy="true" aria-label="Carregando o delivery">
+      <div className="kd-skel kd-dl-skel kd-dl-skel--title" />
+      <div className="kd-dl-overview">
+        <div className="kd-skel kd-dl-skel kd-dl-skel--hero" />
+        <div className="kd-skel kd-dl-skel kd-dl-skel--usage" />
+      </div>
+      <div className="kd-dl-panels">
+        <div className="kd-skel kd-dl-skel kd-dl-skel--panel" />
+        <div className="kd-skel kd-dl-skel kd-dl-skel--panel" />
+      </div>
+    </div>
+  );
+}
+
 export function DeliveryPage({ account, notify }: { account: AccountInfo; notify: Notify }) {
   const entitlements = usePlanEntitlements(account);
   const restaurantId = getRestaurantId();
@@ -76,7 +94,6 @@ export function DeliveryPage({ account, notify }: { account: AccountInfo; notify
   const [state, setState] = useState<DeliveryState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -91,51 +108,40 @@ export function DeliveryPage({ account, notify }: { account: AccountInfo; notify
 
   if (!entitlements.features.deliveryManagement) {
     return (
-      <div>
-        <PageHeader title="Delivery" />
+      <div className="kd-dl-page">
+        <PageHeader kicker="Delivery" title="Pedidos pelo seu link" description="Receba pedidos de entrega pelo link do restaurante, sem comissão de marketplace." />
         <Callout
           tone="info"
-          icon={<Bike size={18} />}
+          icon={<Bike size={18} aria-hidden />}
           title="Delivery disponível a partir do plano Pro"
           action={<ButtonLink href="/dashboard/plano" size="sm" variant="secondary">Ver planos</ButtonLink>}
         >
-          O delivery próprio permite receber pedidos diretamente pelo link do seu restaurante, sem comissão de marketplace.
-          Faça upgrade para o Pro ou superior para ativar.
+          Com o Pro, seus clientes pedem pelo link do restaurante e os pedidos chegam ao PDV.
         </Callout>
       </div>
     );
   }
 
-  if (loading) {
-    return (
-      <div>
-        <PageHeader title="Delivery" />
-        <Card><Skeleton height={200} /></Card>
-      </div>
-    );
-  }
+  if (loading) return <DeliverySkeleton />;
 
   if (error || !state) {
     return (
-      <div>
-        <PageHeader title="Delivery" />
-        <Callout tone="danger" title="Erro ao carregar">{error || "Tente de novo."}</Callout>
-        <Button onClick={load} style={{ marginTop: 12 }}>Tentar de novo</Button>
+      <div className="kd-dl-page">
+        <PageHeader kicker="Delivery" title="Pedidos pelo seu link" />
+        <Callout
+          tone="danger"
+          icon={<AlertTriangle size={18} aria-hidden />}
+          title="Não foi possível carregar o delivery"
+          role="alert"
+          action={<Button size="sm" variant="secondary" onClick={load}>Tentar de novo</Button>}
+        >
+          {error || "Confira a conexão e tente de novo."}
+        </Callout>
       </div>
     );
   }
 
-  return (
-    <DeliveryConfigPanel
-      state={state}
-      usage={usage}
-      restaurantId={restaurantId}
-      notify={notify}
-      saving={saving}
-      setSaving={setSaving}
-      onUpdate={(next) => setState((s) => s ? { ...s, config: next } : s)}
-    />
-  );
+  return <DeliveryConfigPanel state={state} usage={usage} restaurantId={restaurantId} notify={notify} onUpdate={(next) => setState((s) => (s ? { ...s, config: next } : s))} />;
 }
 
 function DeliveryConfigPanel({
@@ -143,48 +149,34 @@ function DeliveryConfigPanel({
   usage,
   restaurantId,
   notify,
-  saving,
-  setSaving,
   onUpdate,
 }: {
   state: DeliveryState;
   usage: ReturnType<typeof usePlanUsage>;
   restaurantId: string;
   notify: Notify;
-  saving: boolean;
-  setSaving: (v: boolean) => void;
   onUpdate: (config: DeliveryConfig) => void;
 }) {
   const { config, deliveryUrl } = state;
+  const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState<ReadinessArea | null>(null);
+  const [confirmPause, setConfirmPause] = useState(false);
 
-  const [showSetup, setShowSetup] = useState(false);
   const feeMode: FeeMode = config.feeMode || "taxa_fixa";
-
   const fullUrl = deliveryUrl ? `${typeof window !== "undefined" ? window.location.origin : ""}${deliveryUrl}` : null;
+  const issues = useMemo(() => deliveryReadiness(config, { onlineMethods: state.onlinePaymentMethods }), [config, state.onlinePaymentMethods]);
 
-  const handleSetupSave = async (patch: Partial<DeliveryConfig>) => {
+  const update = async (patch: Partial<DeliveryConfig>, success?: string): Promise<boolean> => {
     setSaving(true);
     try {
       const next = await saveDeliveryConfig(restaurantId, patch);
       onUpdate(next);
-      notify("Configurações do delivery salvas.");
-      setShowSetup(false);
+      if (success) notify(success);
+      return true;
     } catch (err) {
       notify(friendlyError(err, "Não foi possível salvar."), "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleEnabled = async () => {
-    setSaving(true);
-    try {
-      const next = await saveDeliveryConfig(restaurantId, { enabled: !config.enabled });
-      onUpdate(next);
-      notify(next.enabled ? "Delivery ativado!" : "Delivery desativado.");
-    } catch (err) {
-      notify(friendlyError(err, "Não foi possível salvar."), "error");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -196,264 +188,354 @@ function DeliveryConfigPanel({
       await navigator.clipboard.writeText(fullUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      notify("Link copiado!");
     } catch {
-      notify("Não foi possível copiar. Selecione e copie manualmente.", "error");
+      notify("Não foi possível copiar. Selecione o link e copie manualmente.", "error");
     }
   };
 
-  const usageTone: BadgeTone = usage.level === "full" ? "signal" : usage.level === "warn90" ? "signal" : usage.level === "warn70" ? "outline" : "neutral";
+  const usageTone: BadgeTone = usage.level === "full" || usage.level === "warn90" ? "signal" : usage.level === "warn70" ? "outline" : "neutral";
+  const usagePercent = usage.limit ? Math.min(100, usage.percent) : 0;
+  const cities = config.servedCities || [];
+  const map = config.mapConfig;
+  const activeMapZones = map ? [...map.distanceBands, ...map.customAreas].filter((zone) => zone.enabled).length : 0;
+  const unavailableOnline = config.paymentMethods.filter((m) => ONLINE_PAYMENT_METHODS.has(m) && state.onlinePaymentMethods && !state.onlinePaymentMethods.includes(m));
+
+  const feeValue =
+    feeMode === "taxa_fixa" ? (config.deliveryFeeCents === 0 ? "Grátis" : brl(config.deliveryFeeCents)) : feeMode === "taxa_por_bairro" ? "Definida em cada bairro" : "Por faixa de distância ou área";
+  const whereValue =
+    feeMode === "area_mapa"
+      ? map?.storeLocation
+        ? `${activeMapZones} ${activeMapZones === 1 ? "faixa ou área ativa" : "faixas ou áreas ativas"} no mapa`
+        : "Ponto da loja ainda não definido"
+      : cities.length === 0
+        ? feeMode === "taxa_fixa"
+          ? "Qualquer endereço (nenhuma cidade restrita)"
+          : "Nenhuma cidade cadastrada"
+        : cities.map((c) => `${c.name} (${c.uf})${c.enabled === false ? ", pausada" : ""}`).join(" · ");
 
   return (
-    <div>
-      <PageHeader title="Delivery" />
+    <div className="kd-dl-page">
+      <PageHeader kicker="Delivery" title="Pedidos pelo seu link" description="Seus clientes pedem pelo link do restaurante, sem comissão de marketplace. Os pedidos chegam ao PDV." />
 
-      <Card style={{ marginBottom: 16 }}>
-        <CardHead title="Status do delivery" />
-        <div className="kd-dl-status">
-          <Switch label="Ativar delivery" checked={config.enabled} onChange={toggleEnabled} disabled={saving} />
-          <span className="kd-dl-status-text">{config.enabled ? "Ativado" : "Desativado"}</span>
-          {config.enabled && <Badge tone="success">Recebendo pedidos</Badge>}
-        </div>
-      </Card>
-
-      {config.enabled && fullUrl && (
-        <Card style={{ marginBottom: 16 }}>
-          <CardHead title="Link do delivery" />
-          <div style={{ padding: "0 16px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <Link2 size={15} />
-              <code style={{ fontSize: 13, wordBreak: "break-all", flex: 1 }}>{fullUrl}</code>
-            </div>
-            <div className="kd-row">
-              <Button size="sm" icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={copyUrl}>
-                {copied ? "Copiado" : "Copiar link"}
-              </Button>
-              <Button size="sm" variant="secondary" icon={<ExternalLink size={14} />} onClick={() => window.open(fullUrl, "_blank")}>
-                Abrir
-              </Button>
+      <div className="kd-dl-overview">
+        <section className={`kd-dl-hero ${config.enabled ? "is-on" : ""}`} aria-labelledby="kd-dl-hero-title">
+          <span className="kd-dl-hero-icon" aria-hidden>
+            <Bike size={22} />
+          </span>
+          <div className="kd-dl-hero-body">
+            <p className="kd-dl-hero-state">
+              <span className="kd-dl-dot" aria-hidden />
+              {config.enabled ? "Ativo" : "Desativado"}
+            </p>
+            <h2 id="kd-dl-hero-title">{config.enabled ? "Recebendo pedidos pelo link" : "O delivery está desativado"}</h2>
+            <p className="kd-dl-hero-text">
+              {config.enabled ? "Compartilhe o link no Instagram, no WhatsApp e no Google." : "Quem abrir o link vê que o delivery está indisponível. Ative quando estiver pronto para receber pedidos."}
+            </p>
+            {config.enabled && fullUrl && (
+              <div className="kd-dl-link">
+                <code title={fullUrl}>{fullUrl.replace(/^https?:\/\//, "")}</code>
+                <div className="kd-dl-link-actions">
+                  <Button size="sm" variant="secondary" icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />} onClick={copyUrl} aria-live="polite">
+                    {copied ? "Link copiado" : "Copiar link"}
+                  </Button>
+                  <ButtonLink size="sm" variant="secondary" href={fullUrl} external icon={<ExternalLink size={14} aria-hidden />}>
+                    Abrir
+                  </ButtonLink>
+                </div>
+              </div>
+            )}
+            <div className="kd-dl-hero-actions">
+              {config.enabled ? (
+                <Button variant="ghost" size="sm" className="kd-dl-pause" disabled={saving} onClick={() => setConfirmPause(true)}>
+                  Desativar delivery
+                </Button>
+              ) : (
+                <Button variant="primary" loading={saving} onClick={() => update({ enabled: true }, "Delivery ativado. O link já aceita pedidos.")}>
+                  Ativar delivery
+                </Button>
+              )}
             </div>
           </div>
-        </Card>
+        </section>
+
+        <section className="kd-dl-usage" aria-labelledby="kd-dl-usage-title">
+          <h2 id="kd-dl-usage-title">Pedidos próprios neste mês</h2>
+          <p className="kd-dl-usage-value">
+            <strong className="kd-num">{usage.used}</strong>
+            <span>{usage.limit !== null ? `de ${usage.limit}` : "sem limite no plano"}</span>
+            {usage.limit !== null && (
+              <Badge tone={usageTone}>{usage.level === "full" ? "Limite atingido" : `${usage.remaining ?? 0} restantes`}</Badge>
+            )}
+          </p>
+          {usage.limit !== null && (
+            <div
+              className={`kd-dl-meter ${usage.level === "full" ? "is-full" : usage.level.startsWith("warn") ? "is-warn" : ""}`}
+              role="progressbar"
+              aria-label="Uso de pedidos próprios no mês"
+              aria-valuemin={0}
+              aria-valuemax={usage.limit}
+              aria-valuenow={usage.used}
+            >
+              <i style={{ width: `${usagePercent}%` }} />
+            </div>
+          )}
+          <p className="kd-dl-usage-note">Delivery, PDV e mesas somam juntos. Pedidos de iFood e outros marketplaces não contam.</p>
+        </section>
+      </div>
+
+      {issues.length > 0 && (
+        <Callout
+          tone={config.enabled ? "warn" : "info"}
+          icon={<AlertTriangle size={18} aria-hidden />}
+          role={config.enabled ? "alert" : "status"}
+          title={config.enabled ? "Clientes ainda não conseguem concluir pedidos" : "Antes de ativar, falta configurar"}
+        >
+          <ul className="kd-dl-issues">
+            {issues.map((issue) => (
+              <li key={issue.message}>
+                {issue.message}{" "}
+                <button type="button" className="kd-link-button" onClick={() => setEditing(issue.area)}>
+                  {issue.area === "payment" ? "Ajustar pagamento" : "Ajustar áreas"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Callout>
       )}
 
-      <Card style={{ marginBottom: 16 }}>
-        <CardHead title="Uso mensal de pedidos" />
-        <div style={{ padding: "0 16px 16px" }}>
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 28, fontWeight: 700 }}>{usage.used}</span>
-            <span style={{ color: "var(--k-muted)" }}>
-              {usage.limit !== null ? `de ${usage.limit} pedidos próprios` : "pedidos próprios (ilimitado)"}
+      <div className="kd-dl-panels">
+        <section className="kd-dl-panel" aria-labelledby="kd-dl-areas-title">
+          <header className="kd-dl-panel-head">
+            <span className="kd-dl-panel-icon" aria-hidden>
+              <MapPin size={18} />
             </span>
-            <Badge tone={usageTone}>
-              {usage.level === "full" ? "Limite atingido" : usage.remaining !== null ? `${usage.remaining} restantes` : "OK"}
-            </Badge>
-          </div>
-          {usage.limit !== null && (
-            <div style={{ height: 6, borderRadius: 3, background: "var(--k-line)", overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 3, width: `${Math.min(100, usage.percent)}%`, background: usage.level === "full" ? "var(--k-danger)" : usage.level.startsWith("warn") ? "var(--k-warning)" : "var(--k-primary)" }} />
+            <div>
+              <h2 id="kd-dl-areas-title">Taxa e área de entrega</h2>
+              <p>Quanto custa a entrega e até onde você entrega.</p>
             </div>
-          )}
-          <p style={{ fontSize: 12, color: "var(--k-muted)", marginTop: 6 }}>
-            Pedidos próprios compartilhados entre delivery, PDV e mesas. Pedidos de iFood e outros marketplaces não contam.
-          </p>
-        </div>
-      </Card>
+          </header>
+          <dl className="kd-dl-facts">
+            <div>
+              <dt>Cobrança</dt>
+              <dd>{FEE_MODE_LABELS[feeMode]}</dd>
+            </div>
+            <div>
+              <dt>Taxa</dt>
+              <dd className="kd-num">{feeValue}</dd>
+            </div>
+            <div>
+              <dt>Onde entrega</dt>
+              <dd>{whereValue}</dd>
+            </div>
+          </dl>
+          <Button variant="secondary" className="kd-dl-panel-action" onClick={() => setEditing("areas")}>
+            Editar taxa e áreas
+          </Button>
+        </section>
 
-      <Card style={{ marginBottom: 16 }}>
-        <CardHead
-          title="Configurações do delivery"
-          action={
-            <Button size="sm" variant="secondary" onClick={() => setShowSetup(true)}>
-              Editar
-            </Button>
-          }
-        />
-        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-          <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
-            {feeMode === "taxa_fixa" ? `Taxa fixa · ${brl(config.deliveryFeeCents)}` : feeMode === "area_mapa" ? "Taxa por área no mapa" : "Taxa por bairro"}
-            {config.deliveryEta ? ` · ${config.deliveryEta}` : ""}
-            {config.minOrderCents > 0 ? ` · Mínimo ${brl(config.minOrderCents)}` : ""}
-          </p>
-          {config.paymentMethods.length > 0 && (
-            <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
-              {config.paymentMethods.map((m) => PAYMENT_METHOD_LABELS[m] || m).join(", ")}
-            </p>
-          )}
-        </div>
-      </Card>
+        <section className="kd-dl-panel" aria-labelledby="kd-dl-order-title">
+          <header className="kd-dl-panel-head">
+            <span className="kd-dl-panel-icon" aria-hidden>
+              <Wallet size={18} />
+            </span>
+            <div>
+              <h2 id="kd-dl-order-title">Pedido e pagamento</h2>
+              <p>O que o cliente vê antes de pedir e como pode pagar.</p>
+            </div>
+          </header>
+          <dl className="kd-dl-facts">
+            <div>
+              <dt>Tempo estimado</dt>
+              <dd>{config.deliveryEta || <span className="kd-dl-empty">Não informado</span>}</dd>
+            </div>
+            <div>
+              <dt>Pedido mínimo</dt>
+              <dd className="kd-num">{config.minOrderCents > 0 ? brl(config.minOrderCents) : <span className="kd-dl-empty">Sem mínimo</span>}</dd>
+            </div>
+            <div>
+              <dt>Pagamento</dt>
+              <dd>
+                {config.paymentMethods.length ? (
+                  <ul className="kd-dl-methods">
+                    {config.paymentMethods.map((m) => (
+                      <li key={m} className={unavailableOnline.includes(m) ? "is-off" : undefined} title={unavailableOnline.includes(m) ? "Indisponível agora: não aparece para o cliente" : undefined}>
+                        {PAYMENT_METHOD_LABELS[m] || m}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="kd-dl-empty">Nenhuma forma selecionada</span>
+                )}
+              </dd>
+            </div>
+            {(config.deliveryArea || config.notes) && (
+              <div>
+                <dt>Recado ao cliente</dt>
+                <dd>{[config.deliveryArea, config.notes].filter(Boolean).join(" · ")}</dd>
+              </div>
+            )}
+          </dl>
+          <Button variant="secondary" className="kd-dl-panel-action" onClick={() => setEditing("payment")}>
+            Editar pedido e pagamento
+          </Button>
+        </section>
+      </div>
 
-      {showSetup && (
+      {editing === "payment" && (
         <DeliverySetupModal
           config={config}
+          onlineMethods={state.onlinePaymentMethods}
+          onSave={async (patch) => {
+            if (await update(patch, "Pedido e pagamento salvos.")) setEditing(null);
+          }}
           saving={saving}
-          onSave={handleSetupSave}
-          onClose={() => setShowSetup(false)}
+          onClose={() => setEditing(null)}
         />
       )}
 
-      <DeliveryAreasManager
-        restaurantId={restaurantId}
-        config={config}
-        notify={notify}
-        onConfigUpdate={async (patch) => {
-          setSaving(true);
-          try {
-            const next = await saveDeliveryConfig(restaurantId, patch);
-            onUpdate(next);
-            return true;
-          } catch (err) {
-            notify(friendlyError(err, "Não foi possível salvar."), "error");
-            return false;
-          } finally {
-            setSaving(false);
-          }
-        }}
-        onConfigReplace={onUpdate}
-      />
+      {editing === "areas" && (
+        <DeliveryAreasModal
+          restaurantId={restaurantId}
+          config={config}
+          mapOrigin={state.mapOrigin || null}
+          notify={notify}
+          onConfigUpdate={(patch) => update(patch)}
+          onConfigReplace={onUpdate}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {confirmPause && (
+        <ConfirmDialog
+          title="Desativar o delivery?"
+          description="Clientes com o link aberto não conseguirão finalizar pedidos até você ativar de novo. Pedidos já recebidos continuam no PDV."
+          confirmLabel="Desativar"
+          onConfirm={() => update({ enabled: false }, "Delivery desativado. O link mostra que não há entregas agora.")}
+          onClose={() => setConfirmPause(false)}
+        />
+      )}
     </div>
   );
 }
 
-const STEPS = ["Modalidade", "Detalhes", "Pagamento"] as const;
-type Step = 0 | 1 | 2;
-
+/** Informações do pedido e formas de pagamento. A taxa e a área de entrega ficam no editor de áreas (um lugar só para cada coisa). */
 function DeliverySetupModal({
   config,
+  onlineMethods,
   saving,
   onSave,
   onClose,
 }: {
   config: DeliveryConfig;
+  onlineMethods?: string[];
   saving: boolean;
   onSave: (patch: Partial<DeliveryConfig>) => Promise<void>;
   onClose: () => void;
 }) {
-  const [step, setStep] = useState<Step>(0);
-  const [feeMode, setFeeMode] = useState<FeeMode>(config.feeMode || "taxa_fixa");
-  const [feeCents, setFeeCents] = useState(String((config.deliveryFeeCents / 100).toFixed(2).replace(".", ",")));
   const [eta, setEta] = useState(config.deliveryEta);
   const [area, setArea] = useState(config.deliveryArea);
-  const [minOrder, setMinOrder] = useState(String(config.minOrderCents > 0 ? (config.minOrderCents / 100).toFixed(2).replace(".", ",") : ""));
+  const [minOrder, setMinOrder] = useState(config.minOrderCents > 0 ? centsToInput(config.minOrderCents) : "");
   const [notes, setNotes] = useState(config.notes || "");
   const [methods, setMethods] = useState<string[]>(config.paymentMethods);
+  const [errors, setErrors] = useState<{ minOrder?: string; methods?: string }>({});
 
-  const toggleMethod = (m: string) => setMethods((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
+  const dirty =
+    eta !== config.deliveryEta ||
+    area !== config.deliveryArea ||
+    notes !== (config.notes || "") ||
+    minOrder !== (config.minOrderCents > 0 ? centsToInput(config.minOrderCents) : "") ||
+    methods.join() !== config.paymentMethods.join();
+
+  const toggleMethod = (m: string) => {
+    setMethods((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
+    setErrors((e) => ({ ...e, methods: undefined }));
+  };
 
   const handleSave = async () => {
+    const minCents = parseMoneyCents(minOrder);
+    const found: typeof errors = {};
+    if (Number.isNaN(minCents)) found.minOrder = "Informe um valor como 30,00 ou deixe em branco.";
+    if (!methods.length) found.methods = "Selecione ao menos uma forma de pagamento.";
+    setErrors(found);
+    if (found.minOrder) return document.getElementById("kd-dl-min")?.focus();
+    if (found.methods) return;
     await onSave({
-      feeMode,
-      deliveryFeeCents: feeMode === "taxa_fixa" ? Math.round((Number(feeCents.replace(",", ".")) || 0) * 100) : config.deliveryFeeCents,
       deliveryEta: eta.trim(),
       deliveryArea: area.trim(),
-      minOrderCents: Math.round((Number(minOrder.replace(",", ".")) || 0) * 100),
+      minOrderCents: minCents ?? 0,
       paymentMethods: methods,
       notes: notes.trim(),
     });
   };
 
-  const stepLabels: typeof STEPS = STEPS;
-  const isLast = step === 2;
+  const chip = (m: string) => {
+    const on = methods.includes(m);
+    const unavailable = ONLINE_PAYMENT_METHODS.has(m) && onlineMethods !== undefined && !onlineMethods.includes(m);
+    return (
+      <button key={m} type="button" className="kd-chip-toggle" aria-pressed={on} disabled={unavailable && !on} onClick={() => toggleMethod(m)}>
+        {on && <Check size={14} aria-hidden />}
+        {SHORT_LABELS[m] || PAYMENT_METHOD_LABELS[m] || m}
+      </button>
+    );
+  };
+  const onlineBlocked = onlineMethods !== undefined && ONLINE_METHODS.some((m) => !onlineMethods.includes(m));
 
   return (
     <Modal
-      title="Configurar delivery"
+      title="Pedido e pagamento"
+      description="O que aparece para o cliente no cardápio do delivery e no checkout."
       onClose={onClose}
       busy={saving}
+      dirty={dirty}
       footer={
-        <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-          <Button variant="secondary" onClick={step === 0 ? onClose : () => setStep((s) => (s - 1) as Step)} disabled={saving}>
-            {step === 0 ? "Cancelar" : "Voltar"}
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancelar
           </Button>
-          <Button
-            variant="primary"
-            loading={saving && isLast}
-            icon={isLast ? <Check size={15} /> : undefined}
-            onClick={isLast ? handleSave : () => setStep((s) => (s + 1) as Step)}
-          >
-            {isLast ? "Salvar" : "Continuar"}
+          <Button variant="primary" loading={saving} icon={<Check size={15} aria-hidden />} onClick={handleSave}>
+            Salvar
           </Button>
-        </div>
+        </>
       }
     >
-      <ol className="kd-stepper kd-wizard-steps">
-        {stepLabels.map((label, i) => (
-          <li key={label}>
-            <button
-              type="button"
-              onClick={() => setStep(i as Step)}
-              disabled={saving}
-              aria-current={i === step ? "step" : undefined}
-              className={i < step ? "is-done" : undefined}
-            >
-              {i < step ? <Check size={13} aria-hidden /> : <span aria-hidden>{i + 1}.</span>}
-              {label}
-            </button>
-          </li>
-        ))}
-      </ol>
-
-      {step === 0 && (
-        <fieldset className="kd-dl-fieldset">
-          <legend className="kd-muted">Como você cobra a taxa de entrega?</legend>
-          {(["taxa_fixa", "taxa_por_bairro", "area_mapa"] as FeeMode[]).map((mode) => (
-            <RadioCard
-              key={mode}
-              name="feeMode"
-              value={mode}
-              checked={feeMode === mode}
-              onChange={setFeeMode}
-              title={mode === "taxa_fixa" ? "Taxa fixa" : mode === "area_mapa" ? "Área no mapa" : "Taxa por bairro"}
-              description={
-                mode === "taxa_fixa"
-                  ? "Todos os clientes pagam o mesmo valor de entrega."
-                  : mode === "area_mapa"
-                    ? "Calcule por distância e áreas personalizadas. Configure o mapa na seção de áreas abaixo."
-                    : "Cada bairro tem uma taxa diferente. Configure os bairros na seção de áreas abaixo."
-              }
-            />
-          ))}
-        </fieldset>
-      )}
-
-      {step === 1 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {feeMode === "taxa_fixa" && (
-            <TextField
-              label="Taxa de entrega (R$)"
-              value={feeCents}
-              onChange={(e) => setFeeCents(e.target.value)}
-              placeholder="0,00"
-              inputMode="decimal"
-              hint="Use 0,00 para entrega grátis."
-            />
-          )}
-          <TextField label="Tempo estimado" value={eta} onChange={(e) => setEta(e.target.value)} placeholder="30–45 min" />
-          <TextField label="Área de atendimento" value={area} onChange={(e) => setArea(e.target.value)} placeholder="Até 5 km do centro" hint="Texto exibido no checkout para o cliente." />
-          <TextField label="Pedido mínimo (R$)" value={minOrder} onChange={(e) => setMinOrder(e.target.value)} placeholder="0,00" inputMode="decimal" hint="Deixe em branco para não ter mínimo." />
-          <TextArea label="Observações" optional rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Informações extras para o cliente" maxLength={500} />
+      <div className="kd-dl-form">
+        <div className="kd-dl-form-grid">
+          <TextField label="Tempo estimado de entrega" value={eta} maxLength={60} onChange={(e) => setEta(e.target.value)} placeholder="Ex.: 30 a 45 min" hint="Aparece no topo do cardápio do delivery." />
+          <TextField
+            id="kd-dl-min"
+            label="Pedido mínimo (R$)"
+            value={minOrder}
+            error={errors.minOrder}
+            onChange={(e) => {
+              setMinOrder(e.target.value);
+              setErrors((x) => ({ ...x, minOrder: undefined }));
+            }}
+            placeholder="0,00"
+            inputMode="decimal"
+            hint="Em branco: sem pedido mínimo. Não inclui a taxa de entrega."
+          />
         </div>
-      )}
+        <TextField label="Área de atendimento (texto)" optional value={area} maxLength={200} onChange={(e) => setArea(e.target.value)} placeholder="Ex.: Centro e bairros vizinhos" hint="Mostrado acima do endereço no checkout. As regras de entrega ficam em Taxa e área de entrega." />
+        <TextArea label="Recado para o cliente" optional rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex.: Embalagens recicláveis. Não aceitamos notas acima de R$ 100." maxLength={500} hint="Aparece nas informações de entrega e horários." />
 
-      {step === 2 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ fontSize: 14, color: "var(--k-muted)", marginBottom: 4 }}>
-            Quais formas de pagamento você aceita na entrega?
-          </p>
-          <div className="kd-row" role="group" aria-label="Formas de pagamento">
-            {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => {
-              const on = methods.includes(key);
-              return (
-                <button key={key} type="button" className="kd-chip-toggle" aria-pressed={on} onClick={() => toggleMethod(key)}>
-                  {on && <Check size={14} aria-hidden />}
-                  {label}
-                </button>
-              );
-            })}
+        <fieldset className="kd-dl-pay" aria-describedby={errors.methods ? "kd-dl-methods-msg" : undefined}>
+          <legend>Formas de pagamento</legend>
+          <div className="kd-dl-pay-group">
+            <p>Na entrega</p>
+            <div className="kd-row">{ON_DELIVERY_METHODS.map(chip)}</div>
           </div>
-          {methods.length === 0 && <p className="kd-error">Selecione ao menos uma forma de pagamento.</p>}
-        </div>
-      )}
+          <div className="kd-dl-pay-group">
+            <p>Online, pago ao pedir (Mercado Pago)</p>
+            <div className="kd-row">{ONLINE_METHODS.map(chip)}</div>
+            {onlineBlocked && <small className="kd-hint">Pagamento online indisponível nesta conta no momento: as opções desativadas não aparecem para o cliente.</small>}
+          </div>
+          {errors.methods && (
+            <p id="kd-dl-methods-msg" className="kd-error" role="alert">
+              {errors.methods}
+            </p>
+          )}
+        </fieldset>
+      </div>
     </Modal>
   );
 }

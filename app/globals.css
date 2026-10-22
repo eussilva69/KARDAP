@@ -290,7 +290,7 @@ button, input, select, textarea { font: inherit; letter-spacing: inherit; }
 .kd-btn--secondary.is-destructive { border-color: var(--k-danger); }
 .kd-btn.is-destructive:hover:not(:disabled) { background: var(--k-danger-soft); border-color: var(--k-danger); }
 
-/* Chamar a equipe: a única ação que usa o amarelo da cloche. */
+/* A ação central do cliente: chamar a equipe na mesa e, no delivery, carrinho e envio do pedido. Nada mais usa o amarelo. */
 .kd-btn--signal { background: var(--k-cloche); color: var(--k-on-cloche); border-color: color-mix(in srgb, var(--k-on-cloche) 14%, transparent); }
 .kd-btn--signal:hover:not(:disabled) { background: var(--k-cloche-hover); }
 

@@ -120,23 +120,40 @@ export function CartSheet({
                 ))}
               </ul>
               <OrderSummary subtotalCents={subtotal} feeCents={feeCents} count={count} />
-              {missing > 0 && (
-                <p className="kd-notice" role="status">
-                  Pedido mínimo de {brl(minOrderCents)}: faltam <span className="kd-num">{brl(missing)}</span>.
-                </p>
+              {minOrderCents > 0 && (
+                <div className={`kd-min-order ${missing > 0 ? "" : "is-met"}`} role="status">
+                  <span>
+                    {missing > 0 ? (
+                      <>
+                        Pedido mínimo <span className="kd-num">{brl(minOrderCents)}</span>
+                      </>
+                    ) : (
+                      "Pedido mínimo atingido"
+                    )}
+                  </span>
+                  <span className="kd-min-order-bar" aria-hidden>
+                    <i style={{ width: `${Math.min(100, Math.round((subtotal / minOrderCents) * 100))}%` }} />
+                  </span>
+                </div>
               )}
               {closedNow && <p className="kd-notice">Pelo horário informado, o estabelecimento está fechado agora.</p>}
             </div>
             <footer className="kd-sheet-foot">
+              {(missing > 0 || hasUnavailable) && (
+                <p className="kd-sheet-foot-why" id={`${titleId}-why`}>
+                  {hasUnavailable ? "Remova os itens indisponíveis para continuar." : `Adicione mais ${brl(missing)} para atingir o pedido mínimo.`}
+                </p>
+              )}
               <Button
                 variant="signal"
                 size="lg"
                 block
                 disabled={missing > 0 || hasUnavailable || count === 0}
+                aria-describedby={missing > 0 || hasUnavailable ? `${titleId}-why` : undefined}
                 onClick={onCheckout}
                 iconEnd={<ArrowRight size={18} aria-hidden />}
               >
-                Continuar para entrega
+                Continuar para seus dados
               </Button>
             </footer>
           </>

@@ -922,6 +922,11 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-open-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--k-success); }
 .kd-open-dot.is-closed { background: var(--k-danger); }
 
+/* Pedido em andamento: atalho no topo do cardápio para voltar ao acompanhamento. */
+.kd-menu-pills .kd-menu-track { border-color: var(--k-ink); }
+.kd-menu-track svg { color: currentColor; fill: none; }
+
+/* Selo "2 no carrinho": entra de novo a cada item somado (a chave muda com a quantidade). */
 .kd-dish-incart {
   justify-self: start;
   display: inline-flex;
@@ -934,6 +939,56 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
   color: var(--k-on-primary);
   font-size: var(--k-fs-xs);
   font-weight: 700;
+  animation: k-pop var(--k-dur-3) var(--k-ease-arrive) both;
+}
+
+/* Miniatura do prato: a foto do produto, um pouco maior que no cardápio da mesa (é ela que vende no delivery). */
+.kd-delivery .kd-dish { align-items: center; }
+.kd-delivery .kd-dish-media { width: 112px; height: 112px; cursor: pointer; }
+.kd-delivery .kd-dish-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-ink) 8%, transparent);
+  pointer-events: none;
+}
+.kd-delivery .kd-dish-media img { transition: transform var(--k-dur-4) var(--k-ease-out); }
+@media (hover: hover) {
+  .kd-delivery .kd-dish:hover .kd-dish-media img { transform: scale(1.04); }
+}
+.kd-dish-aside { position: relative; z-index: 1; display: grid; justify-items: end; }
+
+/* "+" sobre a miniatura: adiciona uma unidade direto ao carrinho. */
+.kd-dish-add {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 3px solid var(--k-canvas);
+  border-radius: 50%;
+  background: var(--k-primary);
+  color: var(--k-on-primary);
+  box-shadow: var(--k-shadow-raise);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--k-dur-1) var(--k-ease-out), background-color var(--k-dur-2) var(--k-ease-out);
+}
+/* Alvo de toque de 48 px sem aumentar o círculo. */
+.kd-dish-add::before { content: ""; position: absolute; inset: -8px; }
+.kd-dish-add:hover { background: var(--k-primary-hover); }
+.kd-dish-add:active { transform: scale(0.88); }
+.kd-dish-add:focus-visible { outline: 2px solid var(--k-focus); outline-offset: 2px; }
+/* Prato sem foto: o "+" fica sozinho no fim da linha, alinhado ao texto. */
+.kd-dish-aside > .kd-dish-add:only-child { position: relative; right: auto; bottom: auto; border-color: transparent; box-shadow: none; }
+
+@media (max-width: 359px) {
+  .kd-delivery .kd-dish-media { width: 96px; height: 96px; }
 }
 
 /* Botão do carrinho na barra inferior: rótulo à esquerda, total à direita. */
@@ -999,6 +1054,8 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
   touch-action: manipulation;
 }
 .kd-qty-stepper button:disabled { color: var(--k-placeholder); cursor: default; }
+.kd-qty-stepper button.is-remove { color: var(--k-danger-ink); }
+.kd-qty-stepper button:active:not(:disabled) { background: var(--k-sunken); }
 .kd-qty-stepper button:focus-visible { outline: 2px solid var(--k-focus); outline-offset: -2px; }
 .kd-qty-stepper output { min-width: 24px; font-weight: 750; text-align: center; }
 .kd-qty-stepper--sm button { width: 36px; height: 36px; }
@@ -1031,6 +1088,15 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-summary .is-total dd { font-weight: 800; }
 .kd-notice { margin: 0; padding: var(--k-s3) var(--k-s4); border-radius: var(--k-r-md); background: var(--k-cloche-soft); color: var(--k-cloche-ink); font-size: var(--k-fs-sm); font-weight: 600; }
 
+/* Pedido mínimo: quanto falta, em barra, em vez de só bloquear o botão. */
+.kd-min-order { display: grid; gap: 6px; color: var(--k-text-2); font-size: var(--k-fs-sm); font-weight: 650; }
+.kd-min-order-bar { height: 6px; overflow: hidden; border-radius: var(--k-r-pill); background: var(--k-sunken); }
+.kd-min-order-bar i { display: block; height: 100%; border-radius: inherit; background: var(--k-ink); transition: width var(--k-dur-3) var(--k-ease-out); }
+.kd-min-order.is-met { color: var(--k-success-ink); }
+.kd-min-order.is-met .kd-min-order-bar i { background: var(--k-success); }
+/* Motivo do botão desabilitado, colado nele. */
+.kd-sheet-foot-why { margin: 0 0 var(--k-s2); color: var(--k-text-2); font-size: var(--k-fs-sm); text-align: center; }
+
 /* Checkout: mesma coluna do cardápio, cabeçalho fixo no lugar da barra de seções. */
 .kd-checkout-head {
   position: sticky;
@@ -1061,11 +1127,58 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-checkout-progress .is-active button > span { border-color: var(--k-cloche); background: var(--k-cloche); color: var(--k-on-cloche); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-cloche) 16%, transparent); }
 .kd-checkout-progress .is-done button { color: var(--k-text-2); }
 .kd-checkout-progress .is-done button > span { border-color: var(--k-ink); background: var(--k-ink); color: var(--k-on-ink); }
-.kd-checkout-progress > p { margin: 0; color: var(--k-muted); font-size: 0.6875rem; font-weight: 650; text-align: center; }
-.kd-checkout-step { display: grid; gap: var(--k-s6); padding: var(--k-s3) 0 var(--k-s7); }
+.kd-checkout-progress button:focus-visible { outline: none; }
+.kd-checkout-progress button:focus-visible > span { outline: 2px solid var(--k-focus); outline-offset: 2px; }
+.kd-checkout-step { display: grid; gap: var(--k-s7); padding: var(--k-s4) 0 var(--k-s7); }
 .kd-checkout-step-error { margin: 0 var(--k-s4); }
 .kd-checkout-section { display: grid; gap: var(--k-s4); padding: 0 var(--k-s4); }
-.kd-checkout-section .kd-menu-section-head { padding-bottom: 0; }
+/* Títulos do checkout: mais calmos que os das seções do cardápio (aqui o foco é o formulário). */
+.kd-checkout-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--k-s3); }
+.kd-checkout-section-head > div { display: grid; gap: 4px; min-width: 0; }
+.kd-checkout-section-head h2 { margin: 0; font-size: var(--k-fs-lg); font-weight: 750; line-height: 1.25; }
+.kd-checkout-section-head p { margin: 0; color: var(--k-muted); font-size: var(--k-fs-md); line-height: 1.45; }
+.kd-checkout-section-head .kd-btn--link { flex: none; }
+
+/* Taxa do endereço digitado: calculando ou confirmada (o motivo de não atender usa .kd-sheet-error). */
+.kd-fee-status { display: flex; align-items: center; gap: var(--k-s2); margin: 0; padding: var(--k-s3) var(--k-s4); border-radius: var(--k-r-md); background: var(--k-sunken); color: var(--k-text-2); font-size: var(--k-fs-md); animation: k-fade var(--k-dur-3) var(--k-ease-out) both; }
+.kd-fee-status svg { flex: none; }
+.kd-fee-status.is-ok { background: var(--k-success-soft); color: var(--k-success-ink); font-weight: 650; }
+#kd-co-fee-alert:focus { outline: 2px solid var(--k-focus); outline-offset: 2px; }
+
+/* Revisão: cada bloco com o atalho "Alterar" ao lado do que ele muda. */
+.kd-review { display: grid; margin: 0; border: 1px solid var(--k-line-strong); border-radius: var(--k-r-md); background: var(--k-surface); }
+.kd-review-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label edit" "value value"; align-items: center; gap: 2px var(--k-s3); padding: var(--k-s3) var(--k-s4) var(--k-s4); }
+.kd-review-row + .kd-review-row { border-top: 1px solid var(--k-line); }
+.kd-review-row dt { grid-area: label; color: var(--k-muted); font-size: var(--k-fs-xs); font-weight: 750; font-stretch: var(--k-stretch-condensed); letter-spacing: 0.06em; text-transform: uppercase; }
+.kd-review-row dd { grid-area: value; display: grid; gap: 2px; margin: 0; color: var(--k-ink); font-size: var(--k-fs-md); line-height: 1.45; overflow-wrap: anywhere; }
+.kd-review-row dd small { color: var(--k-muted); font-size: var(--k-fs-sm); }
+.kd-review-row .kd-checkout-items { margin-top: 4px; }
+.kd-review-edit {
+  grid-area: edit;
+  min-height: 32px;
+  padding: 0 var(--k-s2);
+  border: 0;
+  border-radius: var(--k-r-sm);
+  background: none;
+  color: var(--k-ink);
+  font: inherit;
+  font-size: var(--k-fs-sm);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: var(--k-line-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.kd-review-edit:hover { text-decoration-color: currentColor; }
+.kd-review-edit:focus-visible { outline: 2px solid var(--k-focus); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .kd-review-edit { min-height: 44px; margin: -6px -4px; }
+}
+
+/* Barra do checkout: "Voltar" no tamanho do texto, a ação principal ocupa o resto. */
+.kd-menu-bar-actions .kd-bar-back { flex: 0 0 auto; }
+.kd-menu-bar-actions .kd-btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .kd-checkout-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--k-s3); }
 .kd-checkout-grid--even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .kd-checkout-options { display: grid; gap: var(--k-s2); margin: 0; padding: 0; border: 0; min-width: 0; }
@@ -1129,6 +1242,11 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 .kd-track-step.is-done .kd-track-text b { color: var(--k-ink); font-weight: 700; }
 .kd-track-text small { color: var(--k-muted); font-size: var(--k-fs-sm); }
 .kd-track-actions { display: grid; gap: var(--k-s2); }
+.kd-track-hint { margin: 0; color: var(--k-muted); font-size: var(--k-fs-sm); text-align: center; }
+.kd-track-updated { margin: 0; color: var(--k-muted); font-size: var(--k-fs-xs); text-align: center; }
+.kd-track-offline { display: flex; align-items: center; justify-content: center; gap: var(--k-s2); margin: 0; padding: var(--k-s2) var(--k-s3); border-radius: var(--k-r-md); background: var(--k-warning-soft); color: var(--k-warning-ink); font-size: var(--k-fs-sm); font-weight: 600; }
+.kd-track-offline svg { flex: none; }
+.kd-sheet-done-icon.is-neutral { background: var(--k-sunken); color: var(--k-ink); }
 
 @media (max-width: 359px) {
   .kd-checkout-grid { grid-template-columns: minmax(0, 1fr); }
@@ -1136,12 +1254,35 @@ body:has(.kd-delivery.has-bar) .kd-toaster { bottom: calc(92px + env(safe-area-i
 
 /* Tela de pagamento online (PIX / Checkout Pro) */
 .kd-payment-step { display: grid; gap: var(--k-s6); padding: var(--k-s7) var(--k-s4) var(--k-s6); }
-.kd-payment-total { font-size: var(--k-fs-2xl); font-weight: 800; color: var(--k-ink); }
-.kd-pix-qr-wrap { display: flex; justify-content: center; padding: var(--k-s2) 0; }
-.kd-pix-qr { width: 200px; height: 200px; border-radius: 12px; border: 1px solid var(--k-line); }
-.kd-pix-actions { display: grid; gap: var(--k-s2); }
-.kd-pix-timer { display: flex; align-items: center; gap: var(--k-s2); justify-content: center; color: var(--k-muted); font-size: var(--k-fs-sm); }
+.kd-track-head .kd-payment-total { font-size: var(--k-fs-2xl); font-weight: 800; color: var(--k-ink); }
+.kd-track-head .kd-payment-note { max-width: 38ch; color: var(--k-muted); font-size: var(--k-fs-md); line-height: 1.45; }
+/* QR em fundo branco também no tema escuro: leitores de QR precisam do contraste original. */
+.kd-pix-card { display: grid; justify-items: center; gap: var(--k-s4); padding: var(--k-s5); border: 1px solid var(--k-line-strong); border-radius: var(--k-r-lg); background: var(--k-surface); }
+.kd-pix-qr { width: 200px; height: 200px; padding: 8px; border-radius: var(--k-r-md); border: 1px solid var(--k-line); background: #fff; }
+.kd-pix-howto { display: grid; gap: 4px; width: 100%; margin: 0; padding-left: 1.25em; color: var(--k-text-2); font-size: var(--k-fs-md); line-height: 1.45; }
+.kd-pix-howto li::marker { color: var(--k-muted); font-weight: 700; }
+.kd-pix-code { display: grid; gap: 6px; width: 100%; }
+.kd-pix-code textarea {
+  width: 100%;
+  padding: var(--k-s2) var(--k-s3);
+  border: 1px solid var(--k-control-line);
+  border-radius: var(--k-r-sm);
+  background: var(--k-sunken);
+  color: var(--k-text-2);
+  font: 500 var(--k-fs-xs) / 1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+  resize: none;
+}
+.kd-pix-code textarea:focus-visible { outline: 2px solid var(--k-focus); outline-offset: 2px; }
+.kd-pix-code-warn { color: var(--k-warning-ink); font-size: var(--k-fs-sm); font-weight: 650; }
+.kd-pix-timer { display: flex; align-items: center; gap: var(--k-s2); justify-content: center; margin: 0; color: var(--k-muted); font-size: var(--k-fs-sm); }
 .kd-pix-waiting { display: flex; align-items: center; gap: var(--k-s2); justify-content: center; color: var(--k-muted); font-size: var(--k-fs-sm); }
+.kd-card-brick { min-height: 360px; }
+/* Trocar a forma de pagar com um pagamento possivelmente em andamento: aviso antes de sair. */
+.kd-pay-leave { display: grid; gap: var(--k-s3); padding: var(--k-s4); border-radius: var(--k-r-md); background: var(--k-warning-soft); color: var(--k-warning-ink); font-size: var(--k-fs-md); line-height: 1.45; animation: k-pop var(--k-dur-3) var(--k-ease-out) both; }
+.kd-pay-leave p { margin: 0; font-weight: 600; }
+.kd-pay-leave > div { display: flex; flex-wrap: wrap; gap: var(--k-s2); }
+.kd-pay-leave .kd-btn { flex: 1 1 140px; }
 
 /* Conta demonstrativa: aviso discreto no rodapé do cardápio. */
 .kd-menu-demo-note { margin: var(--k-s6) var(--k-s4) var(--k-s4); color: var(--k-muted); font-size: var(--k-fs-xs); text-align: center; }

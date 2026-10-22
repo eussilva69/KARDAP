@@ -3,13 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, MapPin, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { friendlyError } from "@/lib/async";
-import { brl } from "@/lib/format";
+import { brl, centsToInput, parseMoneyCents as parseMoney } from "@/lib/format";
 import {
   Autocomplete,
   Badge,
   Button,
-  Card,
-  CardHead,
   IconButton,
   Modal,
   RadioCard,
@@ -95,87 +93,19 @@ function withImported(rows: Rows, names: string[]): { rows: Rows; added: number 
 
 // ───────────────────────── Auxiliares ─────────────────────────
 
-const centsToInput = (cents: number | null | undefined) => (typeof cents === "number" ? (cents / 100).toFixed(2).replace(".", ",") : "");
-
-function parseMoney(raw: string): number | null {
-  const clean = raw.replace(/[^\d,.]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
-  if (!clean) return null;
-  const value = Number(clean);
-  return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : NaN;
-}
-
 const sameRows = (a: Rows | null, b: Rows | null) => JSON.stringify(a) === JSON.stringify(b);
 
-// ───────────────────────── Card Principal na Página ─────────────────────────
+/** Ponto sugerido para a loja no mapa (vem junto da configuração, sem uma segunda consulta ao Google). */
+export type MapOrigin = { location: { lat: number; lng: number }; placeId?: string; label?: string };
 
-export function DeliveryAreasManager({
-  restaurantId,
-  config,
-  notify,
-  onConfigUpdate,
-  onConfigReplace,
-}: {
-  restaurantId: string;
-  config: DeliveryConfig;
-  notify: Notify;
-  onConfigUpdate: (patch: Partial<DeliveryConfig>) => Promise<boolean>;
-  onConfigReplace: (config: DeliveryConfig) => void;
-}) {
-  const [showModal, setShowModal] = useState(false);
-  const servedCities: ServedCity[] = useMemo(() => config.servedCities || [], [config.servedCities]);
-  const feeMode: FeeMode = config.feeMode || "taxa_fixa";
+// ───────────────────────── Modal de taxa e áreas de entrega ─────────────────────────
 
-  return (
-    <>
-      <Card style={{ marginBottom: 16 }}>
-        <CardHead
-          title="Áreas de entrega"
-          action={
-            <Button size="sm" variant="secondary" onClick={() => setShowModal(true)}>
-              Editar
-            </Button>
-          }
-        />
-        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-          <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
-            {feeMode === "taxa_fixa" ? `Taxa fixa · ${brl(config.deliveryFeeCents)}` : feeMode === "area_mapa" ? "Taxa por área no mapa" : "Taxa por bairro"}
-          </p>
-          <p style={{ fontSize: 13, color: "var(--k-muted)", margin: 0 }}>
-            {servedCities.length === 0 ? (
-              feeMode === "taxa_fixa"
-                ? "Sem cidades cadastradas (taxa fixa para qualquer endereço)."
-                : "Nenhuma cidade cadastrada. Configure as cidades e bairros atendidos."
-            ) : (
-              `${servedCities.length} ${servedCities.length === 1 ? "cidade atendida" : "cidades atendidas"}: ${servedCities
-                .map((c) => `${c.name} (${c.uf})${c.enabled === false ? " · Pausada" : ""}`)
-                .join(", ")}`
-            )}
-          </p>
-        </div>
-      </Card>
-
-      {showModal && (
-        <DeliveryAreasModal
-          restaurantId={restaurantId}
-          config={config}
-          notify={notify}
-          onConfigUpdate={onConfigUpdate}
-          onConfigReplace={onConfigReplace}
-          onClose={() => setShowModal(false)}
-        />
-      )}
-    </>
-  );
-}
-
-// ───────────────────────── Modal Unificado de Configuração ─────────────────────────
-
-const MODAL_STEPS = ["Modalidade", "Configurar áreas"] as const;
 type ModalStep = 0 | 1;
 
-function DeliveryAreasModal({
+export function DeliveryAreasModal({
   restaurantId,
   config,
+  mapOrigin,
   notify,
   onConfigUpdate,
   onConfigReplace,
@@ -183,6 +113,7 @@ function DeliveryAreasModal({
 }: {
   restaurantId: string;
   config: DeliveryConfig;
+  mapOrigin: MapOrigin | null;
   notify: Notify;
   onConfigUpdate: (patch: Partial<DeliveryConfig>) => Promise<boolean>;
   onConfigReplace: (config: DeliveryConfig) => void;
@@ -196,7 +127,14 @@ function DeliveryAreasModal({
   const [flat, setFlat] = useState(centsToInput(config.deliveryFeeCents));
   const [feeSaving, setFeeSaving] = useState(false);
   const [feeErrors, setFeeErrors] = useState<{ flat?: string }>({});
-  const [mapConfig, setMapConfig] = useState<DeliveryMapConfig>(() => JSON.parse(JSON.stringify(config.mapConfig || DEFAULT_DELIVERY_CONFIG.mapConfig)));
+  // Mapa: sem ponto da loja salvo, começa no endereço do restaurante (sugestão, só gravada ao salvar).
+  const [initialMap] = useState<DeliveryMapConfig>(() => {
+    const base: DeliveryMapConfig = JSON.parse(JSON.stringify(config.mapConfig || DEFAULT_DELIVERY_CONFIG.mapConfig));
+    if (!base.storeLocation && mapOrigin) return { ...base, storeLocation: mapOrigin.location, storePlaceId: mapOrigin.placeId };
+    return base;
+  });
+  const [mapConfig, setMapConfig] = useState<DeliveryMapConfig>(() => JSON.parse(JSON.stringify(initialMap)));
+  const mapDirty = JSON.stringify(mapConfig) !== JSON.stringify(initialMap);
 
   const flatCents = parseMoney(flat);
   const feeDirty =
@@ -217,7 +155,7 @@ function DeliveryAreasModal({
 
     try {
       const ok = await onConfigUpdate(patch);
-      if (ok && showToast) notify("Taxas de entrega atualizadas.");
+      if (ok && showToast) notify(mode === "taxa_fixa" ? "Forma de cobrança e taxa salvas." : "Forma de cobrança salva.");
       return ok;
     } finally {
       setFeeSaving(false);
@@ -252,6 +190,10 @@ function DeliveryAreasModal({
   );
 
   const addCity = async (option: CityOption) => {
+    if (cityDirty && activeCity) {
+      notify(`Salve ou descarte as alterações nos bairros de ${activeCity.name} antes de adicionar outra cidade.`, "error");
+      return;
+    }
     const session = sessionRef.current;
     sessionRef.current = newSessionToken();
     setAddingCity(option.name);
@@ -287,13 +229,39 @@ function DeliveryAreasModal({
 
   const activeCity = useMemo(() => servedCities.find((c) => c.ibgeCode === activeCityCode) || null, [servedCities, activeCityCode]);
 
-  // Ref para disparar salvamento do editor ativo ao concluir modal
+  // Editor da cidade ativa: a função de salvar e se há alterações pendentes (para salvar ao concluir e avisar antes de descartar).
   const cityEditorSaveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
   const cityEditorDirtyRef = useRef<boolean>(false);
+  const [cityDirty, setCityDirty] = useState(false);
+  const bindCityEditor = useCallback((save: () => Promise<boolean>, isDirty: boolean) => {
+    cityEditorSaveRef.current = save;
+    cityEditorDirtyRef.current = isDirty;
+    setCityDirty(isDirty);
+  }, []);
+  // Troca de cidade com bairros alterados e não salvos: pergunta antes (o editor da outra cidade descartaria as alterações).
+  const [pendingCity, setPendingCity] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const chooseCity = (code: string) => {
+    if (code === activeCityCode) return;
+    if (cityDirty) setPendingCity(code);
+    else setActiveCityCode(code);
+  };
+  const resolvePendingCity = async (save: boolean) => {
+    if (!pendingCity) return;
+    if (save) {
+      setSwitching(true);
+      const ok = await cityEditorSaveRef.current();
+      setSwitching(false);
+      if (!ok) return;
+    }
+    setActiveCityCode(pendingCity);
+    setPendingCity(null);
+  };
 
   const handleStepChange = async (nextStep: ModalStep) => {
+    // Avançar grava a forma de cobrança (as cidades e bairros dependem dela): avisa que já está salvo.
     if (step === 0 && feeDirty && mode !== "area_mapa") {
-      const ok = await saveFeeSettings(false);
+      const ok = await saveFeeSettings(true);
       if (!ok) return;
     }
     setStep(nextStep);
@@ -314,61 +282,40 @@ function DeliveryAreasModal({
       const ok = await cityEditorSaveRef.current();
       if (!ok) return;
     }
-    notify("Configurações de áreas de entrega salvas com sucesso!");
+    notify("Taxa e áreas de entrega salvas.");
     onClose();
   };
 
-  const isSaving = feeSaving || Boolean(addingCity);
+  const isSaving = feeSaving || Boolean(addingCity) || switching;
+  const areasLabel = mode === "area_mapa" ? "Mapa" : "Cidades e bairros";
+  const modalSteps = ["Forma de cobrança", areasLabel];
 
   return (
     <Modal
-      title="Configurar áreas de entrega"
+      title="Taxa e área de entrega"
       size="lg"
       onClose={onClose}
       busy={isSaving}
+      dirty={feeDirty || cityDirty || (mode === "area_mapa" && mapDirty)}
       footer={
-        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8 }}>
-          <Button
-            variant="secondary"
-            onClick={step === 0 ? onClose : () => setStep(0)}
-            disabled={isSaving}
-          >
+        <div className="kd-areas-foot">
+          <Button variant="ghost" onClick={step === 0 ? onClose : () => setStep(0)} disabled={isSaving}>
             {step === 0 ? "Cancelar" : "Voltar"}
           </Button>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            {step === 0 ? (
-              <Button
-                variant="primary"
-                loading={feeSaving}
-                onClick={async () => {
-                  if (feeDirty) {
-                    if (mode !== "area_mapa") {
-                      const ok = await saveFeeSettings();
-                      if (!ok) return;
-                    }
-                  }
-                  setStep(1);
-                }}
-              >
-                Continuar
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                loading={isSaving}
-                icon={<Check size={15} />}
-                onClick={handleFinishModal}
-              >
-                Salvar e fechar
-              </Button>
-            )}
-          </div>
+          {step === 0 ? (
+            <Button variant="primary" loading={feeSaving} iconEnd={<ChevronRight size={16} aria-hidden />} onClick={() => handleStepChange(1)}>
+              Continuar: {areasLabel.toLowerCase()}
+            </Button>
+          ) : (
+            <Button variant="primary" loading={isSaving} icon={<Check size={15} aria-hidden />} onClick={handleFinishModal}>
+              Salvar e fechar
+            </Button>
+          )}
         </div>
       }
     >
       <ol className="kd-stepper kd-wizard-steps">
-        {MODAL_STEPS.map((label, i) => (
+        {modalSteps.map((label, i) => (
           <li key={label}>
             <button
               type="button"
@@ -427,35 +374,22 @@ function DeliveryAreasModal({
               onChange={(e) => setFlat(e.target.value)}
             />
           ) : mode === "taxa_por_bairro" ? (
-            <p className="kd-hint" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--k-muted)" }}>
-              As taxas e os bairros atendidos são configurados individualmente na próxima etapa (Cidades e bairros).
-            </p>
+            <p className="kd-areas-note">Na próxima etapa você escolhe as cidades, os bairros atendidos e a taxa de cada bairro.</p>
           ) : (
-            <p className="kd-hint" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--k-muted)" }}>
-              Na próxima etapa você posiciona a loja, cria faixas e testa qualquer ponto antes de salvar.
-            </p>
-          )}
-
-          {feeDirty && (
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Button size="sm" variant="secondary" onClick={() => saveFeeSettings()} loading={feeSaving} icon={<Check size={14} />}>
-                Salvar taxas agora
-              </Button>
-            </div>
+            <p className="kd-areas-note">Na próxima etapa você posiciona a loja, cria faixas de distância e testa qualquer ponto antes de salvar.</p>
           )}
         </div>
       )}
 
       {step === 1 && (
         <div className="kd-areas-modal-step">
-          {mode === "area_mapa" ? <DeliveryMapEditor restaurantId={restaurantId} value={mapConfig} onChange={setMapConfig} /> : <>
-          {/* Seletor de Cidades Cadastradas */}
+          {mode === "area_mapa" ? <DeliveryMapEditor value={mapConfig} onChange={setMapConfig} /> : <>
           {servedCities.length > 0 && (
-            <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 8, color: "var(--k-muted)" }}>
-                Cidades atendidas ({servedCities.length})
-              </label>
-              <div className="kd-city-selector-bar" role="tablist" aria-label="Cidades atendidas">
+            <div className="kd-areas-cities-pick">
+              <p className="kd-areas-label" id="kd-areas-cities-label">
+                Cidades atendidas <span className="kd-num">({servedCities.length})</span>
+              </p>
+              <div className="kd-city-selector-bar" role="group" aria-labelledby="kd-areas-cities-label">
                 {servedCities.map((c) => {
                   const isSelected = activeCityCode === c.ibgeCode;
                   const isPaused = c.enabled === false;
@@ -463,20 +397,35 @@ function DeliveryAreasModal({
                     <button
                       key={c.ibgeCode}
                       type="button"
-                      role="tab"
-                      aria-selected={isSelected}
+                      aria-pressed={isSelected}
                       className={`kd-city-chip ${isSelected ? "is-active" : ""} ${isPaused ? "is-paused" : ""}`}
-                      onClick={() => setActiveCityCode(c.ibgeCode)}
+                      onClick={() => chooseCity(c.ibgeCode)}
                     >
-                      <MapPin size={14} aria-hidden />
+                      {isSelected ? <Check size={14} aria-hidden /> : <MapPin size={14} aria-hidden />}
                       <span>
-                        {c.name} — {c.uf}
+                        {c.name} ({c.uf})
                       </span>
-                      {isPaused && <Badge tone="outline">Pausada</Badge>}
+                      {isPaused && <span className="kd-city-chip-tag">pausada</span>}
                     </button>
                   );
                 })}
               </div>
+              {pendingCity && activeCity && (
+                <div className="kd-areas-guard" role="alert">
+                  <p>Os bairros de {activeCity.name} têm alterações não salvas.</p>
+                  <div className="kd-row">
+                    <Button size="sm" variant="ghost" onClick={() => setPendingCity(null)} disabled={switching} data-autofocus>
+                      Continuar editando
+                    </Button>
+                    <Button size="sm" variant="secondary" className="is-destructive" onClick={() => resolvePendingCity(false)} disabled={switching}>
+                      Descartar e trocar
+                    </Button>
+                    <Button size="sm" variant="primary" loading={switching} onClick={() => resolvePendingCity(true)}>
+                      Salvar e trocar
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -524,10 +473,7 @@ function DeliveryAreasModal({
                 const remaining = servedCities.filter((c) => c.ibgeCode !== activeCity.ibgeCode);
                 setActiveCityCode(remaining[0]?.ibgeCode || null);
               }}
-              bindSave={(fn, isDirty) => {
-                cityEditorSaveRef.current = fn;
-                cityEditorDirtyRef.current = isDirty;
-              }}
+              bindSave={bindCityEditor}
             />
           ) : (
             !addingCity && (
@@ -718,6 +664,8 @@ function CityNeighborhoodsEditor({
   useEffect(() => {
     bindSave(save, dirty);
   }, [bindSave, dirty, save]);
+  // Ao sair (outra cidade, cidade removida, outra forma de cobrança), não deixa alteração pendente para trás.
+  useEffect(() => () => bindSave(() => Promise.resolve(true), false), [bindSave]);
 
   const toggleCity = async (enabled: boolean) => {
     setToggling(true);
@@ -780,7 +728,7 @@ function CityNeighborhoodsEditor({
           <small>{summary}</small>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="kd-city-active-actions">
           <Switch
             label="Entregar nesta cidade"
             checked={cityEnabled}
@@ -788,8 +736,8 @@ function CityNeighborhoodsEditor({
             onChange={toggleCity}
           />
           {confirmRemove ? (
-            <div className="kd-row">
-              <span className="kd-hint">Remover cidade?</span>
+            <div className="kd-row" role="alert">
+              <span className="kd-hint">Remover {city.name} e todos os bairros dela?</span>
               <Button size="sm" variant="danger" loading={removing} onClick={removeCity}>
                 Sim, remover
               </Button>
@@ -801,8 +749,8 @@ function CityNeighborhoodsEditor({
             <Button
               size="sm"
               variant="ghost"
-              className="kd-text-danger"
-              icon={<Trash2 size={15} />}
+              className="is-destructive"
+              icon={<Trash2 size={15} aria-hidden />}
               onClick={() => setConfirmRemove(true)}
             >
               Remover cidade
@@ -811,9 +759,9 @@ function CityNeighborhoodsEditor({
         </div>
       </div>
 
-      <div className="kd-area-body" style={{ borderTop: "none", padding: 0 }}>
+      <div className="kd-area-body kd-area-body--flush">
         {loadError ? (
-          <div className="kd-row" style={{ padding: "12px 0" }}>
+          <div className="kd-row kd-area-load-error" role="alert">
             <span className="kd-error">{loadError}</span>
             <Button size="sm" variant="secondary" onClick={load}>
               Tentar novamente
@@ -921,7 +869,7 @@ function CityNeighborhoodsEditor({
                       </Button>
                     </form>
                   )}
-                  <Button size="sm" variant="ghost" className="kd-text-danger" icon={<Trash2 size={14} />} onClick={removeSelected}>
+                  <Button size="sm" variant="ghost" className="is-destructive" icon={<Trash2 size={14} aria-hidden />} onClick={removeSelected}>
                     Excluir
                   </Button>
                 </span>
@@ -1039,7 +987,7 @@ function CityNeighborhoodsEditor({
             )}
 
             {/* Rodapé da cidade com botão de salvar bairros sem fechar modal */}
-            <div className="kd-area-foot" style={{ marginTop: 8 }}>
+            <div className="kd-area-foot">
               {perNeighborhood && noFeeCount > 0 && (
                 <span className="kd-hint">
                   {noFeeCount} {noFeeCount === 1 ? "bairro ativo sem taxa definida." : "bairros ativos sem taxa definida."}

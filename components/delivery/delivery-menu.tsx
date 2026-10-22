@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Bike, Bookmark, ShoppingBag, Star } from "lucide-react";
+import { Bike, Bookmark, Plus, Receipt, ShoppingBag, Star } from "lucide-react";
 import { brl, plural, productCents } from "@/lib/format";
 import { usePrefersReducedMotion, useRootPalette, useSaveData } from "@/lib/hooks";
 import { isDefaultPalette } from "@/lib/palette";
@@ -19,6 +19,8 @@ import { useCart, type CartLine } from "./use-cart";
 import { CartSheet, type PricedLine } from "./cart-sheet";
 import { ProductSheet } from "./product-sheet";
 import { feeLabel, flatFee, useDeliveryConfig, useOpenStatus } from "./use-delivery";
+import { clearCheckoutDraft } from "./checkout-draft";
+import type { OnlinePaymentData } from "./payment-step";
 
 // Como no cardápio: feed, salvos, checkout e acompanhamento só baixam quando são usados.
 const loadViewer = () => import("@/components/menu/reels/reels-viewer");
@@ -31,6 +33,11 @@ const PaymentStep = dynamic(() => import("./payment-step").then((m) => m.Payment
 
 type Step = "menu" | "checkout" | "payment" | "done";
 type Sheet = { kind: "product"; dish: Dish; edit?: CartLine } | { kind: "cart" } | { kind: "info" } | null;
+type PlacedOrder = { orderId: string; orderNumber: number; totalCents?: number };
+/** Pedido em andamento salvo no aparelho. `step: "menu"`: a pessoa voltou ao cardápio, mas ainda acompanha o pedido pelo topo. */
+type Recovery = { order: PlacedOrder; payment: OnlinePaymentData | null; step: Step; savedAt?: number };
+const RECOVERY_MAX_AGE = 12 * 60 * 60 * 1000;
+const orderLabel = (orderNumber: number) => `#${String(orderNumber).padStart(3, "0")}`;
 
 /**
  * Delivery público (/r/:slug/delivery). É o cardápio digital (mesmo cabeçalho, seções, busca, Reels e
@@ -80,25 +87,45 @@ export default function DeliveryMenu({
   const open = useOpenStatus(settings.hours);
 
   const [step, setStep] = useState<Step>("menu");
-  const [order, setOrder] = useState<{ orderId: string; orderNumber: number; totalCents?: number } | null>(null);
-  const [onlinePayment, setOnlinePayment] = useState<import("./payment-step").OnlinePaymentData | null>(null);
+  const [order, setOrder] = useState<PlacedOrder | null>(null);
+  const [orderSettled, setOrderSettled] = useState(false);
+  const [onlinePayment, setOnlinePayment] = useState<OnlinePaymentData | null>(null);
+  /** Etapa em que o checkout abre: volta direto ao pagamento quando a pessoa troca a forma de pagar. */
+  const [checkoutStart, setCheckoutStart] = useState<1 | 3>(1);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [viewer, setViewer] = useState<{ mode: ReelsMode; list: Dish[]; index: number; key: number } | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const menuScroll = useRef(0);
   const recoveryKey = `kardap:delivery-checkout:${restaurantId}`;
 
+  const remember = useCallback(
+    (next: Recovery | null) => {
+      try {
+        if (next) localStorage.setItem(recoveryKey, JSON.stringify({ ...next, savedAt: Date.now() }));
+        else localStorage.removeItem(recoveryKey);
+      } catch {}
+    },
+    [recoveryKey],
+  );
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem(recoveryKey);
       if (!raw) return;
-      const saved = JSON.parse(raw) as { order?: { orderId: string; orderNumber: number; totalCents?: number }; payment?: import("./payment-step").OnlinePaymentData | null; step?: Step };
-      if (!saved.order || (saved.step !== "payment" && saved.step !== "done")) return;
+      const saved = JSON.parse(raw) as Partial<Recovery>;
+      if (!saved.order || (saved.savedAt && Date.now() - saved.savedAt > RECOVERY_MAX_AGE)) {
+        localStorage.removeItem(recoveryKey);
+        return;
+      }
       setOrder(saved.order);
-      setOnlinePayment(saved.payment || null);
-      setStep(saved.step);
+      if (saved.step === "payment" || saved.step === "done") {
+        setOnlinePayment(saved.payment || null);
+        setStep(saved.step);
+      }
     } catch {
-      localStorage.removeItem(recoveryKey);
+      try {
+        localStorage.removeItem(recoveryKey);
+      } catch {}
     }
   }, [recoveryKey]);
 
@@ -186,14 +213,37 @@ export default function DeliveryMenu({
   const dishNote = useCallback(
     (dish: Dish) => {
       const qty = dish.id ? inCart.get(dish.id) : 0;
+      // A chave muda com a quantidade: o selo entra de novo a cada item somado (confirmação na própria linha).
       return qty ? (
-        <p className="kd-dish-incart">
+        <p key={qty} className="kd-dish-incart">
           <ShoppingBag size={12} aria-hidden />
           {qty} no carrinho
         </p>
       ) : null;
     },
     [inCart],
+  );
+
+  // "+" da miniatura: adiciona uma unidade sem observação. Observações e quantidade ficam na folha do produto.
+  const notifyRef = useRef(notify);
+  notifyRef.current = notify;
+  const { add: addToCart } = cart;
+  const dishAction = useCallback(
+    (dish: Dish) =>
+      dish.id ? (
+        <button
+          type="button"
+          className="kd-dish-add"
+          aria-label={`Adicionar 1 ${dish.name} ao carrinho`}
+          onClick={() => {
+            addToCart(dish, 1, "");
+            notifyRef.current(`1× ${dish.name} no carrinho`, "success");
+          }}
+        >
+          <Plus size={18} strokeWidth={2.6} aria-hidden />
+        </button>
+      ) : null,
+    [addToCart],
   );
 
   // Checkout ganha uma entrada no histórico: o "voltar" do celular retorna ao cardápio com o carrinho.
@@ -207,7 +257,32 @@ export default function DeliveryMenu({
     try {
       window.history.pushState({ kdCheckout: true }, "");
     } catch {}
+    setCheckoutStart(1);
     setStep("checkout");
+  };
+
+  /**
+   * Sai do pagamento online sem pagar (trocar a forma de pagamento ou Pix expirado). O pedido preparado não chega
+   * ao restaurante sem pagamento aprovado; o carrinho e os dados digitados continuam, e o checkout abre no pagamento.
+   */
+  const changePayment = () => {
+    setOrder(null);
+    setOnlinePayment(null);
+    remember(null);
+    try {
+      window.history.pushState({ kdCheckout: true }, "");
+    } catch {}
+    setCheckoutStart(3);
+    setStep("checkout");
+  };
+
+  const finishPayment = () => {
+    if (!order) return;
+    cart.clear();
+    clearCheckoutDraft(restaurantId);
+    setOnlinePayment(null);
+    setStep("done");
+    remember({ order, payment: null, step: "done" });
   };
   const leaveCheckout = useCallback(() => {
     if ((window.history.state as { kdCheckout?: boolean } | null)?.kdCheckout) window.history.back();
@@ -268,6 +343,12 @@ export default function DeliveryMenu({
           }
         >
           <div className="kd-menu-pills">
+            {order && (
+              <button type="button" className="kd-menu-review kd-menu-track" onClick={() => setStep("done")}>
+                <Receipt size={15} aria-hidden />
+                Acompanhar pedido <span className="kd-num">{orderLabel(order.orderNumber)}</span>
+              </button>
+            )}
             <button type="button" className={`kd-menu-review kd-menu-info ${open === false ? "is-closed" : ""}`} onClick={() => setSheet({ kind: "info" })}>
               <Bike size={15} aria-hidden />
               {config ? feeLabel(config) : "Entrega e horários"}
@@ -300,6 +381,8 @@ export default function DeliveryMenu({
           onOpenDish={openDishProduct}
           onOpenReels={videoDishes.length > 0 ? openReels : undefined}
           dishNote={dishNote}
+          dishAction={dishAction}
+          photoOnly
         />
         {isDemo && <p className="kd-menu-demo-note">Cardápio de demonstração do KARDAP · dados e pedidos simulados</p>}
       </div>
@@ -312,6 +395,8 @@ export default function DeliveryMenu({
             slug={slug}
             config={config}
             lines={validLines}
+            initialStep={checkoutStart}
+            reducedMotion={reducedMotion}
             onBack={leaveCheckout}
             onEditCart={() => {
               leaveCheckout();
@@ -320,17 +405,20 @@ export default function DeliveryMenu({
             onSuccess={(result) => {
               const nextOrder = { orderId: result.orderId, orderNumber: result.orderNumber, totalCents: result.totalCents };
               setOrder(nextOrder);
-              cart.clear();
+              setOrderSettled(false);
               try {
                 window.history.replaceState(null, "");
               } catch {}
               if (result.payment) {
+                // Pagamento online: o carrinho só é esvaziado com o pagamento aprovado (quem troca a forma de pagar não perde os itens).
                 setOnlinePayment(result.payment);
                 setStep("payment");
-                localStorage.setItem(recoveryKey, JSON.stringify({ order: nextOrder, payment: result.payment, step: "payment" }));
+                remember({ order: nextOrder, payment: result.payment, step: "payment" });
               } else {
+                cart.clear();
+                clearCheckoutDraft(restaurantId);
                 setStep("done");
-                localStorage.setItem(recoveryKey, JSON.stringify({ order: nextOrder, payment: null, step: "done" }));
+                remember({ order: nextOrder, payment: null, step: "done" });
               }
             }}
           />
@@ -346,11 +434,8 @@ export default function DeliveryMenu({
             orderNumber={order.orderNumber}
             restaurantName={restaurantName}
             totalCents={order.totalCents || 0}
-            onPaid={() => {
-              setOnlinePayment(null);
-              setStep("done");
-              localStorage.setItem(recoveryKey, JSON.stringify({ order, payment: null, step: "done" }));
-            }}
+            onPaid={finishPayment}
+            onChangePayment={changePayment}
           />
         </div>
       )}
@@ -362,10 +447,14 @@ export default function DeliveryMenu({
             orderNumber={order.orderNumber}
             restaurantId={restaurantId}
             restaurantName={restaurantName}
-            menuHref={`/r/${slug}`}
+            onSettled={() => {
+              // Entregue, cancelado ou recusado: a pessoa já viu o resultado, o pedido sai do aparelho.
+              setOrderSettled(true);
+              remember(null);
+            }}
             onNewOrder={() => {
-              setOrder(null);
-              localStorage.removeItem(recoveryKey);
+              if (orderSettled) setOrder(null);
+              else remember({ order, payment: null, step: "menu" });
               menuScroll.current = 0;
               setStep("menu");
             }}

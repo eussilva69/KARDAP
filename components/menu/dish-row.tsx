@@ -31,6 +31,24 @@ export type Dish = {
  * rede e memória quando se afasta), só toca visível e um de cada vez. Antes de carregar,
  * aparece a capa gerada na otimização, então não há quadro preto nem salto de layout.
  */
+/** Miniatura só com a foto do produto (sem vídeo na lista). A capa do vídeo só entra quando não há foto. */
+function DishPhoto({ dish, onClick }: { dish: Dish; onClick?: () => void }) {
+  const src = dish.imageThumb || dish.image || dish.videoPoster || "";
+  if (!src) return null;
+  return (
+    // Toque na foto abre o prato, como o nome (o botão acessível da linha); a foto em si é decorativa (alt vazio).
+    <span className="kd-dish-media" onClick={onClick}>
+      <img src={src} alt="" width={112} height={112} loading="lazy" decoding="async" />
+      {dish.videoUrl && (
+        <span className="kd-dish-video-tag">
+          <Play size={10} fill="currentColor" aria-hidden />
+          Vídeo
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function DishMedia({ dish, autoplay, onClick }: { dish: Dish; autoplay: boolean; onClick?: () => void }) {
   const [nearRef, near] = useInView<HTMLSpanElement>({ rootMargin: "400px 0px" });
   const [visibleRef, visible] = useInView<HTMLSpanElement>({ threshold: 0.6 });
@@ -100,6 +118,8 @@ export function DishRow({
   autoplay,
   categoryLabel,
   note,
+  photoOnly = false,
+  action,
 }: {
   dish: Dish;
   onOpen?: () => void;
@@ -107,7 +127,12 @@ export function DishRow({
   categoryLabel?: string;
   /** Linha extra abaixo do preço (o delivery mostra quantos já estão no carrinho). */
   note?: React.ReactNode;
+  /** Miniatura com a foto do produto, sem vídeo tocando na lista (delivery). */
+  photoOnly?: boolean;
+  /** Ação rápida sobre a miniatura (o "+" do delivery). Fica fora do botão do prato: um controle não vai dentro do outro. */
+  action?: React.ReactNode;
 }) {
+  const media = photoOnly ? <DishPhoto dish={dish} onClick={onOpen} /> : <DishMedia dish={dish} autoplay={autoplay} onClick={onOpen} />;
   return (
     <li className="kd-dish">
       <div className="kd-dish-text">
@@ -125,7 +150,14 @@ export function DishRow({
         <p className="kd-dish-price kd-num">{brl(productCents(dish))}</p>
         {note}
       </div>
-      <DishMedia dish={dish} autoplay={autoplay} onClick={onOpen} />
+      {action ? (
+        <div className="kd-dish-aside">
+          {media}
+          {action}
+        </div>
+      ) : (
+        media
+      )}
     </li>
   );
 }

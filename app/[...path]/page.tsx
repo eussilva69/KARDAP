@@ -31,12 +31,20 @@ const ROUTES: Record<string, RouteMeta> = {
   cookies: { title: "Política de Cookies", description: "Quais cookies o Kardap usa e como você pode gerenciar suas preferências.", index: true },
 };
 
+/** Delivery do restaurante (/r/:slug/delivery): página própria, com título e descrição de pedido para entrega. */
+const DELIVERY_ROUTE: RouteMeta = {
+  title: "Delivery",
+  description: "Peça delivery pelo cardápio digital do restaurante: escolha os pratos, informe o endereço e acompanhe o pedido.",
+  index: false,
+};
+
 export function generateMetadata({ params }: { params: { path?: string[] } }): Metadata {
   const segments = params.path || [];
-  const route = ROUTES[segments[0] || ""];
+  const isDelivery = segments[0] === "r" && Boolean(segments[1]) && segments[2] === "delivery";
+  const route = isDelivery ? DELIVERY_ROUTE : ROUTES[segments[0] || ""];
   if (!route) return { title: "Página não encontrada", robots: { index: false, follow: false } };
-  // Cardápio de restaurante: um endereço por restaurante (sem o ?mesa=).
-  const path = segments[0] === "r" && segments[1] ? `/r/${segments[1]}` : `/${segments[0]}`;
+  // Cardápio de restaurante: um endereço por restaurante (sem o ?mesa=); o delivery tem o seu.
+  const path = isDelivery ? `/r/${segments[1]}/delivery` : segments[0] === "r" && segments[1] ? `/r/${segments[1]}` : `/${segments[0]}`;
   const title = `${route.title} | Kardap`;
   return {
     title: route.title,

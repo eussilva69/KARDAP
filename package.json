@@ -16,6 +16,7 @@
     "test:delivery-areas": "node --test --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-delivery-areas.mjs",
     "test:delivery-checkout": "node --test --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-delivery-checkout.mjs",
     "test:delivery-map": "node --test --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-delivery-map-areas.mjs",
+    "test:delivery-config": "node --test --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-delivery-config.mjs",
     "test:plans": "node scripts/e2e-plans.mjs",
     "test:onboarding": "node scripts/e2e-onboarding.mjs",
     "seo:landing": "node scripts/seo-landing.mjs",

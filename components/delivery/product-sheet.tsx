@@ -32,14 +32,15 @@ export function Stepper({
         type="button"
         onClick={() => (removing ? onRemove?.() : onChange(value - 1))}
         disabled={!removing && value <= min}
-        aria-label={removing ? `Remover ${label}` : "Diminuir quantidade"}
+        aria-label={removing ? `Remover ${label} do carrinho` : `Diminuir quantidade de ${label}`}
+        className={removing ? "is-remove" : undefined}
       >
         {removing ? <Trash2 size={small ? 15 : 17} aria-hidden /> : <Minus size={small ? 15 : 18} aria-hidden />}
       </button>
       <output className="kd-num" aria-live="polite">
         {value}
       </output>
-      <button type="button" onClick={() => onChange(value + 1)} disabled={value >= MAX_QTY} aria-label="Aumentar quantidade">
+      <button type="button" onClick={() => onChange(value + 1)} disabled={value >= MAX_QTY} aria-label={`Aumentar quantidade de ${label}`}>
         <Plus size={small ? 15 : 18} aria-hidden />
       </button>
     </div>
@@ -139,10 +140,16 @@ export function ProductSheet({
               size="lg"
               disabled={!available || !dish.id}
               onClick={() => onConfirm(quantity, notes)}
-              icon={<ShoppingBag size={18} aria-hidden />}
+              icon={available ? <ShoppingBag size={18} aria-hidden /> : undefined}
               data-autofocus
             >
-              {editing ? "Salvar" : "Adicionar"} · <span className="kd-num">{brl(unit * quantity)}</span>
+              {!available ? (
+                "Indisponível"
+              ) : (
+                <>
+                  {editing ? "Salvar" : "Adicionar"} · <span className="kd-num">{brl(unit * quantity)}</span>
+                </>
+              )}
             </Button>
           </div>
         </footer>

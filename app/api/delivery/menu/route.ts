@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { json, errorResponse, preflight } from "@/lib/billing/http";
-import { getDeliveryConfig } from "@/lib/delivery/server";
+import { customerPaymentMethods, getDeliveryConfig } from "@/lib/delivery/server";
 import { isGoogleConfigured } from "@/lib/delivery/geo";
 
 /**
@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
       deliveryEta: config.deliveryEta,
       deliveryArea: config.deliveryArea,
       minOrderCents: config.minOrderCents,
-      paymentMethods: config.paymentMethods,
+      // Pix e cartão online só aparecem com o gateway configurado (sem ele o pedido ficaria parado no pagamento).
+      paymentMethods: customerPaymentMethods(config.paymentMethods),
       notes: config.notes || "",
       feeMode: config.feeMode || "taxa_fixa",
       servedCities: (config.servedCities || []).filter((c) => c.enabled !== false).map(({ ibgeCode, name, uf }) => ({ ibgeCode, name, uf })),

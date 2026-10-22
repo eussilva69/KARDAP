@@ -141,6 +141,27 @@ indicador "ao vivo" dos chamados, desligado em movimento reduzido.
 - A ordem e a visibilidade das seções vêm das categorias do painel (`watchPublicRestaurantCategories`).
   Se a leitura das categorias falhar, o cardápio agrupa pelo nome salvo em cada produto.
 
+## Delivery (`/r/:slug/delivery` e `/dashboard/delivery`)
+
+- É o mesmo cardápio público com carrinho. O amarelo (`signal`) faz no delivery o papel que tem na mesa: marca a
+  ação central do cliente (ver carrinho, avançar no checkout, enviar o pedido). Não use em outras ações do delivery.
+- **Miniaturas são a foto do produto** (`photoOnly` no `MenuCatalog`): `imageThumb`, depois `image`; a capa do vídeo
+  só entra sem foto. Vídeo não toca na lista do delivery; aparece na folha do produto e nos Reels.
+- O "+" sobre a miniatura (`.kd-dish-add`, cor `--k-primary`) adiciona uma unidade sem observação; o selo
+  "N no carrinho" entra de novo a cada item somado. Observação e quantidade ficam na folha do produto.
+- Checkout em 4 etapas (Dados, Entrega, Pagamento, Revisão). O que foi digitado fica na aba
+  (`checkout-draft.ts`): editar o carrinho ou trocar o pagamento não apaga o formulário. A revisão tem "Alterar" ao
+  lado de cada bloco.
+- Pagamento online: o pedido só chega ao restaurante com o pagamento aprovado, e o carrinho só é esvaziado então.
+  A tela sempre oferece "Escolher outra forma de pagamento" (com aviso quando um pagamento pode estar em andamento).
+- Pedido em andamento fica no aparelho por até 12 h: o botão "Acompanhar pedido #000" no topo do cardápio volta ao
+  acompanhamento, que para de consultar quando o pedido termina ou quando a aba fica em segundo plano.
+- Valores em dinheiro digitados passam por `parseMoneyCents` (`lib/format.ts`): vazio é `null`, texto inválido é
+  `NaN` e vira mensagem de erro, nunca R$ 0,00. Campos numéricos do mapa gravam ao sair do campo (`CommitInput`).
+- No painel, cada configuração tem um lugar só: "Taxa e área de entrega" (forma de cobrança, taxa, cidades, mapa) e
+  "Pedido e pagamento" (tempo, mínimo, recado, formas de pagamento). `lib/delivery/readiness.ts` lista o que impede
+  um cliente de concluir pedidos, com o atalho para corrigir.
+
 ## Hierarquia visual
 
 O objetivo não é fazer tudo chamar atenção: é a coisa certa chamar atenção no momento certo.

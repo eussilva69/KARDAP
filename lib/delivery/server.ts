@@ -18,7 +18,7 @@ import type {
   ServedCity,
   StatusHistoryEntry,
 } from "./types";
-import { canTransition, DEFAULT_DELIVERY_CONFIG, isDeliveryStatus, slugifyNeighborhood } from "./types";
+import { canTransition, DEFAULT_DELIVERY_CONFIG, isDeliveryStatus, ONLINE_PAYMENT_METHODS, slugifyNeighborhood } from "./types";
 import { findServedCity, resolveDeliveryFee } from "./match";
 import { isDeliveryChannel, orderChannel } from "@/lib/orders/channels";
 import { shouldActivateOrder } from "./checkout-lifecycle";
@@ -26,6 +26,24 @@ import { resolveMapDeliveryFee, sanitizeMapConfig } from "./map-areas";
 import { geocodeAddress, placeAddress } from "./geo";
 
 const restaurantRef = (id: string) => adminDb().collection("restaurantes").doc(id);
+
+/**
+ * Formas de pagamento online que funcionam neste ambiente: o Pix precisa do token do Mercado Pago; o cartão
+ * também precisa da chave pública do formulário. Sem elas o pedido seria preparado e ficaria parado no pagamento.
+ */
+export function availableOnlineMethods(): Set<string> {
+  const methods = new Set<string>();
+  if (!process.env.MERCADO_PAGO_ACCESS_TOKEN) return methods;
+  methods.add("pix_online");
+  if (process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY) methods.add("cartao_online");
+  return methods;
+}
+
+/** Formas de pagamento que o cliente pode escolher agora (as online só com o gateway configurado). */
+export function customerPaymentMethods(methods: string[]): string[] {
+  const online = availableOnlineMethods();
+  return methods.filter((method) => !ONLINE_PAYMENT_METHODS.has(method) || online.has(method));
+}
 
 // ───────────────────────── Configuração ─────────────────────────
 
@@ -81,6 +99,8 @@ export async function saveDeliveryConfig(restaurantId: string, uid: string, patc
     }
     if (Array.isArray(patch.paymentMethods)) {
       safe.paymentMethods = patch.paymentMethods.filter((m): m is string => typeof m === "string" && m.length <= 40).slice(0, 10);
+      // Sem nenhuma forma de pagamento, todo checkout falharia no fim ("forma de pagamento não habilitada").
+      if (!safe.paymentMethods.length) throw new BillingError("payment_required", 400, "Selecione ao menos uma forma de pagamento.");
     }
     if (typeof patch.notes === "string") safe.notes = patch.notes.slice(0, 500);
     if (typeof patch.feeMode === "string" && (patch.feeMode === "taxa_fixa" || patch.feeMode === "taxa_por_bairro" || patch.feeMode === "area_mapa")) {
@@ -318,6 +338,9 @@ export async function createDeliveryOrder(payload: DeliveryCheckoutPayload, cust
   const paymentMethod = typeof payload.paymentMethod === "string" ? payload.paymentMethod.trim().slice(0, 40) : "";
   if (!paymentMethod) throw new BillingError("invalid_payment", 400, "Selecione a forma de pagamento.");
   if (!config.paymentMethods.includes(paymentMethod)) throw new BillingError("payment_disabled", 400, "Esta forma de pagamento não está habilitada pelo restaurante.");
+  if (ONLINE_PAYMENT_METHODS.has(paymentMethod) && !availableOnlineMethods().has(paymentMethod)) {
+    throw new BillingError("payment_unavailable", 400, "O pagamento online está indisponível no momento. Escolha outra forma de pagamento.");
+  }
 
   const productIds = Array.from(new Set(payload.items.map((i) => i.productId)));
   const productSnaps = await Promise.all(productIds.map((id) => ref.collection("produtos").doc(id).get()));

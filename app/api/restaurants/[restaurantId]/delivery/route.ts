@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { authenticate, json, errorResponse, preflight, readJson } from "@/lib/billing/http";
-import { getDeliveryConfigForTeam, getDeliveryMapOrigin, saveDeliveryConfig } from "@/lib/delivery/server";
+import { availableOnlineMethods, getDeliveryConfigForTeam, getDeliveryMapOrigin, saveDeliveryConfig } from "@/lib/delivery/server";
 import { monthlyUsage, getSubscriptionEntitlements } from "@/lib/billing/server";
 
 /**
@@ -37,6 +37,8 @@ export async function GET(req: NextRequest, { params }: { params: { restaurantId
       planAllowsDelivery: entitlements.features.deliveryManagement,
       subscriptionValid: entitlements.valid,
       mapOrigin,
+      // Quais formas de pagamento online funcionam neste ambiente (o painel explica as que não aparecem para o cliente).
+      onlinePaymentMethods: Array.from(availableOnlineMethods()),
     });
   } catch (error) {
     return errorResponse(req, "delivery config", error);

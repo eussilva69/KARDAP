@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bike, Check, ChefHat, Home, Package, Receipt, X } from "lucide-react";
-import { Button, ButtonLink } from "@/components/ui/primitives";
+import { useEffect, useRef, useState } from "react";
+import { Bike, Check, ChefHat, Clock, Home, Package, Receipt, WifiOff, X } from "lucide-react";
+import { Button } from "@/components/ui/primitives";
 
 const STEPS = [
   { status: "pendente", label: "Pedido recebido", icon: Receipt },
@@ -12,6 +12,8 @@ const STEPS = [
   { status: "saiu_para_entrega", label: "Saiu para entrega", icon: Bike },
   { status: "entregue", label: "Entregue", icon: Home },
 ] as const;
+
+const TERMINAL = new Set(["entregue", "cancelado", "recusado"]);
 
 type TrackingData = {
   status: string;
@@ -24,29 +26,44 @@ type TrackingData = {
   cancelReason?: string;
 };
 
-/** Pedido enviado: acompanha o status consultando a API a cada 8 segundos. */
+const clock = (iso?: string) => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+};
+
+/**
+ * Pedido enviado: acompanha o status consultando a API a cada 8 segundos enquanto a aba está visível.
+ * Para de consultar quando o pedido termina (entregue, cancelado ou recusado) e avisa `onSettled` uma vez.
+ */
 export function OrderTracking({
   orderId,
   orderNumber,
   restaurantId,
   restaurantName,
   onNewOrder,
-  menuHref,
+  onSettled,
 }: {
   orderId: string;
   orderNumber: number;
   restaurantId: string;
   restaurantName: string;
   onNewOrder: () => void;
-  menuHref: string;
+  onSettled?: () => void;
 }) {
   const [tracking, setTracking] = useState<TrackingData | null>(null);
   const [trackError, setTrackError] = useState(false);
+  const settledRef = useRef(onSettled);
+  settledRef.current = onSettled;
+
+  const status = tracking?.status || "pendente";
+  const finished = TERMINAL.has(status);
 
   useEffect(() => {
-    if (!restaurantId || !orderId) return;
+    if (!restaurantId || !orderId || finished) return;
     let cancelled = false;
     const poll = async () => {
+      if (document.hidden) return;
       try {
         const res = await fetch(`/api/delivery/orders/${encodeURIComponent(orderId)}/status?restaurantId=${encodeURIComponent(restaurantId)}`);
         if (!res.ok) throw new Error();
@@ -61,35 +78,51 @@ export function OrderTracking({
     };
     poll();
     const interval = setInterval(poll, 8000);
+    const onVisible = () => !document.hidden && poll();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [restaurantId, orderId]);
+  }, [restaurantId, orderId, finished]);
 
-  const status = tracking?.status || "pendente";
+  useEffect(() => {
+    if (finished) settledRef.current?.();
+  }, [finished]);
+
   const cancelled = status === "cancelado" || status === "recusado";
   const delivered = status === "entregue";
-  const waitingRestaurant = tracking?.operationalReady === true && status === "pendente";
   const current = Math.max(0, STEPS.findIndex((s) => s.status === status));
-  const timeOf = (step: string) => {
-    const entry = tracking?.statusHistory?.find((h) => h.status === step);
-    if (!entry) return null;
-    const date = new Date(entry.at);
-    return Number.isNaN(date.getTime()) ? null : date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  };
+  const currentStep = STEPS[current];
+  const timeOf = (step: string) => clock(tracking?.statusHistory?.find((h) => h.status === step)?.at);
+
+  const title = cancelled
+    ? status === "recusado"
+      ? "Pedido recusado"
+      : "Pedido cancelado"
+    : delivered
+      ? "Pedido entregue"
+      : !tracking
+        ? "Pedido enviado"
+        : status === "pendente"
+          ? "Aguardando o restaurante aceitar"
+          : currentStep.label;
+  const HeadIcon = cancelled ? X : !tracking || status === "pendente" ? Clock : currentStep.icon;
+  const updated = clock(tracking?.updatedAt);
 
   return (
     <div className="kd-track">
       <header className="kd-track-head" role="status">
-        <span className={`kd-sheet-done-icon ${cancelled ? "is-cancelled" : ""}`} aria-hidden>
-          {cancelled ? <X size={30} strokeWidth={2.6} /> : <Check size={30} strokeWidth={2.6} />}
+        <span key={status} className={`kd-sheet-done-icon ${cancelled ? "is-cancelled" : status === "pendente" ? "is-neutral" : ""}`} aria-hidden>
+          <HeadIcon size={30} strokeWidth={2.4} />
         </span>
-        <h1>{delivered ? "Pedido entregue!" : cancelled ? (status === "recusado" ? "Pedido recusado" : "Pedido cancelado") : waitingRestaurant ? "Aguardando confirmação do restaurante" : "Pedido enviado!"}</h1>
+        <h1>{title}</h1>
         <p>
           Pedido <b className="kd-num">#{String(orderNumber).padStart(3, "0")}</b> · {restaurantName}
         </p>
         {cancelled && <p className="kd-muted">{tracking?.cancelReason || (status === "recusado" ? "O restaurante não pôde aceitar seu pedido no momento." : "Este pedido foi cancelado.")}</p>}
+        {!cancelled && status === "pendente" && tracking && <p className="kd-muted">Assim que o restaurante aceitar, o andamento aparece aqui.</p>}
       </header>
 
       {!cancelled && (
@@ -113,15 +146,27 @@ export function OrderTracking({
         </ol>
       )}
 
-      {trackError && !tracking && <p className="kd-muted">Não foi possível carregar o acompanhamento. Atualize a página.</p>}
+      {trackError && (
+        <p className="kd-track-offline" role="status">
+          <WifiOff size={15} aria-hidden />
+          {tracking ? `Sem conexão. Mostrando a situação de ${updated || "antes"}; tentamos de novo sozinhos.` : "Não foi possível carregar o acompanhamento. Tentamos de novo em instantes."}
+        </p>
+      )}
+      {!trackError && updated && !finished && <p className="kd-track-updated kd-num">Atualizado às {updated} · a tela atualiza sozinha</p>}
 
       <div className="kd-track-actions">
-        <Button variant="signal" size="lg" block onClick={onNewOrder}>
-          Fazer novo pedido
-        </Button>
-        <ButtonLink variant="secondary" size="lg" block href={menuHref}>
-          Ver o cardápio
-        </ButtonLink>
+        {finished ? (
+          <Button variant="signal" size="lg" block onClick={onNewOrder}>
+            Fazer novo pedido
+          </Button>
+        ) : (
+          <>
+            <Button variant="secondary" size="lg" block onClick={onNewOrder}>
+              Voltar ao cardápio
+            </Button>
+            <p className="kd-track-hint">Você continua acompanhando este pedido pelo botão no topo do cardápio.</p>
+          </>
+        )}
       </div>
     </div>
   );

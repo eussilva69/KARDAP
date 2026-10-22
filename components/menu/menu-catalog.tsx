@@ -67,6 +67,8 @@ const CatalogRow = memo(function CatalogRow({
   categoryLabel,
   onOpen,
   dishNote,
+  dishAction,
+  photoOnly,
 }: {
   dish: Dish;
   index: number;
@@ -74,8 +76,10 @@ const CatalogRow = memo(function CatalogRow({
   categoryLabel?: string;
   onOpen: (index: number) => void;
   dishNote?: DishNote;
+  dishAction?: DishNote;
+  photoOnly?: boolean;
 }) {
-  return <DishRow dish={dish} categoryLabel={categoryLabel} autoplay={autoplay} onOpen={() => onOpen(index)} note={dishNote?.(dish)} />;
+  return <DishRow dish={dish} categoryLabel={categoryLabel} autoplay={autoplay} onOpen={() => onOpen(index)} note={dishNote?.(dish)} action={dishAction?.(dish)} photoOnly={photoOnly} />;
 });
 
 /**
@@ -91,6 +95,8 @@ export const MenuCatalog = memo(function MenuCatalog({
   onOpenDish,
   onOpenReels,
   dishNote,
+  dishAction,
+  photoOnly = false,
 }: {
   sections: Section[];
   allDishes: Dish[];
@@ -104,6 +110,10 @@ export const MenuCatalog = memo(function MenuCatalog({
   onOpenReels?: () => void;
   /** Informação extra abaixo do preço (ex.: quantidade no carrinho do delivery). */
   dishNote?: DishNote;
+  /** Ação rápida sobre a miniatura de cada prato (ex.: adicionar ao carrinho). */
+  dishAction?: DishNote;
+  /** Miniaturas com a foto do produto em vez do vídeo (delivery). */
+  photoOnly?: boolean;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -238,7 +248,7 @@ export const MenuCatalog = memo(function MenuCatalog({
           {results.length ? (
             <ul className="kd-dish-list">
               {results.map((dish, i) => (
-                <CatalogRow key={dish.id || `${dish.name}-${i}`} dish={dish} index={i} categoryLabel={dish.category} autoplay={autoplay} onOpen={openInResults} dishNote={dishNote} />
+                <CatalogRow key={dish.id || `${dish.name}-${i}`} dish={dish} index={i} categoryLabel={dish.category} autoplay={autoplay} onOpen={openInResults} dishNote={dishNote} dishAction={dishAction} photoOnly={photoOnly} />
               ))}
             </ul>
           ) : (
@@ -264,7 +274,7 @@ export const MenuCatalog = memo(function MenuCatalog({
               </header>
               <ul className="kd-dish-list">
                 {section.dishes.map((dish, j) => (
-                  <CatalogRow key={dish.id || `${dish.name}-${j}`} dish={dish} index={start + j} autoplay={autoplay} onOpen={openInMenu} dishNote={dishNote} />
+                  <CatalogRow key={dish.id || `${dish.name}-${j}`} dish={dish} index={start + j} autoplay={autoplay} onOpen={openInMenu} dishNote={dishNote} dishAction={dishAction} photoOnly={photoOnly} />
                 ))}
               </ul>
             </section>
