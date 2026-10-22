@@ -37,14 +37,14 @@ function DishPhoto({ dish, onClick }: { dish: Dish; onClick?: () => void }) {
   if (!src) return null;
   return (
     // Toque na foto abre o prato, como o nome (o botão acessível da linha); a foto em si é decorativa (alt vazio).
-    <span className="kd-dish-media" onClick={onClick}>
+    <span
+      className="kd-dish-media"
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => (e.key === "Enter" || e.key === " ") && onClick() : undefined}
+    >
       <img src={src} alt="" width={112} height={112} loading="lazy" decoding="async" />
-      {dish.videoUrl && (
-        <span className="kd-dish-video-tag">
-          <Play size={10} fill="currentColor" aria-hidden />
-          Vídeo
-        </span>
-      )}
     </span>
   );
 }
@@ -118,7 +118,7 @@ export function DishRow({
   autoplay,
   categoryLabel,
   note,
-  photoOnly = false,
+  photoOnly = true,
   action,
 }: {
   dish: Dish;
@@ -127,7 +127,7 @@ export function DishRow({
   categoryLabel?: string;
   /** Linha extra abaixo do preço (o delivery mostra quantos já estão no carrinho). */
   note?: React.ReactNode;
-  /** Miniatura com a foto do produto, sem vídeo tocando na lista (delivery). */
+  /** Miniatura com a foto do produto, sem vídeo tocando na lista. O vídeo só carrega ao abrir o prato. */
   photoOnly?: boolean;
   /** Ação rápida sobre a miniatura (o "+" do delivery). Fica fora do botão do prato: um controle não vai dentro do outro. */
   action?: React.ReactNode;

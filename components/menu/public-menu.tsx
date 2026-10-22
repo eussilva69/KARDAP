@@ -232,6 +232,7 @@ export default function PublicMenu({
           emptyText={`A equipe ainda está cadastrando os pratos. ${settings.waiter ? "Se quiser, chame alguém para ver as opções do dia." : ""}`}
           onOpenDish={openDish}
           onOpenReels={videoDishes.length > 0 ? openReels : undefined}
+          photoOnly
         />
         {isDemo && <p className="kd-menu-demo-note">Cardápio de demonstração do KARDAP · dados e pedidos simulados</p>}
       </div>

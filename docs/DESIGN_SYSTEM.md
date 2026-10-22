@@ -136,8 +136,8 @@ indicador "ao vivo" dos chamados, desligado em movimento reduzido.
 ## Cardápio público
 
 - Segue o tema do celular do cliente (`prefers-color-scheme: dark` em `.kd-menu-page`).
-- Vídeos da lista só são criados perto da tela e só tocam visíveis; com economia de dados ou movimento
-  reduzido não tocam sozinhos.
+- **Miniaturas na lista são a foto do produto** (`photoOnly` no `MenuCatalog`): o vídeo não é carregado na lista,
+  apenas quando o cliente toca para abrir o produto (no Reels em tela cheia) ou através do trilho de vídeos no topo.
 - A ordem e a visibilidade das seções vêm das categorias do painel (`watchPublicRestaurantCategories`).
   Se a leitura das categorias falhar, o cardápio agrupa pelo nome salvo em cada produto.
 

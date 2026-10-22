@@ -310,7 +310,7 @@ await test("B1", "Cardápio público: categorias, produtos, mídia e aviso discr
 });
 
 await test("B2", "Reels: vídeo toca e rola para o próximo", async () => {
-  const has = await phone.evaluate(`document.querySelectorAll(".kd-dish video, .kd-dish-video-tag").length`);
+  const has = await phone.evaluate(`document.querySelectorAll(".kd-reels-rail button, .kd-dish video, .kd-dish-video-tag").length`);
   expect(has > 0, "nenhum prato com vídeo (rode o seed com mídia)");
   const opened = await phone.evaluate(`(() => { const b = document.querySelector(".kd-reels-rail button, [class*=rail] button"); if (!b) return false; b.click(); return true; })()`);
   expect(opened, "atalho de Reels não encontrado");

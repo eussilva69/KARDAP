@@ -96,7 +96,7 @@ export const MenuCatalog = memo(function MenuCatalog({
   onOpenReels,
   dishNote,
   dishAction,
-  photoOnly = false,
+  photoOnly = true,
 }: {
   sections: Section[];
   allDishes: Dish[];
@@ -112,7 +112,7 @@ export const MenuCatalog = memo(function MenuCatalog({
   dishNote?: DishNote;
   /** Ação rápida sobre a miniatura de cada prato (ex.: adicionar ao carrinho). */
   dishAction?: DishNote;
-  /** Miniaturas com a foto do produto em vez do vídeo (delivery). */
+  /** Miniaturas com a foto do produto em vez do vídeo na lista. */
   photoOnly?: boolean;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
