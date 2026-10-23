@@ -1,0 +1,6 @@
+# Configuração de subagentes do Codex para este repositório.
+# Aplica-se somente a repositórios marcados como confiáveis pelo Codex.
+# Não muda a política de aprovações nem os limites da sandbox do usuário.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
