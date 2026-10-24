@@ -1,184 +1,208 @@
-# GUIA DE SUBAGENTES | Claude Code + Gemini CLI + Codex
+# GUIA DE AGENTES E SKILLS: REGISTRO CONSOLIDADO
 
-## 1. Onde cada ferramenta lê os agentes
+> **Origem e escopo da contagem:** 52 agentes e 1 skill (`search-first`) foram INFORMADOS no feedback do usuário, e os arquivos locais desses 52 não foram fornecidos integralmente. Os 22 agentes e 30 skills foram gerados no complemento anterior; os 6 agentes e 12 skills estão neste pacote. **80 agentes e 43 skills são o INVENTÁRIO ESPERADO**, não uma verificação da pasta real. Execute o verificador/inventário local para confirmar o que existe.
 
-- **Claude Code**: `.claude/agents/*.md`, arquivos Markdown com YAML frontmatter (`name`, `description`, `tools`).
-- **Gemini CLI**: `.gemini/agents/*.md`, arquivos Markdown com YAML frontmatter (`name`, `description`, `kind: "local"`, opcionalmente `tools`).
-- **Codex (CLI/IDE)**: `.codex/agents/*.toml`, cada arquivo TOML com `name`, `description` e `developer_instructions`. O arquivo `.codex/config.toml` habilita a execução de subagentes delegados e configura concorrência.
-- `CLAUDE.md`, `GEMINI.md` e `AGENTS.md` continuam sendo os arquivos de **instrução principal** de cada ferramenta na raiz do repositório.
-- O kit contém **51 perfis de especialistas equivalentes** nas três ferramentas, totalizando **153 definições** prontas para uso.
+## Contagens esperadas
 
----
+| Etapa | Agentes por ferramenta | Skills únicas | Situação |
+|---|---:|---:|---|
+| Base declarada no feedback | 52 | 1 | Não verificada integralmente neste ambiente |
+| Complemento anterior | +22 | +30 | Disponível no pacote complementar anterior |
+| Novo complemento | +6 | +12 | Incluído neste ZIP |
+| **Total previsto após integração** | **80** | **43** | Depende de instalar e confirmar os arquivos anteriores |
 
-## 2. Fusões e Deduplicações Aplicadas
+Cada agente possui formatos próprios para Claude (`.claude/agents/*.md`), Gemini (`.gemini/agents/*.md`) e Codex (`.codex/agents/*.toml`). Skills do Codex/Gemini em `.agents/skills/*/SKILL.md` e Claude em `.claude/skills/*/SKILL.md`.
 
-Para evitar redundância e entregar a máxima potência técnica, os agentes dos repositórios base foram integrados e deduplicados:
+## Agentes da base (52, conforme relatório, NÃO verificados nesta entrega)
 
-1. **`agent-organizer`** (lst97 + VAMFI `chief-architect`): Unifica orquestração inteligente de times (1 a 3 especialistas) com o *Think Protocol* da Anthropic (`think`, `think hard`, `think harder`, `ultrathink`) e decomposição em 3 fases de execução.
-2. **`implementation-planner`** (VAMFI `implementation-planner` + `brahma-analyzer`): Unifica criação de planos cirúrgicos e reversíveis com análise de consistência cruzada entre artefatos (spec -> plan -> task -> code) e pontuação de qualidade mínima de 80.
-3. **`deployment-engineer`** (lst97 + VAMFI `brahma-deployer`): Unifica automação de CI/CD, Docker e Kubernetes com estratégia de release canário, health probes contínuos e auto-rollback imediato.
-4. **`debugger`** (lst97 + VAMFI `brahma-investigator`): Unifica diagnóstico de testes/erros com investigação profunda da causa raiz (não remediar apenas sintomas) e ciclo disciplinado de auto-correção em até 3 tentativas.
-5. **`performance-engineer`** (lst97 + VAMFI `brahma-optimizer`): Unifica profiling de gargalos de código/memória com auto-scaling horizontal/vertical e ciclo sistemático (Measure, Optimize, Scale, Validate).
-6. **`full-stack-developer`** (lst97 + VAMFI `code-implementer`): Unifica desenvolvimento completo (UI ao banco) com execução cirúrgica orientada a planos e ciclo PDCA estrito guiado por testes.
-7. **`incident-responder`** (lst97 `incident-responder` + `devops-incident-responder`): Unifica comando de incidentes (Incident Commander, triagem dos primeiros 5 minutos, war room e post-mortem sem culpa) com remediação técnica em containers e Kubernetes.
-8. **`observability-engineer`** (VAMFI `brahma-monitor`): Focado nos 3 pilares da observabilidade (Métricas, Logs estruturados e Distributed Tracing com OpenTelemetry).
-9. **`docs-researcher`** (VAMFI): Pesquisa rápida de documentações oficiais e atualizadas antes da codificação, evitando alucinações de APIs obsoletas.
-10. **`electron-pro`**: Padronização e correção ortográfica do nome do arquivo (originalmente `electorn-pro.md`).
+### Orquestração e planejamento
 
----
+- `agent-organizer`
+- `implementation-planner`
 
-## 3. Catálogo Completo dos 51 Agentes
+### Kit especializado PT-BR
 
-### A. Orquestração Meta & Planejamento
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `agent-organizer` | Orquestração & Análise | Analisa o projeto, seleciona times ideais e orquestra workflows multi-agente com Think Protocol |
-| `implementation-planner` | Planejamento & Consistência | Elabora planos cirúrgicos reversíveis e valida consistência entre especificação, tarefas e código |
+- `arquitetura-sistema`
+- `especialista-frontend`
+- `especialista-backend-jobs`
+- `especialista-design-system`
+- `especialista-imagens`
+- `especialista-mobile-a11y`
+- `especialista-performance`
+- `especialista-seguranca-privacidade`
+- `especialista-seo`
+- `especialista-testes-qa`
+- `especialista-ux-ui`
+- `revisor-independente`
 
-### B. Especialistas Centrais do Kit Base (PT-BR)
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `arquitetura-sistema` | Auditoria (Read-only) | Mapeia camadas, dependências, rotas e decisões estruturais sem alterar código |
-| `especialista-frontend` | Implementação | Componentes, formulários, estados, navegação e interatividade preservando contratos |
-| `especialista-backend-jobs` | Implementação | Filas, tarefas assíncronas, retries, webhooks, idempotência e APIs resilientes |
-| `especialista-design-system` | Implementação | Tokens de design, tipografia, espaçamento e identidade autêntica sem templates genéricos |
-| `especialista-imagens` | Implementação & Design | Seleciona, licencia, gera e integra imagens e assets visuais com acessibilidade e performance |
-| `especialista-mobile-a11y` | Implementação | Responsividade mobile-first, alvos de toque (48x48px), WCAG 2.2 AA, Safari iOS e Android |
-| `especialista-performance` | Implementação | Core Web Vitals (LCP, INP, CLS), redução de bundle, fontes e carregamento eficiente |
-| `especialista-seguranca-privacidade` | Auditoria (Read-only) | Auditoria de autenticação, LGPD, permissões, proteção de dados e segredos |
-| `especialista-seo` | Implementação | Rastreamento, indexação, canonical, meta tags, OpenGraph e dados estruturados Schema.org |
-| `especialista-testes-qa` | Testes & QA | Criação e execução de testes reais, evidências, cenários de falha e prevenção de regressão |
-| `especialista-ux-ui` | Auditoria (Read-only) | Avaliação heurística de Nielsen, prevenção de "Norman Doors", microcopy e hierarquia |
-| `revisor-independente` | Auditoria (Read-only) | Code review independente pós-implementação com foco em riscos reais e regressões |
+### Frontend e mobile
 
-### C. Desenvolvimento Full-Stack, Linguagens & Frameworks
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `full-stack-developer` | Implementação | Desenvolvimento ponta a ponta (UI ao banco) com precisão cirúrgica e validação por testes |
-| `frontend-developer` | Implementação | Desenvolvimento de UI moderno com React/Vue/Angular, layout responsivo e estado cliente |
-| `backend-architect` | Implementação / Design | Arquitetura backend, APIs RESTful, limites de microserviços, resiliência e modelagem |
-| `react-pro` | Implementação | Especialista avançado em React (hooks personalizados, renderização, context e performance) |
-| `nextjs-pro` | Implementação | Especialista em Next.js (App Router, Server Components, SSR/SSG e Server Actions) |
-| `typescript-pro` | Implementação | Tipagem estrita avançada, refatorações typesafe, generics e contratos de interface |
-| `python-pro` | Implementação | Python idiomático e moderno (FastAPI, Django, tipagem estrita, async e packaging) |
-| `golang-pro` | Implementação | Go idiomático de alto desempenho (goroutines, canais, microsserviços e ferramentas CLI) |
-| `mobile-developer` | Implementação | Aplicativos mobile cross-platform (React Native, Flutter) e pontes com APIs nativas |
-| `electron-pro` | Implementação | Aplicações desktop multiplataforma com Electron, comunicação IPC segura e empacotamento |
-| `dx-optimizer` | Implementação | Developer Experience (tooling, linters, scripts de automação, monorepos e pipelines locais) |
-| `legacy-modernizer` | Implementação | Refatoração de código legado, migração gradual de versões e modernização com baixo risco |
+- `frontend-developer`
+- `react-pro`
+- `nextjs-pro`
+- `mobile-developer`
+- `electron-pro`
+- `ui-designer`
+- `ux-designer`
 
-### D. UI, UX & Design
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `ui-designer` | Design & UI | Criação visual de interfaces, componentes acessíveis, consistência estética e design system |
-| `ux-designer` | Design & UX | Arquitetura de informação, fluxos de usuário, wireframes, usabilidade e redução de fricção |
+### Backend e linguagens
 
-### E. Infraestrutura, Cloud & SRE
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `cloud-architect` | Arquitetura Cloud | Arquitetura em nuvem (AWS/Azure/GCP), IaC (Terraform), topologia de rede e otimização de custo |
-| `deployment-engineer` | CI/CD & Release | Pipelines de CI/CD, Docker, Kubernetes, releases canário e estratégias de zero-downtime |
-| `incident-responder` | SRE & Emergências | Incident Commander para triagem imediata de crises, war rooms, post-mortem e mitigação DevOps |
-| `observability-engineer` | Observabilidade | Configuração dos 3 pilares: Métricas (Prometheus), Logs JSON e Tracing (OpenTelemetry) |
-| `performance-engineer` | Performance & Escala | Profiling de CPU/memória, benchmarks de carga (k6/wrk), caching multi-nível e auto-scaling |
+- `full-stack-developer`
+- `backend-architect`
+- `typescript-pro`
+- `python-pro`
+- `golang-pro`
+- `graphql-architect`
+- `postgres-pro`
+- `database-optimizer`
 
-### F. Qualidade, Testes & Diagnóstico
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `debugger` | Diagnóstico & Fix | Investigação sistemática da causa raiz de bugs, análise de stack traces e fixes com 3 retries |
-| `code-reviewer` | Auditoria (Read-only) | Revisão rigorosa de código, qualidade, segurança, clareza e conformidade técnica |
-| `architect-review` | Auditoria (Read-only) | Revisão arquitetural de PRs, SOLID, clean architecture e acoplamento indevido |
-| `qa-expert` | Estratégia QA | Estratégias completas de teste, planos de garantia de qualidade e critérios de aceite |
-| `test-automator` | Implementação de Testes | Automação completa de suítes de teste (unitários, integração e E2E com Jest, Vitest, Playwright) |
+### Cloud, DevOps e SRE
 
-### G. Dados & Inteligência Artificial
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `ai-engineer` | Implementação de IA | Aplicações com LLMs, sistemas RAG, busca vetorial e orquestração de workflows de IA |
-| `prompt-engineer` | Engenharia de Prompts | Criação e otimização de prompts avançados (Few-shot, Chain-of-Thought, ReAct) e métricas |
-| `ml-engineer` | MLOps & Machine Learning | Pipelines de ML, feature engineering, serving de modelos e monitoramento de drift |
-| `data-engineer` | Engenharia de Dados | Pipelines ETL/ELT escaláveis, modelagem de dados, data warehouses e data lakes |
-| `data-scientist` | Análise de Dados | Consultas analíticas SQL avançadas, BigQuery, estatística aplicada e insights de dados |
-| `database-optimizer` | Banco de Dados | Otimização de queries SQL, estratégias de indexação, profiling com EXPLAIN e tuning |
-| `postgres-pro` | Especialista Postgres | Recursos avançados de PostgreSQL, extensões, particionamento e ajuste de performance |
-| `graphql-architect` | Arquitetura GraphQL | Schemas GraphQL eficientes, resolvers otimizados (DataLoader), federation e subscriptions |
+- `cloud-architect`
+- `deployment-engineer`
+- `incident-responder`
+- `observability-engineer`
+- `performance-engineer`
 
-### H. Segurança
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `security-auditor` | Auditoria (Read-only) | Identificação de vulnerabilidades (OWASP), análise de autenticação, segredos e pen-testing |
+### Qualidade e depuração
 
-### I. Documentação & Pesquisa
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `docs-researcher` | Pesquisa (Read-only) | Pesquisa rápida de documentação oficial recente para ancorar o código em fatos verificados |
-| `api-documenter` | Documentação Técnica | Especificações OpenAPI/Swagger, coleções Postman, SDK guides e contratos de API |
-| `documentation-expert` | Documentação Geral | Redação técnica profissional, manuais, guias de arquitetura e manutenção de READMEs |
+- `debugger`
+- `code-reviewer`
+- `architect-review`
+- `qa-expert`
+- `test-automator`
 
-### J. Produto & Negócios
-| Agente | Operação | Finalidade Principal |
-|---|---|---|
-| `product-manager` | Estratégia de Produto | Definição de requisitos, histórias de usuário, critérios de sucesso e roadmap de produto |
+### IA e dados
 
----
+- `ai-engineer`
+- `prompt-engineer`
+- `ml-engineer`
+- `data-engineer`
+- `data-scientist`
 
-## 4. Como Acionar os Agentes
+### Segurança
 
-### Claude Code
-1. Digite `/agents` no chat do Claude Code para visualizar a lista completa de especialistas carregados.
-2. Para delegar:
-   > "Delegue ao subagente `agent-organizer` a análise da arquitetura e a formação da equipe necessária para a tarefa X."
-   > "Peça ao `docs-researcher` que pesquise a API oficial da biblioteca Y antes de começarmos a implementação."
-   > "Use o `debugger` para investigar a causa raiz do erro no arquivo Z sem aplicar remendos superficiais."
+- `security-auditor`
 
-### Gemini CLI
-1. Digite `/agents` no Gemini CLI para listar os agentes locais registrados em `.gemini/agents/*.md`.
-2. Para acionar um especialista específico:
-   > `@agent-organizer Analise as dependências e recomende a sequência de especialistas para refatorar o módulo de autenticação.`
-   > `@debugger Investigue o stack trace do erro de timeout no banco de dados.`
+### Documentação, pesquisa e produto
 
-### OpenAI Codex
-1. Inicie uma nova sessão na raiz do projeto (onde o arquivo `.codex/config.toml` está ativo).
-2. Para delegar:
-   > "Consulte o subagente `agent-organizer` para planejar as fases da tarefa e acione o `full-stack-developer` para implementar a alteração aprovada."
+- `docs-researcher`
+- `search-first`
+- `api-documenter`
+- `documentation-expert`
+- `dx-optimizer`
+- `legacy-modernizer`
+- `product-manager`
 
----
+## Agentes do complemento anterior (22, arquivos no pacote anterior)
 
-## 5. Fluxo de Trabalho Multi-Agente Recomendado
+### Sistemas distribuídos e baixo nível
 
-```
-               [Usuário / Solicitação]
-                          │
-                          ▼
-                  agent-organizer
-              (Analisa + Think Protocol)
-                          │
-       ┌──────────────────┼──────────────────┐
-       ▼                  ▼                  ▼
- docs-researcher   implementation-planner  ui-designer / ux-designer
- (Pesquisa oficial) (Plano cirúrgico + QA) (Arquitetura visual / UX)
-       │                  │                  │
-       └──────────────────┬──────────────────┘
-                          │
-                          ▼
-      full-stack-developer / especialista-*
-               (Execução cirúrgica + PDCA)
-                          │
-       ┌──────────────────┴──────────────────┐
-       ▼                                     ▼
-test-automator / qa-expert           code-reviewer / revisor-independente
-  (Testes automatizados)                (Revisão independente de diffs)
-                          │
-                          ▼
-                 deployment-engineer
-               (Release canário seguro)
-```
+- `distributed-systems-architect`
+- `rust-systems-engineer`
+- `cpp-kernel-engineer`
+- `java-enterprise-architect`
 
----
+### LLMOps e recuperação
 
-## 6. Diretrizes de Segurança e Boas Práticas
+- `llm-evals-engineer`
+- `model-alignment-finetuner`
+- `multi-agent-orchestrator`
+- `vector-search-engineer`
+- `edge-ai-quantization-specialist`
 
-- **Permissões Reais**: Agentes de auditoria (`Read-only`) foram configurados sem ferramentas de escrita. No Codex, a sandbox é compartilhada com o processo pai; portanto, sempre verifique o modo de aprovação.
-- **Não Concorrência**: Nunca delegue edições simultâneas no mesmo arquivo para agentes diferentes. Conclua a tarefa de um implementador antes de iniciar outro.
-- **Evidências Reais**: Nenhum agente pode assumir resultados de testes que não foram efetivamente executados no terminal local.
-- **Segredos e Produção**: Nenhum agente tem permissão para commitar, dar push, deploy em produção ou expor chaves de API sem autorização explícita do usuário.
+### Segurança avançada
+
+- `red-team-pentester`
+- `llm-security-red-teamer`
+- `blue-team-soc-analyst`
+- `cryptography-privacy-engineer`
+
+### Plataforma e resiliência
+
+- `platform-engineer`
+- `chaos-engineer`
+- `finops-cloud-economist`
+- `dbre-reliability-engineer`
+- `network-edge-architect`
+
+### Governança e growth
+
+- `tech-lead-cto`
+- `growth-experimentation-engineer`
+- `reverse-engineer`
+- `accessibility-i18n-lead`
+
+## Novos agentes desta expansão (6, arquivos incluídos)
+
+- **`payments-fintech-architect`**: Arquitetura de pagamentos, conciliação e livro-razão; Projetar e revisar fluxos monetários com rastreabilidade, correção contábil e resistência a duplicidades; aplica-se a Pix, cartões, assinaturas, repasses e gateways.
+- **`iam-auth-architect`**: Arquitetura IAM, OAuth/OIDC e autorização granular; Desenhar e auditar identidade, sessões, SSO e políticas de autorização consistentes entre frontend, APIs e serviços.
+- **`native-ios-engineer`**: Engenharia iOS nativa com Swift e SwiftUI; Implementar e revisar apps nativos iOS com integridade de concorrência, acessibilidade e integração adequada com o ecossistema Apple.
+- **`native-android-engineer`**: Engenharia Android nativa com Kotlin e Jetpack Compose; Implementar experiências Android nativas robustas, acessíveis e eficientes em bateria, lifecycle e background work.
+- **`analytics-engineer`**: Analytics engineering com dbt, métricas e contratos de dados; Transformar dados brutos em modelos analíticos confiáveis e métricas de negócio definidas de forma consistente.
+- **`compliance-dpo-officer`**: Governança de dados, privacidade e controles de conformidade; Mapear tratamento de dados e apoiar implementação técnica de controles de privacidade e evidências de governança regulatória.
+
+## Skills da base e da expansão anterior (31 previstas)
+
+- `search-first` (skill inicial declarada; arquivo não fornecido neste pacote).
+
+- `agent-context-compression`
+- `architecture-decision-records-adr`
+- `clean-architecture-ddd-mapping`
+- `contract-testing-pact`
+- `dependency-security-remediation`
+- `distributed-load-testing-k6`
+- `docker-multi-stage-distroless`
+- `event-sourcing-snapshotting`
+- `flamegraph-profiling-analysis`
+- `incident-postmortem-rca`
+- `k8s-pod-hardening-budget`
+- `llm-jailbreak-redteaming`
+- `memory-leak-detection`
+- `mutation-testing-analysis`
+- `nielsen-heuristic-evaluation`
+- `owasp-api-top10-audit`
+- `playwright-flaky-test-elimination`
+- `prompt-dspy-optimization`
+- `property-based-testing`
+- `rag-triad-evaluation`
+- `redis-cache-stampede-prevention`
+- `secrets-zero-leakage-audit`
+- `sql-explain-analyze-mastery`
+- `structured-output-enforcement`
+- `synthetic-dataset-generator`
+- `terraform-idempotent-modules`
+- `threat-modeling-stride`
+- `vector-index-benchmarking`
+- `wcag-22-audit-checklist`
+- `zero-downtime-migrations`
+
+## Skills novas nesta expansão (12, arquivos incluídos)
+
+- **`double-entry-accounting-ledger`**: Projetar e validar livro-razão de partidas dobradas para pagamentos, saldos, estornos e conciliação; usar quando dinheiro muda de titularidade.
+- **`stripe-webhook-reconciliation`**: Processar webhooks Stripe e PSPs de forma autenticada, idempotente, resiliente e conciliável; usar quando pagamentos dependem de eventos assíncronos.
+- **`oauth2-pkce-jwt-rotation`**: Auditar OAuth/OIDC Authorization Code + PKCE, sessões, rotação de refresh tokens e autorização de APIs sem expor credenciais.
+- **`bundle-budget-tree-shaking`**: Investigar tamanho de bundles e definir budgets por rota com análise real, code splitting e tree-shaking seguro.
+- **`form-validation-zod-react-hook-form`**: Projetar formulários robustos com Zod/React Hook Form quando a stack justificar, validação cliente-servidor e acessibilidade.
+- **`email-deliverability-dns-setup`**: Planejar DNS e autenticação de e-mail SPF, DKIM, DMARC e políticas de reputação de forma gradual e verificável.
+- **`whatsapp-business-api-integration`**: Integrar Meta WhatsApp Business Cloud API com consentimento, templates aprovados, webhooks e janela de atendimento verificável.
+- **`github-actions-hardening-oidc`**: Revisar segurança de GitHub Actions com permissions mínimas, OIDC, pinagem de dependências e proteção de supply chain.
+- **`semantic-release-conventional-commits`**: Introduzir versionamento SemVer e geração de changelog/releases a partir de Conventional Commits, sem publicar versões incorretas.
+- **`app-store-fastlane-automation`**: Planejar pipelines Fastlane seguros para assinatura e distribuição iOS/Android, TestFlight e Google Play.
+- **`grpc-protobuf-communication`**: Projetar contratos Protobuf e APIs gRPC robustas, versionáveis e observáveis entre serviços.
+- **`dbt-transformation-pipeline`**: Construir pipeline dbt testável com fontes, staging, intermediate, marts, catálogo de métricas e data lineage.
+
+## Roteamento sem redundância desnecessária
+
+1. Escolha o especialista mais específico ao problema real; não acione agentes apenas porque existem.
+2. Para pagamentos: `payments-fintech-architect` é dono do design monetário; segurança revisa autenticação; compliance classifica requisitos regulatórios; QA valida invariantes.
+3. Para identidade: `iam-auth-architect` é dono dos fluxos de login/autorização; `security-auditor` e `revisor-independente` podem revisar sem editar.
+4. Para apps nativos: `native-ios-engineer`/`native-android-engineer` operam código nativo; `mobile-developer` fica com cross-platform; QA valida experiências.
+5. Para BI: `analytics-engineer` cuida de modelo semântico/dimensional e dbt; `data-engineer` cuida da ingestão/orquestração; `data-scientist` cuida de modelagem e inferência.
+6. Para LGPD/GDPR e auditoria: `compliance-dpo-officer` coordena inventário/controles/pendências; assessoria jurídica valida enquadramento e `cryptography-privacy-engineer` aprofunda controles criptográficos.
+7. Atividades de alto risco (migração financeira, credenciais, produção, publicação) exigem consentimento e plano de rollback; a presença de um agente não concede privilégios adicionais.
+
+## Auditoria e contagem local
+
+Execute `python INVENTARIAR_ECOSISTEMA.py "CAMINHO_DA_PASTA"` para obter a quantidade REAL por ferramenta, nomes ausentes, sobreposições, YAML/TOML e skills efetivamente presentes.
+Confira `README_INSTALACAO.md` antes de distribuir e fazer commit/push.
