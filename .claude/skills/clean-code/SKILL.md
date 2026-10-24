@@ -1,41 +1,51 @@
 ---
 name: clean-code
-description: "Pragmatic clean code standards + Lazy Senior Developer mode (Ponytail). The best code is the code you never wrote. Solves problems with minimal new code, diff-pruning, zero over-engineering, KISS, YAGNI, and transparent risk reporting."
-when_to_use: "Always active for all code writing, refactoring, and bug fixing. Enforces minimal blast radius, concise solutions, and zero bloat."
+description: "Padrões pragmáticos de Clean Code + Modo Lazy Senior Developer (Ponytail). O melhor código é o que nunca precisou ser escrito. Resolução de problemas com menor superfície de ataque, diff pruning, recusa de over-engineering, KISS, YAGNI e relatório de riscos em 2 linhas."
+when_to_use: "Sempre ativo para toda escrita, refatoração e correção de código. Força soluções concisas, raio de impacto mínimo e zero código morto."
 allowed-tools: Read, Write, Edit, Glob, Grep
-version: 2.5.0
+version: 2.6.0
 priority: CRITICAL
 ---
 
-# Clean Code & Lazy Senior Developer Protocol
+# Clean Code & Lazy Senior Developer Protocol (Ponytail Core)
 
-> **CORE PRINCIPLE:** The best code is the code you never had to write. Every line of code added is a line that must be read, tested, debugged, and maintained. Solve the whole problem with the smallest, cleanest, most robust change possible.
-
----
-
-## 1. The Ponytail Minimalist Law
-
-1. **Zero-Code Bias:** Before adding a function or library, check if existing code, standard platform APIs, or deleting dead code solves the problem.
-2. **Minimal Blast Radius:** Prefer localized edits over wide architectural refactorings unless explicitly requested.
-3. **No Speculative Engineering:** Never build abstractions for requirements that do not currently exist (YAGNI).
-4. **Diff-Pruning:** Audit your git diff before committing. If you added 50 lines where 5 lines would do, prune the diff.
+> **Regra de Ouro:** O melhor código é aquele que você não precisou escrever. Cada linha de código adicionada é uma linha a mais para ler, testar, debugar e manter. Resolva o problema por completo com a menor e mais elegante alteração possível.
 
 ---
 
-## 2. Core Clean Code Rules
+## 1. Os 4 Princípios do Lazy Senior Dev
 
-| Principle | Execution |
-|-----------|-----------|
-| **SRP** | Single Responsibility: each function does one thing and does it well. |
-| **DRY** | Extract logic only when duplicated 3+ times; premature DRY is worse than slight duplication. |
-| **KISS** | Keep it simple. Clear imperative code beats complex clever abstractions. |
-| **Self-Documenting** | Write descriptive names (`calculateOrderTotalWithDiscount`) instead of obscure acronyms with comments. |
-| **Boy Scout Rule** | Leave the file slightly cleaner than you found it, without scope creep. |
+1. **Viés do Zero-Código:** Antes de criar uma função ou instalar uma dependência, investigue se APIs padrão da linguagem, componentes já existentes no repositório ou simplesmente remover código morto resolvem a demanda.
+2. **Raio de Impacto Mínimo (Minimal Blast Radius):** Prefira edições cirúrgicas e localizadas em vez de refatorações abrangentes não solicitadas.
+3. **Engenharia Não-Especulativa (YAGNI):** Nunca crie abstrações, interfaces genéricas ou parâmetros opcionais para casos de uso que não existem no presente.
+4. **Diff-Pruning Pré-Commit:** Audite o `git diff` antes de finalizar. Se você adicionou 60 linhas onde 8 linhas resolveriam com a mesma qualidade, enxugue o diff imediatamente.
 
 ---
 
-## 3. Communication Protocol (2-Line Conclusion)
+## 2. Tabela de Boas Práticas Operacionais
 
-At the end of every significant code modification or task, conclude with:
-- **What was skipped / not touched:** Explicitly mention what you chose not to alter to prevent scope creep.
-- **Risks & Follow-ups:** Any edge case or dependency that the user should be aware of.
+| Princípio | Aplicação Prática | O Que Evitar |
+|---|---|---|
+| **SRP** | Cada função/classe tem uma única responsabilidade clara | Funções "faz-tudo" de 150 linhas |
+| **KISS** | Código imperativo simples e legível | Abstrações precoces com múltiplos níveis de indireção |
+| **DRY Equilibrado** | Extrair lógica duplicada apenas na 3ª repetição (Rule of Three) | DRY prematuro que acopla domínios não correlatos |
+| **Nomes Descritivos** | `calculateCartTotalWithCoupons()` | Variáveis de uma letra ou siglas obscuras (`calcTot()`) |
+| **Boy Scout Rule** | Deixe o trecho tocado ligeiramente mais limpo do que encontrou | Tentar refatorar o arquivo inteiro fora do escopo |
+
+---
+
+## 3. Checklist de Auditoria Ponytail
+
+Ao revisar ou finalizar um código, faça o auto-exame:
+- [ ] Posso resolver isso sem adicionar nenhum arquivo novo?
+- [ ] Removi todos os `console.log`, variáveis não utilizadas e imports mortos?
+- [ ] Os tipos TypeScript estão explícitos e sem uso desnecessário de `any`?
+- [ ] O código preserva o estilo, padrões e convenções já adotadas no projeto?
+
+---
+
+## 4. Conclusão Transparente (Protocolo de 2 Linhas)
+
+Ao concluir qualquer alteração significativa, finalize o turno resumindo:
+- **O que foi omitido/preservado:** Declare o que você optou por não mexer para evitar escopo desnecessário.
+- **Riscos e pontos de atenção:** Qualquer caso de borda ou dependência que o usuário deva conhecer.
