@@ -45,3 +45,36 @@ JSON Schema, Zod, Pydantic, ferramentas oficiais do provedor.
 - https://json-schema.org/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Padrão Python Pydantic com Instructor para Saídas Garantidas
+```python
+from pydantic import BaseModel, Field
+from typing import List
+import instructor
+from openai import OpenAI
+
+# 1. Definição do Schema Rígido
+class ProductExtraction(BaseModel):
+    product_name: str = Field(description="Nome comercial do produto")
+    price_brl: float = Field(ge=0.0, description="Preço numérico em Reais")
+    category: str = Field(description="Categoria mercadológica")
+    tags: List[str] = Field(default_factory=list, description="Palavras-chave")
+    is_available: bool = Field(default=True)
+
+# 2. Cliente com Validação Automática e Retentativa
+client = instructor.from_openai(OpenAI())
+
+def extract_product_data(raw_text: str) -> ProductExtraction:
+    return client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_model=ProductExtraction,
+        max_retries=3,
+        messages=[
+            {"role": "system", "content": "Extraia dados estruturados com precisão cirúrgica."},
+            {"role": "user", "content": raw_text}
+        ]
+    )
+```

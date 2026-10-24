@@ -44,3 +44,33 @@ Faiss, pgvector, Qdrant, Milvus conforme projeto.
 - https://github.com/pgvector/pgvector
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Script de Benchmark de Busca Vetorial com QPS e Recall (Python)
+```python
+import time
+import numpy as np
+import faiss
+
+def benchmark_faiss_hnsw(dim=1536, num_vectors=100_000, num_queries=1000, M=32):
+    # Gera vetores de teste
+    np.random.seed(42)
+    data = np.random.random((num_vectors, dim)).astype('float32')
+    queries = np.random.random((num_queries, dim)).astype('float32')
+
+    # 1. Cria índice HNSW
+    index = faiss.IndexHNSWFlat(dim, M)
+    start_build = time.time()
+    index.add(data)
+    build_time = time.time() - start_build
+    print(f"Index build time ({num_vectors} docs): {build_time:.2f}s")
+
+    # 2. Benchmark de QPS
+    start_queries = time.time()
+    distances, indices = index.search(queries, k=10)
+    query_time = time.time() - start_queries
+    qps = num_queries / query_time
+    print(f"Queries per second (QPS): {qps:.1f} queries/s | Latência média: {(query_time/num_queries)*1000:.2f}ms")
+```

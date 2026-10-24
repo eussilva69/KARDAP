@@ -89,7 +89,7 @@ Join our [Discord server](https://discord.com/invite/hgjA78638n/?utm_source=Gith
 | [US Recalls](https://recallsapi.com/docs/mcp) | Check US recalls from 9 agencies by UPC, model, NDC, lot or VIN; 4 read-only tools | `apiKey` | `HTTP` | [Glama](https://glama.ai/mcp/connectors/com.recallsapi/recallsapi) · [MCP Registry](https://registry.modelcontextprotocol.io/v0.1/servers?search=com.recallsapi/recallsapi) |
 | [Vuntum](https://github.com/RAAAAAGEEEEE/vuntum-mcp) | Sourced, dated data on consumer robots and physical AI: specs, prices, evidence | No | `HTTP` | [Glama](https://glama.ai/mcp/servers/RAAAAAGEEEEE/vuntum-mcp) |
 
-Maintain an open-source MCP server? [Add it](CONTRIBUTING.md#mcp-servers).
+Maintain an open-source MCP server? [Add it](https://github.com/public-apis/public-apis/blob/master/CONTRIBUTING.md#mcp-servers).
 
 <br >
 
@@ -97,11 +97,11 @@ Maintain an open-source MCP server? [Add it](CONTRIBUTING.md#mcp-servers).
 
 <strong>Get Involved</strong>
 
-* [Contributing Guide](CONTRIBUTING.md)
+* [Contributing Guide](https://github.com/public-apis/public-apis/blob/master/CONTRIBUTING.md)
 * [API for this project](https://github.com/davemachado/public-api)
 * [Issues](https://github.com/public-apis/public-apis/issues)
 * [Pull Requests](https://github.com/public-apis/public-apis/pulls)
-* [LICENSE](LICENSE) 
+* [LICENSE](https://github.com/public-apis/public-apis/blob/master/LICENSE) 
 
 <br />
 
@@ -2717,4 +2717,4 @@ API | Description | Auth | HTTPS | CORS |
 <br>
 
 ## License
-[MIT](LICENSE) (c) 2022 public-apis
+[MIT](https://github.com/public-apis/public-apis/blob/master/LICENSE) (c) 2022 public-apis

@@ -44,3 +44,63 @@ terraform fmt -check; terraform validate; terraform plan (se autorizado).
 - https://developer.hashicorp.com/terraform/language/modules
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Estrutura Padrão de Módulo Idempotente Terraform
+```hcl
+# main.tf
+terraform {
+  required_version = ">= 1.7.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+resource "aws_s3_bucket" "this" {
+  bucket        = var.bucket_name
+  force_destroy = var.allow_force_destroy
+
+  lifecycle {
+    prevent_destroy = true # Proteção contra destruição acidental
+  }
+
+  tags = merge(var.common_tags, {
+    Name = var.bucket_name
+  })
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
+  bucket = aws_s3_bucket.this.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+```
+
+```hcl
+# variables.tf
+variable "bucket_name" {
+  type        = string
+  description = "Nome único do bucket S3."
+}
+
+variable "allow_force_destroy" {
+  type        = bool
+  default     = false
+  description = "Se true, permite destruição com objetos."
+}
+
+variable "common_tags" {
+  type        = map(string)
+  default     = { Environment = "production", ManagedBy = "terraform" }
+  description = "Tags padronizadas."
+}
+```

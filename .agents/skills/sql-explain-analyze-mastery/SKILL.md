@@ -44,3 +44,41 @@ EXPLAIN (ANALYZE, BUFFERS, VERBOSE) em ambiente apropriado.
 - https://www.postgresql.org/docs/current/using-explain.html
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. Diagnóstico do Plano de Execução PostgreSQL
+```sql
+-- Executar com BUFFERS para identificar leitura de disco vs cache de memória
+EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS)
+SELECT c.id, c.name, COUNT(o.id) as total_orders, SUM(o.amount) as total_spent
+FROM customers c
+JOIN orders o ON o.customer_id = c.id
+WHERE o.created_at >= NOW() - INTERVAL '30 days'
+  AND o.status = 'COMPLETED'
+GROUP BY c.id, c.name
+ORDER BY total_spent DESC
+LIMIT 10;
+```
+
+### 2. Sinais Críticos no EXPLAIN e Correções Recomendadas
+| Sintoma no EXPLAIN | Causa Raiz | Correção Recomendada |
+|---|---|---|
+| `Seq Scan on large_table` | Ausência de índice na coluna do `WHERE` | Criar índice B-Tree composto ou parcial |
+| `Buffers: read=54200 hit=120` | Leituras massivas do disco (IOPS altos) | Ajustar `shared_buffers` ou criar índice cobridor (`INCLUDE`) |
+| `Sort Method: external merge Disk` | Memória de ordenação insuficiente | Aumentar `work_mem` para a query ou usar índice que já ordene |
+| `Rows Removed by Filter: 980000` | Filtro aplicado em memória após leitura | Criar índice com as colunas filtradas |
+
+### 3. Índice Parcial & Índice Composto de Alta Performance
+```sql
+-- Índice composto: colunas de igualdade primeiro, depois intervalo
+CREATE INDEX idx_orders_status_created_customer 
+ON orders (status, created_at) 
+INCLUDE (customer_id, amount);
+
+-- Índice parcial: reduz o tamanho do índice em 90% focando apenas em linhas ativas
+CREATE INDEX idx_orders_pending 
+ON orders (customer_id, created_at) 
+WHERE status = 'PENDING';
+```

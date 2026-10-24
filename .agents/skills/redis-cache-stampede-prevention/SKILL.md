@@ -44,3 +44,80 @@ Redis CLI (ambiente de teste), métricas cache e teste de carga controlado.
 - https://redis.io/docs/latest/develop/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. Algoritmo XFetch (Probabilistic Early Expiration)
+Permite que o cache seja recalculado em background antes de expirar com probabilidade crescente:
+```typescript
+interface CachedItem<T> {
+  value: T;
+  delta: number;   // Tempo gasto na computação original (ms)
+  expiry: number;  // Timestamp absoluto de expiração
+}
+
+export async function getWithXFetch<T>(
+  redis: any,
+  key: string,
+  fetchFn: () => Promise<T>,
+  ttlSeconds: number,
+  beta: number = 1.0 // beta > 1 recalcula mais cedo; beta < 1 recalcula mais tarde
+): Promise<T> {
+  const raw = await redis.get(key);
+
+  if (raw) {
+    const item: CachedItem<T> = JSON.parse(raw);
+    const now = Date.now();
+    // Fórmula XFetch: -beta * delta * ln(random())
+    const shouldRecompute = now - item.delta * beta * Math.log(Math.random()) >= item.expiry;
+
+    if (!shouldRecompute) {
+      return item.value;
+    }
+  }
+
+  // Recalcula valor
+  const start = Date.now();
+  const value = await fetchFn();
+  const delta = Date.now() - start;
+  const expiry = Date.now() + ttlSeconds * 1000;
+
+  const payload: CachedItem<T> = { value, delta, expiry };
+  await redis.set(key, JSON.stringify(payload), 'EX', ttlSeconds);
+
+  return value;
+}
+```
+
+### 2. Lock Distribuído Simples (Set NX EX) para Prevenção de Stampede
+```typescript
+export async function getWithMutexLock<T>(
+  redis: any,
+  key: string,
+  fetchFn: () => Promise<T>,
+  ttlSeconds: number
+): Promise<T> {
+  const cached = await redis.get(key);
+  if (cached) return JSON.parse(cached);
+
+  const lockKey = `lock:${key}`;
+  const acquired = await redis.set(lockKey, 'locked', 'NX', 'EX', 10);
+
+  if (acquired) {
+    try {
+      const freshData = await fetchFn();
+      // Jitter para evitar expirações simultâneas
+      const jitter = Math.floor(Math.random() * 30);
+      await redis.set(key, JSON.stringify(freshData), 'EX', ttlSeconds + jitter);
+      return freshData;
+    } finally {
+      await redis.del(lockKey);
+    }
+  } else {
+    // Aguarda e tenta ler novamente
+    await new Promise(r => setTimeout(r, 200));
+    return getWithMutexLock(redis, key, fetchFn, ttlSeconds);
+  }
+}
+```

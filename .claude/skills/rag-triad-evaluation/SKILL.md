@@ -45,3 +45,38 @@ Ragas ou framework de avaliação usado no projeto, mais planilha/JSONL auditáv
 - https://docs.ragas.io/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Validação da Tríade de RAG (Context Relevance, Groundedness, Answer Relevance)
+```python
+from typing import Dict, Any
+
+class RAGTriadEvaluator:
+    """
+    Tríade de RAG:
+    1. Context Relevance: O contexto recuperado é relevante para a pergunta do usuário?
+    2. Groundedness (Fidelidade): A resposta gerada é 100% suportada pelo contexto (sem alucinação)?
+    3. Answer Relevance: A resposta atende diretamente o que foi perguntado?
+    """
+    
+    @staticmethod
+    def audit_trace(query: str, retrieved_chunks: list[str], answer: str) -> Dict[str, Any]:
+        has_context = len(retrieved_chunks) > 0
+        context_text = " ".join(retrieved_chunks).lower()
+        
+        # Heurística estática pré-LLM judge
+        unsupported_claims = []
+        for sentence in answer.split("."):
+            s_clean = sentence.strip().lower()
+            if len(s_clean) > 20 and not any(word in context_text for word in s_clean.split() if len(word) > 5):
+                unsupported_claims.append(sentence.strip())
+                
+        return {
+            "has_context": has_context,
+            "groundedness_pass": len(unsupported_claims) == 0,
+            "suspicious_sentences": unsupported_claims,
+            "risk_score": len(unsupported_claims) / max(1, len(answer.split(".")))
+        }
+```

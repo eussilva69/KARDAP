@@ -44,3 +44,63 @@ Scripts de replay e testes de agregados do projeto.
 - https://martinfowler.com/eaaDev/EventSourcing.html
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Padrão TypeScript de Aggregate Root com Snapshotting
+```typescript
+export interface DomainEvent {
+  eventId: string;
+  aggregateId: string;
+  version: number;
+  timestamp: string;
+  type: string;
+  payload: Record<string, any>;
+}
+
+export interface Snapshot<T> {
+  aggregateId: string;
+  version: number;
+  state: T;
+  timestamp: string;
+}
+
+export abstract class AggregateRoot<TState> {
+  protected state: TState;
+  protected version: number = 0;
+  private uncommittedEvents: DomainEvent[] = [];
+
+  constructor(initialState: TState) {
+    this.state = initialState;
+  }
+
+  abstract apply(event: DomainEvent): void;
+
+  public loadFromHistory(history: DomainEvent[], snapshot?: Snapshot<TState>): void {
+    if (snapshot) {
+      this.state = snapshot.state;
+      this.version = snapshot.version;
+    }
+    for (const event of history) {
+      if (event.version > this.version) {
+        this.apply(event);
+        this.version = event.version;
+      }
+    }
+  }
+
+  public shouldTakeSnapshot(snapshotInterval: number = 100): boolean {
+    return this.version > 0 && this.version % snapshotInterval === 0;
+  }
+
+  public getSnapshot(): Snapshot<TState> {
+    return {
+      aggregateId: (this.state as any).id,
+      version: this.version,
+      state: JSON.parse(JSON.stringify(this.state)),
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+```

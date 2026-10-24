@@ -44,3 +44,34 @@ Gitleaks, trufflehog ou equivalente local aprovado.
 - https://github.com/gitleaks/gitleaks
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Configuração Gitleaks (.gitleaks.toml) & Pre-Commit Hook
+```toml
+title = "Gitleaks Anti-Leak Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Permite variáveis de exemplo e testes mock"
+paths = [
+  '''\.env\.example''',
+  '''tests/mocks/.*''',
+]
+regexes = [
+  '''test-token-.*''',
+  '''dummy_key_.*''',
+]
+```
+
+#### Pre-commit Hook (.husky/pre-commit)
+```bash
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Verificando segredos com Gitleaks..."
+gitleaks protect --staged --verbose --redact
+```

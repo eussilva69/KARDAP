@@ -42,3 +42,37 @@ Não gerar release de produção como teste; não reescrever tags existentes; n�
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### Configuração do Semantic Release (.releaserc.json)
+```json
+{
+  "branches": ["main"],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/npm",
+      {
+        "npmPublish": false
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md", "package.json"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}
+```

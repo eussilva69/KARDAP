@@ -44,3 +44,28 @@ Browser DevTools, Playwright, axe quando existentes.
 - https://www.nngroup.com/articles/ten-usability-heuristics/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Matriz de Avaliação Heurística de Nielsen (Escala 0 a 4)
+
+| Heurística | Pergunta de Verificação | Sintoma de Violação |
+|---|---|---|
+| **1. Visibilidade do Status** | O usuário sabe o que está acontecendo agora? | Carregamentos sem spinner/skeleton, ações sem toast de confirmação |
+| **2. Correspondência com o Mundo Real** | A linguagem usa jargão técnico ou termos do usuário? | Erros técnicos (`500 NullPointerException`), ícones obscuros |
+| **3. Controle e Liberdade do Usuário** | Existe saída de emergência ("Desfazer")? | Ações irreversíveis sem confirmação, falta de botão fechar/voltar |
+| **4. Consistência e Padrões** | A mesma palavra/ícone significa a mesma coisa em todas as telas? | Botão "Salvar" verde em uma tela e azul em outra |
+| **5. Prevenção de Erros** | O design previne que o erro aconteça? | Formatar inputs com máscara (CPF, CEP, telefone) antes do submit |
+| **6. Reconhecimento em vez de Memorização** | As instruções e opções estão visíveis? | Formulários multi-etapas que não mostram resumo dos passos anteriores |
+| **7. Flexibilidade e Eficiência de Uso** | Usuários experientes têm atalhos? | Falta de atalhos de teclado (Enter para submit, Esc para fechar modal) |
+| **8. Estética e Design Minimalista** | Há excesso de informação irrelevante? | Páginas sobrecarregadas com banners conflitantes |
+| **9. Auxiliar a Reconhecer e Recuperar de Erros** | As mensagens de erro explicam como resolver? | Mensagens vagas ("Ocorreu um erro"). Prefira ("E-mail já cadastrado. Deseja recuperar a senha?") |
+| **10. Ajuda e Documentação** | A documentação é fácil de buscar e focada na tarefa? | Tooltips contextuais em campos complexos |
+
+**Escala de Severidade:**  
+- **0:** Apenas cosmético  
+- **1:** Problema superficial  
+- **2:** Problema menor (baixa frequência)  
+- **3:** Problema maior (alta fricção, bloqueia parte dos usuários)  
+- **4:** Catástrofe de usabilidade (impede conclusão de compra/tarefa principal)

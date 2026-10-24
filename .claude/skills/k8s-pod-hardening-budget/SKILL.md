@@ -44,3 +44,68 @@ kubectl diff --server-side; kubectl apply --dry-run=server quando autorizado.
 - https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. PodDisruptionBudget (Garante Alta Disponibilidade Durante Drenagens)
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-service-pdb
+  namespace: production
+spec:
+  minAvailable: 2 # Garante que no mínimo 2 réplicas fiquem ativas durante updates de nós
+  selector:
+    matchLabels:
+      app: api-service
+```
+
+### 2. Deployment Kubernetes com SecurityContext Hardened (Non-Root)
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service
+  namespace: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-service
+  template:
+    metadata:
+      labels:
+        app: api-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: myregistry.com/app:v1.2.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - mountPath: /tmp
+              name: temp-dir
+      volumes:
+        - name: temp-dir
+          emptyDir: {}
+```

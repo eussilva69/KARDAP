@@ -42,3 +42,84 @@ Não supor que gRPC é mais rápido em todo contexto; não expor streams sem aut
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. Definição Proto3 (order_service.proto)
+```protobuf
+syntax = "proto3";
+
+package orders.v1;
+
+option go_package = "orders/v1;ordersv1";
+
+service OrderService {
+  rpc CreateOrder (CreateOrderRequest) returns (OrderResponse);
+  rpc StreamOrderStatus (StreamOrderRequest) returns (stream OrderStatusUpdate);
+}
+
+message CreateOrderRequest {
+  string customer_id = 1;
+  repeated OrderItem items = 2;
+  double total_amount = 3;
+}
+
+message OrderItem {
+  string product_id = 1;
+  int32 quantity = 2;
+  double unit_price = 3;
+}
+
+message OrderResponse {
+  string order_id = 1;
+  string status = 2;
+  int64 created_at_unix = 3;
+}
+
+message StreamOrderRequest {
+  string order_id = 1;
+}
+
+message OrderStatusUpdate {
+  string order_id = 1;
+  string new_status = 2;
+  string notes = 3;
+  int64 updated_at_unix = 4;
+}
+```
+
+### 2. Implementação do Servidor Node.js (@grpc/grpc-js)
+```typescript
+import * as grpc from '@grpc/grpc-js';
+import * as protoLoader from '@grpc/proto-loader';
+
+const packageDefinition = protoLoader.loadSync('order_service.proto', {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true,
+});
+
+const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
+const ordersPackage = protoDescriptor.orders.v1;
+
+const server = new grpc.Server();
+
+server.addService(ordersPackage.OrderService.service, {
+  CreateOrder: (call: any, callback: any) => {
+    const { customer_id, items, total_amount } = call.request;
+    const order_id = 'ord_' + Math.random().toString(36).substring(7);
+    callback(null, {
+      order_id,
+      status: 'CONFIRMED',
+      created_at_unix: Date.now(),
+    });
+  },
+});
+
+server.bindAsync('0.0.0.0:50051', grpc.ServerCredentials.createInsecure(), () => {
+  console.log('gRPC Server rodando na porta 50051');
+});
+```

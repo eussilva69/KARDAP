@@ -44,3 +44,65 @@ k6 (se instalado) e métricas de observabilidade existentes.
 - https://grafana.com/docs/k6/latest/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Script Completo de Teste de Carga k6 (Stages, Thresholds e Checks)
+```javascript
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Counter, Rate, Trend } from 'k6/metrics';
+
+// Métricas personalizadas
+const errorRate = new Rate('errors');
+const checkoutDuration = new Trend('checkout_duration');
+
+export const options = {
+  stages: [
+    { duration: '30s', target: 20 },  // Ramp-up para 20 VUs
+    { duration: '1m',  target: 100 }, // Carga constante de 100 VUs
+    { duration: '30s', target: 0 },   // Ramp-down
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)<500', 'p(99)<1000'], // 95% das requisições < 500ms
+    errors: ['rate<0.01'],                          // Menos de 1% de erros permitidos
+  },
+};
+
+const BASE_URL = __ENV.TARGET_URL || 'https://api.example.com';
+
+export default function () {
+  // 1. Consulta de Catálogo
+  const resCatalog = http.get(`${BASE_URL}/products?page=1&limit=20`);
+  check(resCatalog, {
+    'status catálogo é 200': (r) => r.status === 200,
+    'resposta é rápida': (r) => r.timings.duration < 300,
+  }) || errorRate.add(1);
+
+  sleep(1);
+
+  // 2. Simulação de Checkout
+  const payload = JSON.stringify({
+    productId: 'prod_123',
+    quantity: 2,
+  });
+
+  const params = {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer test-token-123',
+    },
+  };
+
+  const startCheckout = Date.now();
+  const resCheckout = http.post(`${BASE_URL}/checkout`, payload, params);
+  checkoutDuration.add(Date.now() - startCheckout);
+
+  check(resCheckout, {
+    'checkout concluído 201': (r) => r.status === 201,
+  }) || errorRate.add(1);
+
+  sleep(2);
+}
+```

@@ -45,3 +45,34 @@ Chrome Memory, heap snapshots, tracemalloc, pprof, Valgrind/ASan conforme lingua
 - https://developer.chrome.com/docs/devtools/memory-problems/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Script para Captura Programática de Heap Snapshot no Node.js
+```javascript
+const v8 = require('v8');
+const fs = require('fs');
+
+function captureHeapSnapshot(tag) {
+  const filename = `heap-${tag}-${Date.now()}.heapsnapshot`;
+  const stream = v8.getHeapSnapshot();
+  const fileStream = fs.createWriteStream(filename);
+  stream.pipe(fileStream);
+  fileStream.on('finish', () => {
+    console.log(`[Heap Snapshot gravado]: ${filename}`);
+  });
+}
+
+// Monitoramento de crescimento anormal de memória
+let previousUsage = 0;
+setInterval(() => {
+  const usage = process.memoryUsage().heapUsed;
+  const deltaMb = (usage - previousUsage) / (1024 * 1024);
+  if (deltaMb > 50 && previousUsage > 0) {
+    console.warn(`[Possível Memory Leak]: Crescimento de ${deltaMb.toFixed(2)} MB`);
+    captureHeapSnapshot('leak-alert');
+  }
+  previousUsage = usage;
+}, 30000);
+```

@@ -44,3 +44,54 @@ Docker buildx, Trivy/Grype, Syft se instalados.
 - https://docs.docker.com/build/building/multi-stage/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Dockerfile Multi-Stage Distroless para Next.js 14/15
+```dockerfile
+# Estágio 1: Dependências
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --frozen-lockfile
+
+# Estágio 2: Build
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN npm run build
+
+# Estágio 3: Runner Distroless Seguro
+FROM gcr.io/distroless/nodejs20-debian12:nonroot AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nonroot:nonroot /app/.next/standalone ./
+COPY --from=builder --chown=nonroot:nonroot /app/.next/static ./.next/static
+
+USER nonroot
+EXPOSE 3000
+CMD ["server.js"]
+```
+
+### Dockerfile Multi-Stage Distroless para Go
+```dockerfile
+FROM golang:1.23-alpine AS builder
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o app .
+
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /app
+COPY --from=builder --chown=nonroot:nonroot /build/app /app/app
+USER nonroot
+ENTRYPOINT ["/app/app"]
+```

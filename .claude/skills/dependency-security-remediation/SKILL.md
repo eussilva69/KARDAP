@@ -45,3 +45,33 @@ npm audit; pip-audit; cargo audit; osv-scanner onde instalados.
 - https://osv.dev/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. Resolução Forçada de Vulnerabilidades em Dependências Transitivas
+#### package.json (npm / pnpm / yarn)
+```json
+{
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "overrides": {
+    "send": ">=0.19.0",
+    "cookie": ">=0.7.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "send": ">=0.19.0"
+    }
+  }
+}
+```
+
+### 2. Script de Auditoria e Triage Automatizada de CVEs no CI
+```bash
+# Executa auditoria quebrando apenas em vulnerabilidades High ou Critical
+npm audit --audit-level=high
+
+# Se houver falsos positivos ou correções inviáveis no curto prazo, documente em .nsprc ou audit-ci.json
+```

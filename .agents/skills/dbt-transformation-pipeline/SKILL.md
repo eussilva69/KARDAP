@@ -61,3 +61,52 @@ A sintaxe de argumentos varia por versão; validar com `dbt parse`.
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. Modelo de Staging dbt (models/staging/stg_orders.sql)
+```sql
+with source as (
+    select * from {{ source('raw_ecommerce', 'orders') }}
+),
+
+renamed as (
+    select
+        id as order_id,
+        cast(customer_id as string) as customer_id,
+        cast(total_amount as numeric) as total_amount,
+        status as order_status,
+        created_at as ordered_at,
+        current_timestamp() as dbt_loaded_at
+    from source
+    where id is not null
+)
+
+select * from renamed
+```
+
+### 2. Modelo Mart de Dimensão/Fato (models/marts/fct_customer_orders.sql)
+```sql
+with orders as (
+    select * from {{ ref('stg_orders') }}
+),
+
+customers as (
+    select * from {{ ref('stg_customers') }}
+),
+
+final as (
+    select
+        c.customer_id,
+        c.customer_name,
+        count(o.order_id) as lifetime_orders,
+        coalesce(sum(o.total_amount), 0) as lifetime_value,
+        max(o.ordered_at) as last_order_date
+    from customers c
+    left join orders o on o.customer_id = c.customer_id
+    group by 1, 2
+)
+
+select * from final
+```

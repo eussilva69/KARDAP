@@ -45,3 +45,28 @@ pytest/Playwright/API integration tests; OWASP ZAP em staging se autorizado.
 - https://owasp.org/API-Security/editions/2023/en/0x11-t10/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Scripts de Teste e Validação para Vulnerabilidades Críticas
+
+#### 1. Teste de BOLA / IDOR (API1:2023)
+```bash
+# Usuário A tenta acessar recurso pertencente ao Usuário B com seu próprio token
+curl -X GET "https://api.example.com/orders/order_user_B_123" \
+  -H "Authorization: Bearer <TOKEN_DO_USUARIO_A>"
+
+# CRITÉRIO DE ACEITAÇÃO: Deve retornar 403 Forbidden ou 404 Not Found. NUNCA 200 OK.
+```
+
+#### 2. Teste de Mass Assignment / BOPFL (API3:2023)
+```bash
+# Tentar alterar campos protegidos via payload JSON
+curl -X PATCH "https://api.example.com/users/me" \
+  -H "Authorization: Bearer <USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Novo Nome", "is_admin": true, "role": "superadmin", "credits": 99999}'
+
+# CRITÉRIO DE ACEITAÇÃO: 'is_admin' e 'role' devem ser estritamente ignorados pelo schema DTO.
+```

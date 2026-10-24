@@ -9,7 +9,7 @@ version: 1.0.0
 # Frontend Architecture
 
 > How to organize frontend code so it scales. Separation of concerns over file-type folders.
-> Applies to React/Next and Vue. For directory layout, follow [app-builder](../app-builder/scaffolding.md). For visual design, see [frontend-design](../frontend-design/SKILL.md). For React/Next performance, see [nextjs-react-expert](../nextjs-react-expert/SKILL.md).
+> Applies to React/Next and Vue. For directory layout, follow [app-builder](../app-builder/scaffolding.md). For visual design, see [frontend-design](../frontend-design/SKILL.md). For React/Next performance, see [nextjs-react-expert](../frontend-design/SKILL.md).
 
 ---
 

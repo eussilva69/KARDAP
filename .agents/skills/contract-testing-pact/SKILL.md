@@ -44,3 +44,49 @@ Pact JS/JVM/Python se já instalado; CLI can-i-deploy.
 - https://docs.pact.io/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Teste de Contrato Consumer com Pact (TypeScript)
+```typescript
+import { PactV3, MatchersV3 } from '@pact-foundation/pact';
+import path from 'path';
+
+const provider = new PactV3({
+  consumer: 'WebFrontend',
+  provider: 'OrderService',
+  dir: path.resolve(process.cwd(), 'pacts'),
+});
+
+describe('Order API Pact Test', () => {
+  it('deve retornar detalhes do pedido no contrato acordado', () => {
+    provider
+      .given('o pedido 123 existe')
+      .uponReceiving('uma requisição para buscar o pedido 123')
+      .withRequest({
+        method: 'GET',
+        path: '/orders/123',
+        headers: { Accept: 'application/json' },
+      })
+      .willRespondWith({
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          id: MatchersV3.string('123'),
+          totalAmount: MatchersV3.number(150.50),
+          status: MatchersV3.regex(/PENDING|PAID|CANCELLED/, 'PAID'),
+        },
+      });
+
+    return provider.executeTest(async (mockServer) => {
+      const response = await fetch(`${mockServer.url}/orders/123`, {
+        headers: { Accept: 'application/json' },
+      });
+      const data = await response.json();
+      expect(data.id).toBe('123');
+      expect(data.status).toBe('PAID');
+    });
+  });
+});
+```

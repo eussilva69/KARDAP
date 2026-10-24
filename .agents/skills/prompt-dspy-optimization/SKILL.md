@@ -45,3 +45,37 @@ DSPy quando já disponível; scripts locais de avaliação.
 - https://dspy.ai/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Pipeline DSPy com Otimizador BootstrapFewShot
+```python
+import dspy
+
+# 1. Definição da Assinatura
+class ExtractCustomerIntent(dspy.Signature):
+    """Classifica a intenção do cliente e extrai entidades de suporte."""
+    customer_message = dspy.InputField(desc="Mensagem enviada pelo cliente no WhatsApp")
+    intent = dspy.OutputField(desc="DÚVIDA, COMPRA, RECLAMAÇÃO ou CANCELAMENTO")
+    confidence = dspy.OutputField(desc="Pontuação de confiança entre 0.0 e 1.0")
+    key_entities = dspy.OutputField(desc="Entidades chave identificadas (número de pedido, produto)")
+
+# 2. Módulo de Raciocínio (Chain of Thought)
+class IntentClassifierModule(dspy.Module):
+    def __init__(self):
+        super().__init__()
+        self.prog = dspy.ChainOfThought(ExtractCustomerIntent)
+
+    def forward(self, customer_message):
+        return self.prog(customer_message=customer_message)
+
+# 3. Compilação com Few-Shot Teleprompter
+def train_intent_optimizer(trainset):
+    teleprompter = dspy.teleprompt.BootstrapFewShot(
+        metric=lambda gold, pred, trace=None: gold.intent == pred.intent,
+        max_bootstrapped_demos=4,
+        max_labeled_demos=4
+    )
+    return teleprompter.compile(IntentClassifierModule(), trainset=trainset)
+```

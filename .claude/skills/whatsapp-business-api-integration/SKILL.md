@@ -42,3 +42,87 @@ Não utilizar automação não oficial de WhatsApp Web; não prometer aprovaçã
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. Handler Next.js de Verificação e Recebimento de Webhook Meta WhatsApp
+```typescript
+// app/api/whatsapp/webhook/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
+
+const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
+
+// 1. Verificação inicial da Meta (GET)
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const mode = searchParams.get('hub.mode');
+  const token = searchParams.get('hub.verify_token');
+  const challenge = searchParams.get('hub.challenge');
+
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    return new NextResponse(challenge, { status: 200 });
+  }
+  return new NextResponse('Forbidden', { status: 403 });
+}
+
+// 2. Recebimento de Mensagens e Notificações (POST com validação HMAC)
+export async function POST(req: NextRequest) {
+  const signature = req.headers.get('x-hub-signature-256') || '';
+  const rawBody = await req.text();
+
+  if (APP_SECRET) {
+    const expectedSig = 'sha256=' + crypto.createHmac('sha256', APP_SECRET).update(rawBody).digest('hex');
+    if (signature !== expectedSig) {
+      return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 });
+    }
+  }
+
+  const data = JSON.parse(rawBody);
+  const message = data.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+
+  if (message) {
+    console.log(`[WhatsApp de ${message.from}]: ${message.text?.body}`);
+  }
+
+  return NextResponse.json({ status: 'ok' });
+}
+```
+
+### 2. Disparo de Mensagem de Template Transacional
+```typescript
+export async function sendWhatsAppTemplate(toPhone: string, orderId: string, totalBrl: string) {
+  const token = process.env.WHATSAPP_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  const response = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: toPhone.replace(/\D/g, ''),
+      type: 'template',
+      template: {
+        name: 'confirmacao_pedido',
+        language: { code: 'pt_BR' },
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: orderId },
+              { type: 'text', text: totalBrl },
+            ],
+          },
+        ],
+      },
+    }),
+  });
+
+  return response.json();
+}
+```

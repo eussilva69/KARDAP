@@ -45,3 +45,28 @@ Faker ou factory/builder já presentes, testes de schema.
 - https://docs.python.org/3/library/random.html
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Gerador de Exemplos Sintéticos com Diversidade Semântica (Python)
+```python
+import json
+from openai import OpenAI
+
+client = OpenAI()
+
+def generate_synthetic_support_tickets(topic: str, count: int = 10) -> list:
+    prompt = f"""
+    Gere exatamente {count} exemplos sintéticos de tickets de suporte para o tema: '{topic}'.
+    Cada exemplo deve ter um tom diferente (frustrado, formal, confuso, urgente).
+    Retorne em JSON puro: [ {{"id": 1, "customer_message": "...", "sentiment": "...", "urgency": "ALTA/MEDIA/BAIXA"}} ]
+    """
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.8
+    )
+    return json.loads(response.choices[0].message.content).get("tickets", [])
+```

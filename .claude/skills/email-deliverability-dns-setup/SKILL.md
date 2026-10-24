@@ -49,3 +49,31 @@ O endereço de relatórios e a política devem ser escolhidos pela organização
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### Configurações Canônicas de Registros DNS para Entregabilidade 100%
+
+#### 1. Registro SPF (TXT)
+```text
+Host: @
+Tipo: TXT
+Valor: v=spf1 include:_spf.google.com include:sendgrid.net ip4:198.51.100.1 -all
+```
+*(Nota: Sempre termine com `-all` para hard-fail de servidores não autorizados).*
+
+#### 2. Registro DKIM (TXT com Chave RSA 2048-bit)
+```text
+Host: s1._domainkey.seudominio.com.br
+Tipo: TXT
+Valor: v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0...
+```
+
+#### 3. Registro DMARC (TXT com Política de Rejeição e Relatórios)
+```text
+Host: _dmarc.seudominio.com.br
+Tipo: TXT
+Valor: v=DMARC1; p=reject; sp=reject; pct=100; rua=mailto:dmarc-reports@seudominio.com.br; aspf=r; adkim=r
+```
+*(Fase inicial: use `p=none` para monitoramento nos primeiros 15 dias; depois mude para `p=quarantine` e finalmente `p=reject`).*

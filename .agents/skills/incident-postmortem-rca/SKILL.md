@@ -44,3 +44,41 @@ Incident timeline, Grafana/observability, deploy history, issue tracker.
 - https://sre.google/sre-book/postmortem-culture/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Modelo Padronizado de Post-Mortem Sem Culpa (Blameless RCA)
+```markdown
+# Incidente Post-Mortem: [INC-2026-X] Degradação de Checkout
+
+**Data do Incidente:** 2026-10-24 | **Severidade:** P1 - Crítico  
+**Duração da Indisponibilidade:** 24 minutos (14:12 às 14:36 BRT)  
+**Lead do Incidente:** @tech-lead | **Impacto Comercial:** ~15 pedidos afetados
+
+---
+
+## 1. Resumo Executivo
+Uma sobrecarga de conexões com o pool do banco de dados causou timeouts no webhook de confirmação de pagamento PIX, impedindo a transição automática de status de pedidos.
+
+## 2. Linha do Tempo (Horários BRT)
+- **14:12** - Alarmes do Datadog disparam: latência p99 de `/api/webhook/pix` ultrapassa 5.000ms.
+- **14:15** - Engenheiro de plantão acionado; verifica pool exhaustion no PostgreSQL.
+- **14:22** - Identificada query de listagem não indexada gerando lock de leitura.
+- **14:28** - Kill de conexões presas e aumento temporário do pool no PgBouncer.
+- **14:36** - Latência normalizada (<120ms); reprocessamento de webhooks pendentes concluído.
+
+## 3. Os 5 Porquês (Causa Raiz)
+1. **Por que o checkout falhou?** O webhook de confirmação deu timeout.
+2. **Por que deu timeout?** As conexões do pool do banco se esgotaram.
+3. **Por que se esgotaram?** Uma consulta analítica de relatório concorreu com as transações do PDV.
+4. **Por que correu na mesma instância?** O relatório não estava direcionado para a réplica de leitura.
+5. **Por que não estava na réplica?** Faltava a configuração da connection string de leitura no microserviço.
+
+## 4. Ações Corretivas com Responsáveis e Prazos
+| Ação | Tipo | Responsável | Prazo |
+|---|---|---|---|
+| Apontar relatórios para réplica de leitura | Prevenção | @dbre | D+2 |
+| Adicionar timeout estrito de 2s em queries OLTP | Mitigação | @backend | D+1 |
+| Alarme preditivo de saturação de pool > 80% | Detecção | @sre | Concluído |
+```

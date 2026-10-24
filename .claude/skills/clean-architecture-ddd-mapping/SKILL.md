@@ -45,3 +45,47 @@ Grep/ripgrep, testes de contrato e comandos reais do repositório.
 - https://martinfowler.com/bliki/BoundedContext.html
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Estrutura de Camadas DDD (Domain, Use Case, Adapter)
+```typescript
+// 1. DOMAIN: Entity pura sem dependência externa
+export class Order {
+  constructor(
+    public readonly id: string,
+    public readonly customerId: string,
+    private _totalAmount: number,
+    private _status: 'PENDING' | 'PAID' | 'CANCELLED'
+  ) {}
+
+  public pay(): void {
+    if (this._status !== 'PENDING') {
+      throw new Error('Apenas pedidos pendentes podem ser pagos.');
+    }
+    this._status = 'PAID';
+  }
+
+  get status() { return this._status; }
+  get totalAmount() { return this._totalAmount; }
+}
+
+// 2. DOMAIN: Porta / Interface de Repositório
+export interface OrderRepository {
+  findById(id: string): Promise<Order | null>;
+  save(order: Order): Promise<void>;
+}
+
+// 3. APPLICATION: Caso de Uso (Interactor)
+export class PayOrderUseCase {
+  constructor(private readonly orderRepo: OrderRepository) {}
+
+  async execute(orderId: string): Promise<void> {
+    const order = await this.orderRepo.findById(orderId);
+    if (!order) throw new Error('Pedido não encontrado');
+    order.pay();
+    await this.orderRepo.save(order);
+  }
+}
+```

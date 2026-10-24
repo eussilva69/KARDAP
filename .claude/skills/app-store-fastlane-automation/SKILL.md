@@ -42,3 +42,44 @@ Não comprometer private keys, não gerar/rotacionar certificados sem aprovaçã
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### Fastfile Completo para iOS e Android
+```ruby
+default_platform(:ios)
+
+platform :ios do
+  desc "Build e upload para TestFlight"
+  lane :beta do
+    setup_ci if is_ci
+    match(type: "appstore", readonly: is_ci)
+    increment_build_number(xcodeproj: "MyApp.xcodeproj")
+    build_app(
+      scheme: "MyApp",
+      export_method: "app-store",
+      clean: true
+    )
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+end
+
+platform :android do
+  desc "Build e deploy no Google Play Console (Internal Track)"
+  lane :beta do
+    gradle(
+      task: "bundle",
+      build_type: "Release"
+    )
+    upload_to_play_store(
+      track: "internal",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true
+    )
+  end
+end
+```

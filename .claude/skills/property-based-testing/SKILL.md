@@ -44,3 +44,36 @@ Hypothesis, fast-check ou QuickCheck compatível com stack.
 - https://hypothesis.readthedocs.io/
 
 > Este playbook foi redigido para uso interno; não implica certificação, suporte oficial do fornecedor nem execução prévia de testes.
+
+
+## Exemplos e Implementações de Produção
+
+### Teste Baseado em Propriedades com fast-check (TypeScript)
+```typescript
+import fc from 'fast-check';
+import { describe, it, expect } from 'vitest';
+
+// Função a testar
+function calculateDiscount(price: number, discountPercentage: number): number {
+  if (price < 0 || discountPercentage < 0 || discountPercentage > 100) {
+    throw new Error('Parâmetros inválidos');
+  }
+  return Math.round((price * (1 - discountPercentage / 100)) * 100) / 100;
+}
+
+describe('calculateDiscount - Property Based Tests', () => {
+  it('o valor com desconto nunca deve ser maior que o preço original', () => {
+    fc.assert(
+      fc.property(
+        fc.float({ min: 0.01, max: 100000 }),
+        fc.float({ min: 0, max: 100 }),
+        (price, discount) => {
+          const finalPrice = calculateDiscount(price, discount);
+          return finalPrice <= price && finalPrice >= 0;
+        }
+      ),
+      { numRuns: 1000 } // Executa 1000 cenários com inputs aleatórios extremos
+    );
+  });
+});
+```

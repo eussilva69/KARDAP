@@ -42,3 +42,43 @@ Não fazer lazy load de recursos LCP; tree-shaking não é garantido só pela si
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. Configuração do Next.js Bundle Analyzer (next.config.js)
+```javascript
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  // Força tree-shaking em pacotes de terceiros populares
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
+    },
+    'lodash': {
+      transform: 'lodash/{{member}}',
+    },
+  },
+};
+
+module.exports = withBundleAnalyzer(nextConfig);
+```
+
+### 2. Padrão de Dynamic Import com SSR Seguro
+```typescript
+import dynamic from 'next/dynamic';
+
+// Carrega componentes pesados (gráficos, editores, mapas) sob demanda
+export const HeavyChart = dynamic(
+  () => import('@/components/analytics/HeavyChart'),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 animate-pulse bg-muted rounded-xl" />,
+  }
+);
+```

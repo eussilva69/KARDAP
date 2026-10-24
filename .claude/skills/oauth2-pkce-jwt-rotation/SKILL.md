@@ -43,3 +43,74 @@ OAuth 2.1 pode ser draft/versão em evolução: consultar standards atuais; nunc
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### 1. Geração de PKCE Code Verifier e Code Challenge (S256)
+```typescript
+import crypto from 'crypto';
+
+export function generatePKCE() {
+  // 1. Verifier: string aleatória base64url (43 a 128 caracteres)
+  const verifier = crypto.randomBytes(32).toString('base64url');
+
+  // 2. Challenge: SHA-256 do verifier em base64url
+  const challenge = crypto
+    .createHash('sha256')
+    .update(verifier)
+    .digest('base64url');
+
+  return { verifier, challenge, method: 'S256' };
+}
+```
+
+### 2. Rotação de Refresh Tokens com Revogação de Família
+```typescript
+interface RefreshTokenFamily {
+  familyId: string;
+  currentTokenHash: string;
+  userId: string;
+  isRevoked: boolean;
+}
+
+export async function rotateRefreshToken(
+  incomingToken: string,
+  db: any
+): Promise<{ accessToken: string; newRefreshToken: string }> {
+  const tokenHash = hashToken(incomingToken);
+  const record = await db.tokens.findFirst({ where: { tokenHash } });
+
+  if (!record || record.isRevoked) {
+    // 🚨 DETECTADO REÚSO SUSPEITO: Revogar toda a família de tokens do usuário!
+    if (record) {
+      await db.tokens.updateMany({
+        where: { familyId: record.familyId },
+        data: { isRevoked: true },
+      });
+    }
+    throw new Error('Sessão comprometida. Re-autenticação obrigatória.');
+  }
+
+  // Invalida token atual
+  await db.tokens.update({
+    where: { id: record.id },
+    data: { isRevoked: true },
+  });
+
+  // Emite novo par
+  const newRefreshToken = generateSecureToken();
+  await db.tokens.create({
+    data: {
+      familyId: record.familyId,
+      tokenHash: hashToken(newRefreshToken),
+      userId: record.userId,
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000), // 7 dias
+    },
+  });
+
+  const accessToken = signAccessToken({ userId: record.userId }, '15m');
+
+  return { accessToken, newRefreshToken };
+}
+```

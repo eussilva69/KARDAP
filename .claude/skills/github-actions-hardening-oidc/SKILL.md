@@ -42,3 +42,50 @@ Nunca aumentar escopos só para pipeline passar, nem publicar tokens/claims sens
 - Preserve mudanças locais, contratos públicos, dados e regras de negócio; não exponha segredos.
 - Não declare sucesso com base em intenção. Registre comandos, resultados, evidências e pendências.
 - Ao concluir, apresente fatos confirmados, hipótese testável, diff ou plano, validação executada e riscos remanescentes.
+
+
+## Exemplos e Implementações de Produção
+
+### Workflow Seguro do GitHub Actions com OIDC (Zero Senhas/Secrets)
+```yaml
+name: Deploy to Production via OIDC
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write # Obrigatório para solicitar o token JWT OIDC
+  contents: read  # Acesso mínimo de leitura ao código
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Authenticate via AWS OIDC Role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-actions-deploy-role
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install & Test
+        run: |
+          npm ci --frozen-lockfile
+          npm test
+
+      - name: Deploy Application
+        run: |
+          npm run deploy
+```
