@@ -16,6 +16,25 @@
 
 ---
 
+## 1.1 MAPA RÁPIDO DE ARQUIVOS-CHAVE (MIRA A LASER)
+Consulte este mapa para acessar arquivos diretamente sem executar buscas no repositório:
+
+| Domínio / Intenção | Arquivos e Caminhos Principais |
+|---|---|
+| **Cardápio, Mesas e Roteamento** | src/app/[...path]/page.tsx, src/components/cardapio/*, src/components/video/* |
+| **Chamado de Garçom** | src/components/ChamadoGarcom.tsx, coleção Firestore chamados |
+| **Cakto Gateway & Webhook** | src/app/api/cakto/checkout/route.ts, src/app/api/cakto/webhook/route.ts, src/app/api/cakto/subscription/route.ts |
+| **SaaS Billing & Assinaturas** | src/app/api/billing/entitlements/route.ts, src/app/api/billing/change-plan/route.ts, src/app/api/billing/activate-trial/route.ts |
+| **Painel Administrativo & Planos**| src/app/admin/*, src/app/api/admin/planos/* |
+| **Autenticação, Sessão & CSRF** | src/app/api/auth/csrf/route.ts, src/app/api/auth/session/route.ts, src/lib/firebaseAuth.ts |
+| **Configuração Firebase/Firestore**| src/lib/firebase.ts, src/lib/firebaseAdmin.ts |
+| **Design System & Componentes UI**| src/components/ui/* (Radix Primitives, Tailwind CSS v3) |
+| **Estilos Globais & Tokens** | src/app/globals.css, 	ailwind.config.ts |
+
+---
+
+---
+
 ## 2. OBJETIVO DO PRODUTO
 
 - **Problema que resolve:** Cardápios em papel são caros para atualizar, não mostram a realidade apetitosa do prato e geram gargalos de atendimento com garçons sobrecarregados. [VERIFICADO NO CÓDIGO]

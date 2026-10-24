@@ -1,3 +1,123 @@
+# AI_RULES.md | Regras permanentes compartilhadas & Matriz de Despacho
+
+> Aplicável a Claude Code, Gemini CLI, Antigravity e OpenAI Codex.
+> Idioma de trabalho: português do Brasil. Este é o contrato de execução habitual.
+> Contexto do produto em CONTEXTO_PROJETO.md (somente fatos confirmados).
+
+---
+
+## 0. PROTOCOLO DE TOKEN ECONOMICS & ANTI-BLOAT (INVARIANTE)
+
+Para garantir máxima eficiência técnica e reduzir em até 90% o consumo de tokens:
+
+1. **Prompt Caching Invariant (Estático):** Este arquivo e as instruções de sistema são estáticos para garantir reaproveitamento integral do cache de prefixo da LLM (desconto de 90% em tokens de entrada). Não injete datas mutáveis ou variáveis dinâmicas no corpo das regras.
+2. **Protocolo Zero-Chatter (Saída de Alto Sinal):** É terminantemente proibido emitir saudações, preâmbulos de cortesia ('Com certeza!', 'Entendido...', 'Vou verificar...'), confirmações vazias ou ecoar/parafrasear o pedido do usuário. Vá direto à ação, ao diff cirúrgico ou à resposta técnica objetiva. Tokens de saída custam até 5x mais.
+3. **Regra de 1-Step Scope & Leitura Fatiada:**
+   - Se o pedido do usuário for sucinto ('arrume o bug no checkout'), consulte PRIMEIRO o *Mapa Rápido de Arquivos-Chave* no CONTEXTO_PROJETO.md.
+   - Se o arquivo não estiver mapeado, execute uma busca exata limitada a no máximo 3 arquivos. NUNCA liste árvores de diretórios completas nem varra pastas cegamente.
+   - **Leitura Fatiada Obrigatória:** NUNCA leia arquivos de 1.000 linhas inteiros se a modificação for em uma função específica. Use sempre leitura fatiada (especificando linhas de início e fim).
+4. **Lazy Loading de Skills & Agentes:** NUNCA carregue múltiplas skills simultaneamente. Consulte a matriz abaixo e abra EXCLUSIVAMENTE o SKILL.md ou agente apontado para a demanda ativa.
+5. **Encerramento Econômico:** Ao concluir uma tarefa, resuma a alteração em poucas linhas e instrua: 💡 Tarefa concluída. Digite /clear para iniciar a próxima com 100% de economia de contexto.
+
+---
+
+## 0.1 MATRIZ DE ROTEAMENTO DIRETO (DISPATCH INDEX)
+
+Consulte esta tabela para identificar imediatamente o Agente Especialista e a Skill Procedural sem fazer buscas no disco:
+
+| Domínio / Intenção do Usuário | Agente Especialista | Skill a Abrir (Ler apenas esta) |
+|---|---|---|
+| **Query lenta, índices, EXPLAIN, SQL** | database-optimizer | .agents/skills/sql-explain-analyze-mastery/SKILL.md |
+| **Migração de banco sem downtime** | dbre-reliability-engineer | .agents/skills/zero-downtime-migrations/SKILL.md |
+| **Cache Redis, stampede, locking** | database-optimizer | .agents/skills/redis-cache-stampede-prevention/SKILL.md |
+| **Event sourcing, snapshots, streams** | distributed-systems-architect | .agents/skills/event-sourcing-snapshotting/SKILL.md |
+| **Stripe, Pix, checkout, gateways** | payments-fintech-architect | .agents/skills/stripe-webhook-reconciliation/SKILL.md |
+| **Livro-razão, saldo, contabilidade** | payments-fintech-architect | .agents/skills/double-entry-accounting-ledger/SKILL.md |
+| **OAuth2, PKCE, JWT, SSO, Auth, RBAC** | iam-auth-architect | .agents/skills/oauth2-pkce-jwt-rotation/SKILL.md |
+| **Compliance, LGPD, GDPR, DSAR, DPO** | compliance-dpo-officer | .gemini/agents/compliance-dpo-officer.md |
+| **Criptografia, chaves, privacidade** | cryptography-privacy-engineer | .gemini/agents/cryptography-privacy-engineer.md |
+| **Carregamento lento, bundle grande** | performance-engineer | .agents/skills/bundle-budget-tree-shaking/SKILL.md |
+| **Flamegraph, profiling de CPU/RAM** | performance-engineer | .agents/skills/flamegraph-profiling-analysis/SKILL.md |
+| **Memory leak, vazamento, crash** | debugger | .agents/skills/memory-leak-detection/SKILL.md |
+| **Debugging em 4 fases, causa raiz** | debugger | .agents/skills/systematic-debugging/SKILL.md |
+| **Clean code, refatoração, anti-slop** | 
+evisor-independente | .agents/skills/clean-code/SKILL.md |
+| **Design de APIs, REST vs GraphQL** | ackend-architect | .agents/skills/api-patterns/SKILL.md |
+| **gRPC, Protocol Buffers, streaming** | ackend-architect | .agents/skills/grpc-protobuf-communication/SKILL.md |
+| **Jobs, filas, webhooks assíncronos** | especialista-backend-jobs | .gemini/agents/especialista-backend-jobs.md |
+| **Node.js assíncrono, boas práticas** | ackend-architect | .agents/skills/nodejs-best-practices/SKILL.md |
+| **Python moderno, FastAPI, tipagem** | python-pro | .agents/skills/python-patterns/SKILL.md |
+| **Go de alta performance, concorrência**| golang-pro | .gemini/agents/golang-pro.md |
+| **Java moderno, Spring Boot 3, JVM** | java-enterprise-architect | .gemini/agents/java-enterprise-architect.md |
+| **Rust moderno, Tokio, WASM** | 
+ust-systems-engineer | .gemini/agents/rust-systems-engineer.md |
+| **C++ Kernel, SIMD, baixa latência** | cpp-kernel-engineer | .gemini/agents/cpp-kernel-engineer.md |
+| **Next.js App Router, SSR, Server Actions**| 
+extjs-pro | .gemini/agents/nextjs-pro.md |
+| **React, hooks avançados, estado** | 
+eact-pro | .gemini/agents/react-pro.md |
+| **Tailwind CSS v4, tokens, temas** | especialista-design-system | .agents/skills/tailwind-patterns/SKILL.md |
+| **Design tokens, especificação DESIGN.md**| especialista-design-system | .agents/skills/design-spec/SKILL.md |
+| **Arquitetura frontend em camadas** | rontend-developer | .agents/skills/frontend-architecture/SKILL.md |
+| **UI moderna anti-slop, landing pages**| ui-designer | .agents/skills/frontend-design/SKILL.md |
+| **Avaliação heurística UX de Nielsen** | ux-designer | .agents/skills/nielsen-heuristic-evaluation/SKILL.md |
+| **Acessibilidade WCAG 2.2, teclado** | especialista-mobile-a11y | .agents/skills/wcag-22-audit-checklist/SKILL.md |
+| **Internacionalização i18n, RTL** | ccessibility-i18n-lead | .gemini/agents/accessibility-i18n-lead.md |
+| **Formulários React Hook Form + Zod** | especialista-frontend | .agents/skills/form-validation-zod-react-hook-form/SKILL.md |
+| **Mobile-first, touch targets 48px** | especialista-mobile-a11y | .agents/skills/mobile-design/SKILL.md |
+| **iOS Swift nativo, SwiftUI, StoreKit**| 
+ative-ios-engineer | .gemini/agents/native-ios-engineer.md |
+| **Android Kotlin nativo, Compose** | 
+ative-android-engineer | .gemini/agents/native-android-engineer.md |
+| **App Store, Play Store, Fastlane** | mobile-developer | .agents/skills/app-store-fastlane-automation/SKILL.md |
+| **Playwright E2E sem flaky tests** | 	est-automator | .agents/skills/playwright-flaky-test-elimination/SKILL.md |
+| **TDD, ciclo Red-Green-Refactor** | qa-expert | .agents/skills/property-based-testing/SKILL.md |
+| **Testes de mutação, cobertura real** | qa-expert | .agents/skills/mutation-testing-analysis/SKILL.md |
+| **Testes de carga com k6, soak/spike** | performance-engineer | .agents/skills/distributed-load-testing-k6/SKILL.md |
+| **Testes de contrato de API (Pact)** | qa-expert | .agents/skills/contract-testing-pact/SKILL.md |
+| **RAG Triad, alucinação, relevância** | i-engineer | .agents/skills/rag-triad-evaluation/SKILL.md |
+| **Prompt tuning com DSPy, Few-Shot** | prompt-engineer | .agents/skills/prompt-dspy-optimization/SKILL.md |
+| **Saídas estruturadas JSON/Pydantic** | i-engineer | .agents/skills/structured-output-enforcement/SKILL.md |
+| **Geração de datasets sintéticos** | i-engineer | .agents/skills/synthetic-dataset-generator/SKILL.md |
+| **Modelos em Edge, GGUF, vLLM** | edge-ai-quantization-specialist | .gemini/agents/edge-ai-quantization-specialist.md |
+| **Fine-tuning LoRA/QLoRA, DPO** | model-alignment-finetuner | .gemini/agents/model-alignment-finetuner.md |
+| **Bancos vetoriais HNSW, benchmark** | ector-search-engineer | .agents/skills/vector-index-benchmarking/SKILL.md |
+| **Framework Google Genkit AI** | i-engineer | .agents/skills/developing-genkit-js/SKILL.md |
+| **Orquestração Multi-Agente, swarms** | multi-agent-orchestrator | .agents/skills/coordinator-mode/SKILL.md |
+| **Compressão de contexto de agentes** | gent-organizer | .agents/skills/agent-context-compression/SKILL.md |
+| **Memória semântica entre sessões** | gent-organizer | .agents/skills/memory-system/SKILL.md |
+| **Construção de Servidores MCP** | i-engineer | .agents/skills/mcp-builder/SKILL.md |
+| **Criar novas skills automaticamente**| gent-organizer | .agents/skills/skillify/SKILL.md |
+| **Criador de apps full-stack prompt** | ull-stack-developer | .agents/skills/app-builder/SKILL.md |
+| **Engenharia de ameaças STRIDE** | security-auditor | .agents/skills/threat-modeling-stride/SKILL.md |
+| **OWASP API Top 10, BOLA, IDOR** | security-auditor | .agents/skills/owasp-api-top10-audit/SKILL.md |
+| **Jailbreak, injeção de prompt LLM** | llm-security-red-teamer | .agents/skills/llm-jailbreak-redteaming/SKILL.md |
+| **Auditoria e rotação de segredos** | security-auditor | .agents/skills/secrets-zero-leakage-audit/SKILL.md |
+| **Pentest ofensivo, Red Team** | 
+ed-team-pentester | .gemini/agents/red-team-pentester.md |
+| **Defesa SOC, Blue Team, logs SIEM** | lue-team-soc-analyst | .gemini/agents/blue-team-soc-analyst.md |
+| **Docker multi-stage distroless** | deployment-engineer | .agents/skills/docker-multi-stage-distroless/SKILL.md |
+| **Kubernetes Pod hardening, PDB** | platform-engineer | .agents/skills/k8s-pod-hardening-budget/SKILL.md |
+| **Terraform módulos idempotentes** | cloud-architect | .agents/skills/terraform-idempotent-modules/SKILL.md |
+| **Post-mortem sem culpa, RCA 5 porquês**| incident-responder | .agents/skills/incident-postmortem-rca/SKILL.md |
+| **GitHub Actions OIDC sem senhas** | deployment-engineer | .agents/skills/github-actions-hardening-oidc/SKILL.md |
+| **Versionamento SemVer, changelogs** | dx-optimizer | .agents/skills/semantic-release-conventional-commits/SKILL.md |
+| **Engenharia de resiliência, Chaos** | chaos-engineer | .gemini/agents/chaos-engineer.md |
+| **FinOps, redução de custos cloud** | inops-cloud-economist | .gemini/agents/finops-cloud-economist.md |
+| **Entregabilidade DNS, SPF, DKIM, DMARC**| ackend-architect | .agents/skills/email-deliverability-dns-setup/SKILL.md |
+| **WhatsApp Cloud API da Meta** | especialista-backend-jobs | .agents/skills/whatsapp-business-api-integration/SKILL.md |
+| **Pipelines dbt, marts, staging** | nalytics-engineer | .agents/skills/dbt-transformation-pipeline/SKILL.md |
+| **SEO tradicional, E-E-A-T, Core Vitals**| especialista-seo | .agents/skills/seo-fundamentals/SKILL.md |
+| **GEO (Otimização para ChatGPT/Claude)**| especialista-seo | .agents/skills/geo-fundamentals/SKILL.md |
+| **Decisões arquiteturais, ADRs** | rchitect-review | .agents/skills/architecture-decision-records-adr/SKILL.md |
+| **Review com AST Tree-sitter** | code-reviewer | .agents/skills/code-review-graph/SKILL.md |
+| **Scripts e automação Windows** | dx-optimizer | .agents/skills/powershell-windows/SKILL.md |
+| **Scripts e comandos Linux/Bash** | dx-optimizer | .agents/skills/bash-linux/SKILL.md |
+| **Gerenciamento de servidores** | platform-engineer | .agents/skills/server-management/SKILL.md |
+| **Operações e refatorações em lote** | ull-stack-developer | .agents/skills/batch-operations/SKILL.md |
+
+---
+
 # AI_RULES.md | Regras permanentes compartilhadas
 
 > Aplicável a Claude Code, Gemini CLI e OpenAI Codex. Idioma de trabalho: português do Brasil. Este é o contrato de execução habitual, não um comando para auditar o repositório inteiro em toda tarefa. Contexto do produto em `CONTEXTO_PROJETO.md` (somente fatos confirmados). Detalhes complementares em `GUIA_TECNICO_DETALHADO.md` e protocolo integral em `AUDITORIA_GERAL.md`, lidos quando relevantes.
