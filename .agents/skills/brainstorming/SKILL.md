@@ -1,178 +1,58 @@
 ---
 name: brainstorming
-description: Socratic questioning protocol + user communication. MANDATORY for complex requests, new features, or unclear requirements. Includes progress reporting and error handling.
-when_to_use: "When exploring options before implementation, clarifying requirements, or when the user needs creative problem-solving. Use with /brainstorm workflow."
+description: "You MUST use this before any creative work - creating features, building components, adding functionality, modifying behavior, or planning anything new. Combines Socratic questioning protocol, anti-assumption inquiry, 2-3 approaches with trade-offs, and incremental scope definition."
+when_to_use: "When exploring options before implementation, clarifying requirements, designing new features, or when the user needs creative problem-solving. Use before writing any non-trivial code."
 allowed-tools: Read, Glob, Grep
-version: 1.0.0
+version: 2.0.0
+priority: CRITICAL
 ---
 
-# Brainstorming & Communication Protocol
+# Unified Brainstorming & Requirements Engineering Protocol
 
-> **MANDATORY:** Use for complex/vague requests, new features, updates.
-
----
-
-## 🛑 SOCRATIC GATE (ENFORCEMENT)
-
-### When to Trigger
-
-| Pattern | Action |
-|---------|--------|
-| "Build/Create/Make [thing]" without details | 🛑 ASK 3 questions |
-| Complex feature or architecture | 🛑 Clarify before implementing |
-| Update/change request | 🛑 Confirm scope |
-| Vague requirements | 🛑 Ask purpose, users, constraints |
-
-### 🧠 Memory Check (2026.5.13 — Before Questioning)
-
-> Before asking questions, check if past context exists:
-
-```
-0. CHECK MEMORY — Does .agents/memory/MEMORY.md exist?
-   → YES: Read index. Apply relevant past decisions silently.
-          Skip questions already answered in memory.
-   → NO: Proceed with standard Socratic Gate.
-```
-
-### 🚫 MANDATORY: 3 Questions Before Implementation
-
-1. **STOP** - Do NOT start coding
-2. **CHECK** - Read `.agents/memory/` for past context on this topic
-3. **ASK** - Minimum 3 questions (skip any already answered via memory):
-   - 🎯 Purpose: What problem are you solving?
-   - 👥 Users: Who will use this?
-   - 📦 Scope: Must-have vs nice-to-have?
-4. **WAIT** - Get response before proceeding
-5. **SAVE** - After brainstorming, save key decisions: `/remember [decision]`
+> **CORE PRINCIPLE:** The agent builds what it *believes* the human partner wants, and that belief is usually thinner than it feels. This skill is for discovering what they actually want, why, and exploring 2-3 concrete approaches BEFORE anything gets built.
 
 ---
 
-## 🧠 Dynamic Question Generation
+## 1. First: What Do You Actually Know?
 
-**⛔ NEVER use static templates.** Read `dynamic-questioning.md` for principles.
+Before replying or implementing, ask yourself: *What do I know about what they want, and why?*
 
-### Core Principles
+- **Everything that matters is in the request** (e.g. "make the button background red"): Quick, clear, single-step task. Do it and say what you did.
+- **Something non-trivial is missing or underspecified**: You MUST start the brainstorming dialogue. Do NOT start writing code based on assumptions.
 
-| Principle | Meaning |
-|-----------|---------|
-| **Questions Reveal Consequences** | Each question connects to an architectural decision |
-| **Context Before Content** | Understand greenfield/feature/refactor/debug context first |
-| **Minimum Viable Questions** | Each question must eliminate implementation paths |
-| **Generate Data, Not Assumptions** | Don't guess—ask with trade-offs |
-
-### Question Generation Process
-
-```
-1. Parse request → Extract domain, features, scale indicators
-2. Identify decision points → Blocking vs. deferable
-3. Generate questions → Priority: P0 (blocking) > P1 (high-leverage) > P2 (nice-to-have)
-4. Format with trade-offs → What, Why, Options, Default
-```
-
-### Question Format (MANDATORY)
-
-```markdown
-### [PRIORITY] **[DECISION POINT]**
-
-**Question:** [Clear question]
-
-**Why This Matters:**
-- [Architectural consequence]
-- [Affects: cost/complexity/timeline/scale]
-
-**Options:**
-| Option | Pros | Cons | Best For |
-|--------|------|------|----------|
-| A | [+] | [-] | [Use case] |
-
-**If Not Specified:** [Default + rationale]
-```
-
-**For detailed domain-specific question banks and algorithms**, see: `dynamic-questioning.md`
+### The Inquiries Checklist
+1. **The Core Why:** What business or user problem does this solve?
+2. **Success Metric:** How will we know this feature is working successfully?
+3. **Constraints & Context:** What existing systems, dependencies, or conventions must be respected?
+4. **Edge Cases:** What happens when data is empty, errors occur, or inputs are unusual?
 
 ---
 
-## Progress Reporting (PRINCIPLE-BASED)
+## 2. Lay Out 2-3 Approaches with Trade-Offs
 
-**PRINCIPLE:** Transparency builds trust. Status must be visible and actionable.
+Before touching code on new features or refactorings, lay out 2-3 distinct approaches in a clear message:
 
-### Status Board Format
+| Approach | Strategy | Pros | Cons / Trade-offs | Complexity |
+|----------|----------|------|-------------------|------------|
+| **Option A (Minimalist)** | Smallest change, fastest to ship, minimal blast radius | Zero bloat, least maintenance | May defer advanced flexibility | Low |
+| **Option B (Recommended / Balanced)** | Robust, scalable, follows project conventions | Clean architecture, durable | Moderate initial effort | Medium |
+| **Option C (Comprehensive)** | Full-featured, extensible, future-proof | Maximum capability | Higher initial code surface | High |
 
-| Agent | Status | Current Task | Progress |
-|-------|--------|--------------|----------|
-| [Agent Name] | ✅🔄⏳❌⚠️ | [Task description] | [% or count] |
-
-### Status Icons
-
-| Icon | Meaning | Usage |
-|------|---------|-------|
-| ✅ | Completed | Task finished successfully |
-| 🔄 | Running | Currently executing |
-| ⏳ | Waiting | Blocked, waiting for dependency |
-| ❌ | Error | Failed, needs attention |
-| ⚠️ | Warning | Potential issue, not blocking |
+Ask the user to pick one or suggest a hybrid before writing implementation code.
 
 ---
 
-## Error Handling (PRINCIPLE-BASED)
+## 3. Operational Socratic Questioning & Communication
 
-**PRINCIPLE:** Errors are opportunities for clear communication.
-
-### Error Response Pattern
-
-```
-1. Acknowledge the error
-2. Explain what happened (user-friendly)
-3. Offer specific solutions with trade-offs
-4. Ask user to choose or provide alternative
-```
-
-### Error Categories
-
-| Category | Response Strategy |
-|----------|-------------------|
-| **Port Conflict** | Offer alternative port or close existing |
-| **Dependency Missing** | Auto-install or ask permission |
-| **Build Failure** | Show specific error + suggested fix |
-| **Unclear Error** | Ask for specifics: screenshot, console output |
+1. **One Question at a Time:** Do not overwhelm the user with 10 questions. Ask the single most critical clarifying question first.
+2. **Concrete Examples over Abstractions:** Provide a snippet or visual sketch rather than vague theoretical descriptions.
+3. **Incremental Progress Reporting:** When building multi-step features, report after each discrete chunk.
+4. **Graceful Error Handling:** If an approach hits a roadblock during execution, declare it openly with the exact cause and propose an alternative rather than silently hacking a workaround.
 
 ---
 
-## Completion Message (PRINCIPLE-BASED)
+## 4. Execution Guardrails
 
-**PRINCIPLE:** Celebrate success, guide next steps.
-
-### Completion Structure
-
-```
-1. Success confirmation (celebrate briefly)
-2. Summary of what was done (concrete)
-3. How to verify/test (actionable)
-4. Next steps suggestion (proactive)
-```
-
----
-
-## Communication Principles
-
-| Principle | Implementation |
-|-----------|----------------|
-| **Concise** | No unnecessary details, get to point |
-| **Visual** | Use emojis (✅🔄⏳❌) for quick scanning |
-| **Specific** | "~2 minutes" not "wait a bit" |
-| **Alternatives** | Offer multiple paths when stuck |
-| **Proactive** | Suggest next step after completion |
-
----
-
-## Anti-Patterns (AVOID)
-
-| Anti-Pattern | Why |
-|--------------|-----|
-| Jumping to solutions before understanding | Wastes time on wrong problem |
-| Assuming requirements without asking | Creates wrong output |
-| Over-engineering first version | Delays value delivery |
-| Ignoring constraints | Creates unusable solutions |
-| "I think" phrases | Uncertainty → Ask instead |
-
----
+1. **Verify Before Modifying:** Check `CONTEXTO_PROJETO.md` and key files first.
+2. **Respect Existing Architecture:** Never introduce a foreign framework or paradigm when the project already has an established pattern.
+3. **Zero Waste:** Produce clean, well-tested code that adheres to `clean-code` and project standards.

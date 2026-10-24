@@ -27,6 +27,49 @@ Consulte esta tabela para identificar imediatamente o Agente Especialista e a Sk
 
 | Domínio / Intenção do Usuário | Agente Especialista | Skill a Abrir (Ler apenas esta) |
 |---|---|---|
+| **Brainstorming, requisitos, opções pré-código** | tech-lead-cto | .agents/skills/brainstorming/SKILL.md |
+| **Clean code, modo sênior preguiçoso (Ponytail)**| revisor-independente | .agents/skills/clean-code/SKILL.md |
+| **UI moderna anti-slop, TasteSkill v2** | ui-designer | .agents/skills/frontend-design/SKILL.md |
+| **Páginas cinematográficas, scroll layered heroes**| ui-designer | .agents/skills/scroll-craft/SKILL.md |
+| **Animações GSAP básicas, tweens, matchMedia** | frontend-developer | .agents/skills/gsap-core/SKILL.md |
+| **Animações vinculadas a scroll (ScrollTrigger)** | frontend-developer | .agents/skills/gsap-scrolltrigger/SKILL.md |
+| **Linhas do tempo e coreografia GSAP** | frontend-developer | .agents/skills/gsap-timeline/SKILL.md |
+| **GSAP em React / useGSAP() hooks** | react-pro | .agents/skills/gsap-react/SKILL.md |
+| **Plugins GSAP (Flip, Draggable, MorphSVG)** | frontend-developer | .agents/skills/gsap-plugins/SKILL.md |
+| **Performance e 60 FPS em animações GSAP** | performance-engineer | .agents/skills/gsap-performance/SKILL.md |
+| **GSAP em Next.js, Vue, Nuxt, Svelte** | frontend-developer | .agents/skills/gsap-frameworks/SKILL.md |
+| **Utilitários GSAP (mapRange, interpolate, wrap)**| frontend-developer | .agents/skills/gsap-utils/SKILL.md |
+| **3D no browser, Three.js, cenas, GLTF, R3F** | frontend-developer | .agents/skills/threejs-animation/SKILL.md |
+| **Shaders WebGL GLSL, efeitos visuais GPU** | frontend-developer | .agents/skills/shader-glsl/SKILL.md |
+| **Sistemas de partículas 3D e efeitos mágicos** | frontend-developer | .agents/skills/particle-system/SKILL.md |
+| **Auditoria completa 18 Leis UX (usabilidade)**| ux-designer | .agents/skills/ux-laws-audit/SKILL.md |
+| **Decisões complexas, excesso de opções (Hick)**| ux-designer | .agents/skills/ux-lei-de-hick/SKILL.md |
+| **Tamanho e distância de alvos, touch (Fitts)** | especialista-mobile-a11y | .agents/skills/ux-lei-de-fitts/SKILL.md |
+| **Padrões de mercado, modelos mentais (Jakob)**| ux-designer | .agents/skills/ux-lei-de-jakob/SKILL.md |
+| **Agrupamento visual de elementos (Proximidade)**| ui-designer | .agents/skills/ux-lei-da-proximidade/SKILL.md |
+| **Carga cognitiva, chunking 7±2 (Miller)** | ux-designer | .agents/skills/ux-lei-de-miller/SKILL.md |
+| **Feedback visual <400ms, skeletons (Doherty)** | frontend-developer | .agents/skills/ux-limiar-de-doherty/SKILL.md |
+| **Destaque de CTA, isolamento visual (Restorff)**| ui-designer | .agents/skills/ux-efeito-von-restorff/SKILL.md |
+| **Ordem de menus e listas (Posição Serial)** | ux-designer | .agents/skills/ux-efeito-de-posicao-serial/SKILL.md |
+| **Momentos críticos e encerramento (Pico-Fim)** | ux-designer | .agents/skills/ux-regra-do-pico-fim/SKILL.md |
+| **Tarefas incompletas, progresso (Zeigarnik)**| growth-experimentation-engineer | .agents/skills/ux-efeito-zeigarnik/SKILL.md |
+| **Simplicidade e ordem visual (Prägnanz)** | ui-designer | .agents/skills/ux-lei-de-pragnanz/SKILL.md |
+| **Consistência visual funcional (Semelhança)** | especialista-design-system | .agents/skills/ux-lei-da-semelhanca/SKILL.md |
+| **Cards, containers e vínculos visuais** | ui-designer | .agents/skills/ux-conectividade-uniforme/SKILL.md |
+| **Conservação da complexidade (Tesler)** | ux-designer | .agents/skills/ux-lei-de-tesler/SKILL.md |
+| **Tolerância e robustez em forms (Postel)** | especialista-frontend | .agents/skills/ux-lei-de-postel/SKILL.md |
+| **Limites de tempo e prazos de forms (Parkinson)**| ux-designer | .agents/skills/ux-lei-de-parkinson/SKILL.md |
+| **Eliminação de elementos supérfluos (Ockham)** | ux-designer | .agents/skills/ux-navalha-de-ockham/SKILL.md |
+| **Otimização de 80/20 em fluxos críticos (Pareto)**| growth-experimentation-engineer | .agents/skills/ux-principio-de-pareto/SKILL.md |
+| **Avaliação heurística UX de Nielsen** | ux-designer | .agents/skills/nielsen-heuristic-evaluation/SKILL.md |
+| **Acessibilidade WCAG 2.2, teclado** | especialista-mobile-a11y | .agents/skills/wcag-22-audit-checklist/SKILL.md |
+| **Mobile-first, touch targets 48px** | especialista-mobile-a11y | .agents/skills/mobile-design/SKILL.md |
+| **Des-robotizar texto de IA, redação natural**| revisor-independente | .agents/skills/humanizer/SKILL.md |
+| **Conselho de marketing (Ogilvy, Godin, Hormozi)**| growth-experimentation-engineer | .agents/skills/marketing-council/SKILL.md |
+| **Grafo do código, AST, nós críticos (Graphify)**| architect-review | .agents/skills/graphify/SKILL.md |
+| **Geração de vídeo por IA (Kling, Sora, Runway)**| multi-agent-orchestrator | .agents/skills/ai-video-gen/SKILL.md |
+| **Catálogo de APIs públicas gratuitas (CEP, tempo)**| backend-architect | .agents/skills/public-apis-catalog/SKILL.md |
+| **Playwright E2E completo, POM, sem flakiness**| test-automator | .agents/skills/playwright-testing/SKILL.md |
 | **Query lenta, índices, EXPLAIN, SQL** | database-optimizer | .agents/skills/sql-explain-analyze-mastery/SKILL.md |
 | **Migração de banco sem downtime** | dbre-reliability-engineer | .agents/skills/zero-downtime-migrations/SKILL.md |
 | **Cache Redis, stampede, locking** | database-optimizer | .agents/skills/redis-cache-stampede-prevention/SKILL.md |
@@ -40,62 +83,49 @@ Consulte esta tabela para identificar imediatamente o Agente Especialista e a Sk
 | **Flamegraph, profiling de CPU/RAM** | performance-engineer | .agents/skills/flamegraph-profiling-analysis/SKILL.md |
 | **Memory leak, vazamento, crash** | debugger | .agents/skills/memory-leak-detection/SKILL.md |
 | **Debugging em 4 fases, causa raiz** | debugger | .agents/skills/systematic-debugging/SKILL.md |
-| **Clean code, refatoração, anti-slop** | 
-evisor-independente | .agents/skills/clean-code/SKILL.md |
-| **Design de APIs, REST vs GraphQL** | ackend-architect | .agents/skills/api-patterns/SKILL.md |
-| **gRPC, Protocol Buffers, streaming** | ackend-architect | .agents/skills/grpc-protobuf-communication/SKILL.md |
+| **Design de APIs, REST vs GraphQL** | backend-architect | .agents/skills/api-patterns/SKILL.md |
+| **gRPC, Protocol Buffers, streaming** | backend-architect | .agents/skills/grpc-protobuf-communication/SKILL.md |
 | **Jobs, filas, webhooks assíncronos** | especialista-backend-jobs | .gemini/agents/especialista-backend-jobs.md |
-| **Node.js assíncrono, boas práticas** | ackend-architect | .agents/skills/nodejs-best-practices/SKILL.md |
+| **Node.js assíncrono, boas práticas** | backend-architect | .agents/skills/nodejs-best-practices/SKILL.md |
 | **Python moderno, FastAPI, tipagem** | python-pro | .agents/skills/python-patterns/SKILL.md |
 | **Go de alta performance, concorrência**| golang-pro | .gemini/agents/golang-pro.md |
 | **Java moderno, Spring Boot 3, JVM** | java-enterprise-architect | .gemini/agents/java-enterprise-architect.md |
-| **Rust moderno, Tokio, WASM** | 
-ust-systems-engineer | .gemini/agents/rust-systems-engineer.md |
+| **Rust moderno, Tokio, WASM** | rust-systems-engineer | .gemini/agents/rust-systems-engineer.md |
 | **C++ Kernel, SIMD, baixa latência** | cpp-kernel-engineer | .gemini/agents/cpp-kernel-engineer.md |
-| **Next.js App Router, SSR, Server Actions**| 
-extjs-pro | .gemini/agents/nextjs-pro.md |
-| **React, hooks avançados, estado** | 
-eact-pro | .gemini/agents/react-pro.md |
+| **Next.js App Router, SSR, Server Actions**| nextjs-pro | .gemini/agents/nextjs-pro.md |
+| **React, hooks avançados, estado** | react-pro | .gemini/agents/react-pro.md |
 | **Tailwind CSS v4, tokens, temas** | especialista-design-system | .agents/skills/tailwind-patterns/SKILL.md |
 | **Design tokens, especificação DESIGN.md**| especialista-design-system | .agents/skills/design-spec/SKILL.md |
-| **Arquitetura frontend em camadas** | rontend-developer | .agents/skills/frontend-architecture/SKILL.md |
-| **UI moderna anti-slop, landing pages**| ui-designer | .agents/skills/frontend-design/SKILL.md |
-| **Avaliação heurística UX de Nielsen** | ux-designer | .agents/skills/nielsen-heuristic-evaluation/SKILL.md |
-| **Acessibilidade WCAG 2.2, teclado** | especialista-mobile-a11y | .agents/skills/wcag-22-audit-checklist/SKILL.md |
-| **Internacionalização i18n, RTL** | ccessibility-i18n-lead | .gemini/agents/accessibility-i18n-lead.md |
+| **Arquitetura frontend em camadas** | frontend-developer | .agents/skills/frontend-architecture/SKILL.md |
+| **Internacionalização i18n, RTL** | accessibility-i18n-lead | .gemini/agents/accessibility-i18n-lead.md |
 | **Formulários React Hook Form + Zod** | especialista-frontend | .agents/skills/form-validation-zod-react-hook-form/SKILL.md |
-| **Mobile-first, touch targets 48px** | especialista-mobile-a11y | .agents/skills/mobile-design/SKILL.md |
-| **iOS Swift nativo, SwiftUI, StoreKit**| 
-ative-ios-engineer | .gemini/agents/native-ios-engineer.md |
-| **Android Kotlin nativo, Compose** | 
-ative-android-engineer | .gemini/agents/native-android-engineer.md |
+| **iOS Swift nativo, SwiftUI, StoreKit**| native-ios-engineer | .gemini/agents/native-ios-engineer.md |
+| **Android Kotlin nativo, Compose** | native-android-engineer | .gemini/agents/native-android-engineer.md |
 | **App Store, Play Store, Fastlane** | mobile-developer | .agents/skills/app-store-fastlane-automation/SKILL.md |
-| **Playwright E2E sem flaky tests** | 	est-automator | .agents/skills/playwright-flaky-test-elimination/SKILL.md |
 | **TDD, ciclo Red-Green-Refactor** | qa-expert | .agents/skills/property-based-testing/SKILL.md |
 | **Testes de mutação, cobertura real** | qa-expert | .agents/skills/mutation-testing-analysis/SKILL.md |
 | **Testes de carga com k6, soak/spike** | performance-engineer | .agents/skills/distributed-load-testing-k6/SKILL.md |
 | **Testes de contrato de API (Pact)** | qa-expert | .agents/skills/contract-testing-pact/SKILL.md |
-| **RAG Triad, alucinação, relevância** | i-engineer | .agents/skills/rag-triad-evaluation/SKILL.md |
+| **RAG Triad, alucinação, relevância** | ai-engineer | .agents/skills/rag-triad-evaluation/SKILL.md |
 | **Prompt tuning com DSPy, Few-Shot** | prompt-engineer | .agents/skills/prompt-dspy-optimization/SKILL.md |
-| **Saídas estruturadas JSON/Pydantic** | i-engineer | .agents/skills/structured-output-enforcement/SKILL.md |
-| **Geração de datasets sintéticos** | i-engineer | .agents/skills/synthetic-dataset-generator/SKILL.md |
+| **Saídas estruturadas JSON/Pydantic** | ai-engineer | .agents/skills/structured-output-enforcement/SKILL.md |
+| **Geração de datasets sintéticos** | ai-engineer | .agents/skills/synthetic-dataset-generator/SKILL.md |
 | **Modelos em Edge, GGUF, vLLM** | edge-ai-quantization-specialist | .gemini/agents/edge-ai-quantization-specialist.md |
 | **Fine-tuning LoRA/QLoRA, DPO** | model-alignment-finetuner | .gemini/agents/model-alignment-finetuner.md |
-| **Bancos vetoriais HNSW, benchmark** | ector-search-engineer | .agents/skills/vector-index-benchmarking/SKILL.md |
-| **Framework Google Genkit AI** | i-engineer | .agents/skills/developing-genkit-js/SKILL.md |
+| **Bancos vetoriais HNSW, benchmark** | vector-search-engineer | .agents/skills/vector-index-benchmarking/SKILL.md |
+| **Framework Google Genkit AI** | ai-engineer | .agents/skills/developing-genkit-js/SKILL.md |
 | **Orquestração Multi-Agente, swarms** | multi-agent-orchestrator | .agents/skills/coordinator-mode/SKILL.md |
-| **Compressão de contexto de agentes** | gent-organizer | .agents/skills/agent-context-compression/SKILL.md |
-| **Memória semântica entre sessões** | gent-organizer | .agents/skills/memory-system/SKILL.md |
-| **Construção de Servidores MCP** | i-engineer | .agents/skills/mcp-builder/SKILL.md |
-| **Criar novas skills automaticamente**| gent-organizer | .agents/skills/skillify/SKILL.md |
-| **Criador de apps full-stack prompt** | ull-stack-developer | .agents/skills/app-builder/SKILL.md |
+| **Compressão de contexto de agentes** | agent-organizer | .agents/skills/agent-context-compression/SKILL.md |
+| **Memória semântica entre sessões** | agent-organizer | .agents/skills/memory-system/SKILL.md |
+| **Construção de Servidores MCP** | ai-engineer | .agents/skills/mcp-builder/SKILL.md |
+| **Criar novas skills automaticamente**| agent-organizer | .agents/skills/skillify/SKILL.md |
+| **Criador de apps full-stack prompt** | full-stack-developer | .agents/skills/app-builder/SKILL.md |
 | **Engenharia de ameaças STRIDE** | security-auditor | .agents/skills/threat-modeling-stride/SKILL.md |
 | **OWASP API Top 10, BOLA, IDOR** | security-auditor | .agents/skills/owasp-api-top10-audit/SKILL.md |
 | **Jailbreak, injeção de prompt LLM** | llm-security-red-teamer | .agents/skills/llm-jailbreak-redteaming/SKILL.md |
 | **Auditoria e rotação de segredos** | security-auditor | .agents/skills/secrets-zero-leakage-audit/SKILL.md |
-| **Pentest ofensivo, Red Team** | 
-ed-team-pentester | .gemini/agents/red-team-pentester.md |
-| **Defesa SOC, Blue Team, logs SIEM** | lue-team-soc-analyst | .gemini/agents/blue-team-soc-analyst.md |
+| **Pentest ofensivo, Red Team** | red-team-pentester | .gemini/agents/red-team-pentester.md |
+| **Defesa SOC, Blue Team, logs SIEM** | blue-team-soc-analyst | .gemini/agents/blue-team-soc-analyst.md |
 | **Docker multi-stage distroless** | deployment-engineer | .agents/skills/docker-multi-stage-distroless/SKILL.md |
 | **Kubernetes Pod hardening, PDB** | platform-engineer | .agents/skills/k8s-pod-hardening-budget/SKILL.md |
 | **Terraform módulos idempotentes** | cloud-architect | .agents/skills/terraform-idempotent-modules/SKILL.md |
@@ -103,19 +133,18 @@ ed-team-pentester | .gemini/agents/red-team-pentester.md |
 | **GitHub Actions OIDC sem senhas** | deployment-engineer | .agents/skills/github-actions-hardening-oidc/SKILL.md |
 | **Versionamento SemVer, changelogs** | dx-optimizer | .agents/skills/semantic-release-conventional-commits/SKILL.md |
 | **Engenharia de resiliência, Chaos** | chaos-engineer | .gemini/agents/chaos-engineer.md |
-| **FinOps, redução de custos cloud** | inops-cloud-economist | .gemini/agents/finops-cloud-economist.md |
-| **Entregabilidade DNS, SPF, DKIM, DMARC**| ackend-architect | .agents/skills/email-deliverability-dns-setup/SKILL.md |
+| **FinOps, redução de custos cloud** | finops-cloud-economist | .gemini/agents/finops-cloud-economist.md |
+| **Entregabilidade DNS, SPF, DKIM, DMARC**| backend-architect | .agents/skills/email-deliverability-dns-setup/SKILL.md |
 | **WhatsApp Cloud API da Meta** | especialista-backend-jobs | .agents/skills/whatsapp-business-api-integration/SKILL.md |
-| **Pipelines dbt, marts, staging** | nalytics-engineer | .agents/skills/dbt-transformation-pipeline/SKILL.md |
+| **Pipelines dbt, marts, staging** | analytics-engineer | .agents/skills/dbt-transformation-pipeline/SKILL.md |
 | **SEO tradicional, E-E-A-T, Core Vitals**| especialista-seo | .agents/skills/seo-fundamentals/SKILL.md |
 | **GEO (Otimização para ChatGPT/Claude)**| especialista-seo | .agents/skills/geo-fundamentals/SKILL.md |
-| **Decisões arquiteturais, ADRs** | rchitect-review | .agents/skills/architecture-decision-records-adr/SKILL.md |
+| **Decisões arquiteturais, ADRs** | architect-review | .agents/skills/architecture-decision-records-adr/SKILL.md |
 | **Review com AST Tree-sitter** | code-reviewer | .agents/skills/code-review-graph/SKILL.md |
 | **Scripts e automação Windows** | dx-optimizer | .agents/skills/powershell-windows/SKILL.md |
 | **Scripts e comandos Linux/Bash** | dx-optimizer | .agents/skills/bash-linux/SKILL.md |
 | **Gerenciamento de servidores** | platform-engineer | .agents/skills/server-management/SKILL.md |
-| **Operações e refatorações em lote** | ull-stack-developer | .agents/skills/batch-operations/SKILL.md |
-
+| **Operações e refatorações em lote** | full-stack-developer | .agents/skills/batch-operations/SKILL.md |
 ---
 
 # AI_RULES.md | Regras permanentes compartilhadas
