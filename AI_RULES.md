@@ -28,7 +28,14 @@ Consulte esta tabela para identificar imediatamente o Agente Especialista e a Sk
 | Domínio / Intenção do Usuário | Agente Especialista | Skill a Abrir (Ler apenas esta) |
 |---|---|---|
 | **Brainstorming, requisitos, opções pré-código** | tech-lead-cto | .agents/skills/brainstorming/SKILL.md |
-| **Clean code, modo sênior preguiçoso (Ponytail)**| revisor-independente | .agents/skills/clean-code/SKILL.md |
+| **Clean code, refatoração e boas práticas**       | revisor-independente | .agents/skills/clean-code/SKILL.md |
+| **Modo sênior preguiçoso, menor diff (Ponytail)**| revisor-independente | .agents/skills/ponytail/SKILL.md |
+| **Code review pragmático anti-bloat (Ponytail)** | revisor-independente | .agents/skills/ponytail-review/SKILL.md |
+| **Auditoria de código morto e bloat (Ponytail)** | architect-review     | .agents/skills/ponytail-audit/SKILL.md |
+| **Livro-razão de atalhos e dívida (Ponytail Debt)**| architect-review   | .agents/skills/ponytail-debt/SKILL.md |
+| **Orquestração da frota de projetos (Fleet)**    | multi-agent-orchestrator | .agents/skills/fleet-orchestration/SKILL.md |
+| **Ingestão e unificação de skills e agentes**    | agent-organizer      | .agents/skills/skill-ingestion-and-unification/SKILL.md |
+| **Governança de token economics e anti-bloat**   | finops-cloud-economist | .agents/skills/token-economics-governance/SKILL.md |
 | **UI moderna anti-slop, TasteSkill v2** | ui-designer | .agents/skills/frontend-design/SKILL.md |
 | **Páginas cinematográficas, scroll layered heroes**| ui-designer | .agents/skills/scroll-craft/SKILL.md |
 | **Animações GSAP básicas, tweens, matchMedia** | frontend-developer | .agents/skills/gsap-core/SKILL.md |
