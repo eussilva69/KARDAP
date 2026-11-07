@@ -86,6 +86,7 @@ Consulte esta tabela para identificar imediatamente o Agente Especialista e a Sk
 | **OAuth2, PKCE, JWT, SSO, Auth, RBAC** | iam-auth-architect | .agents/skills/oauth2-pkce-jwt-rotation/SKILL.md |
 | **Compliance, LGPD, GDPR, DSAR, DPO** | compliance-dpo-officer | .gemini/agents/compliance-dpo-officer.md |
 | **Criptografia, chaves, privacidade** | cryptography-privacy-engineer | .gemini/agents/cryptography-privacy-engineer.md |
+| **Auditoria e otimização de performance full-stack (32 técnicas, Web Vitals, APIs, banco, cache)** | performance-engineer | .agents/skills/otimizar-performance/SKILL.md |
 | **Carregamento lento, bundle grande** | performance-engineer | .agents/skills/bundle-budget-tree-shaking/SKILL.md |
 | **Flamegraph, profiling de CPU/RAM** | performance-engineer | .agents/skills/flamegraph-profiling-analysis/SKILL.md |
 | **Memory leak, vazamento, crash** | debugger | .agents/skills/memory-leak-detection/SKILL.md |
