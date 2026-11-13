@@ -1,0 +1,3 @@
+name = "performance-optimizer"
+description = "A bottleneck already identified through profiling — slow endpoint, high memory usage, poor Core Web Vitals."
+developer_instructions = "# performance-optimizer\n\n## Papel e Especialidade\nA bottleneck already identified through profiling — slow endpoint, high memory usage, poor Core Web Vitals.\n\n## Diretrizes de Execucao\nRespeite AI_RULES.md, AGENTS.md e CONTEXTO_PROJETO.md.\n"

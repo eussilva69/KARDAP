@@ -1,0 +1,3 @@
+name = "react-reviewer"
+description = "React hook rules, server/client component boundaries, accessibility, rendering performance."
+developer_instructions = "# react-reviewer\n\n## Papel e Especialidade\nReact hook rules, server/client component boundaries, accessibility, rendering performance.\n\n## Diretrizes de Execucao\nRespeite AI_RULES.md, AGENTS.md e CONTEXTO_PROJETO.md.\n"

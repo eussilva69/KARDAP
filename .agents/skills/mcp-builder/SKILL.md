@@ -1,205 +1,252 @@
 ---
 name: mcp-builder
-description: MCP (Model Context Protocol) server and client engineering. Protocol design, schemas, transports, extensions, security, and migration.
-when_to_use: "When building or reviewing MCP servers or clients, designing MCP tools/resources/prompts, migrating protocol versions, or validating MCP security and interoperability."
-allowed-tools: Read, Write, Edit, Glob, Grep
-version: 1.0.0
+description: Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).
+license: Complete terms in LICENSE.txt
 ---
 
-# MCP Builder
+# MCP Server Development Guide
 
-> Build interoperable MCP implementations against the stable **2026-07-28** specification. Treat extensions as negotiated, opt-in capabilities rather than core protocol guarantees.
+## Overview
 
----
-
-## 1. Stable baseline and compatibility
-
-- The authoritative stable baseline is MCP **2026-07-28**.
-- Core requests are stateless and self-contained. Do not infer protocol version, client capabilities, identity, conversation, or task state from a transport connection or process lifetime.
-- Put cross-request state behind explicit identifiers supplied on every relevant request.
-- Negotiate the protocol version and capabilities; do not assume that a client or server implements every optional feature.
-- Preserve compatibility with earlier peers where the specification requires it, including accepting legacy resource-not-found error code `-32002` while emitting `-32602` for invalid parameters in the current protocol.
-
-### Core versus extensions
-
-| Layer | Status | Engineering rule |
-| --- | --- | --- |
-| Base protocol, versioning, message patterns | Stable core | Required for every implementation |
-| Resources, prompts, tools, elicitation | Optional core features | Advertise and check capabilities before use |
-| Tasks, Skills over MCP, MCP Apps | Extensions | Opt-in; require explicit support from both peers |
-| Draft or vendor extensions | Experimental/vendor-specific | Isolate behind adapters and feature flags |
-
-Never label an extension as stable merely because one SDK or host supports it. Check the extension's own official status and version.
+Create MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. The quality of an MCP server is measured by how well it enables LLMs to accomplish real-world tasks.
 
 ---
 
-## 2. Architecture
+# Process
 
-MCP uses JSON-RPC 2.0 between hosts, clients, and servers.
+## 🚀 High-Level Workflow
 
-```text
-host application
-  └─ MCP client / runtime adapter
-       ├─ stdio transport
-       └─ Streamable HTTP transport
-            └─ MCP server
-                 ├─ resources
-                 ├─ prompts
-                 └─ tools
+Creating a high-quality MCP server involves four main phases:
+
+### Phase 1: Deep Research and Planning
+
+#### 1.1 Understand Modern MCP Design
+
+**API Coverage vs. Workflow Tools:**
+Balance comprehensive API endpoint coverage with specialized workflow tools. Workflow tools can be more convenient for specific tasks, while comprehensive coverage gives agents flexibility to compose operations. Performance varies by client—some clients benefit from code execution that combines basic tools, while others work better with higher-level workflows. When uncertain, prioritize comprehensive API coverage.
+
+**Tool Naming and Discoverability:**
+Clear, descriptive tool names help agents find the right tools quickly. Use consistent prefixes (e.g., `github_create_issue`, `github_list_repos`) and action-oriented naming.
+
+**Context Management:**
+Agents benefit from concise tool descriptions and the ability to filter/paginate results. Design tools that return focused, relevant data. Some clients support code execution which can help agents filter and process data efficiently.
+
+**Actionable Error Messages:**
+Error messages should guide agents toward solutions with specific suggestions and next steps.
+
+#### 1.2 Study MCP Protocol Documentation
+
+**Navigate the MCP specification:**
+
+Start with the sitemap to find relevant pages: `https://modelcontextprotocol.io/sitemap.xml`
+
+Then fetch specific pages with `.md` suffix for markdown format (e.g., `https://modelcontextprotocol.io/specification/draft.md`).
+
+Key pages to review:
+- Specification overview and architecture
+- Transport mechanisms (streamable HTTP, stdio)
+- Tool, resource, and prompt definitions
+
+#### 1.3 Study Framework Documentation
+
+**Recommended stack:**
+- **Language**: TypeScript (high-quality SDK support and good compatibility in many execution environments e.g. MCPB. Plus AI models are good at generating TypeScript code, benefiting from its broad usage, static typing and good linting tools)
+- **Transport**: Streamable HTTP for remote servers, using stateless JSON (simpler to scale and maintain, as opposed to stateful sessions and streaming responses). stdio for local servers.
+
+**Load framework documentation:**
+
+- **MCP Best Practices**: [📋 View Best Practices](./reference/mcp_best_practices.md) - Core guidelines
+
+**For TypeScript (recommended):**
+
+The TypeScript SDK has two major versions. Pick one before writing code:
+- **v2** (`@modelcontextprotocol/server`): the current stable release. Use it for new servers.
+- **v1** (`@modelcontextprotocol/sdk`): receives bug and security fixes only. Use it only when the project's `package.json` already depends on `@modelcontextprotocol/sdk`, or migrate that project with `npx @modelcontextprotocol/codemod@latest v1-to-v2 .`
+
+If the project already uses v1, tell the user once, in a sentence or two, that v2 (`@modelcontextprotocol/server`) is the current stable release, that v1 receives only bug and security fixes, and that `npx @modelcontextprotocol/codemod@latest v1-to-v2 .` migrates the project. Then continue with v1 unless the user asks to migrate.
+
+Don't mix the two in one project: v1 code samples (imports from `@modelcontextprotocol/sdk/...`) don't apply to v2.
+
+- **TypeScript SDK (v2)**: Use WebFetch to load `https://raw.githubusercontent.com/modelcontextprotocol/typescript-sdk/main/README.md`; the full docs index is `https://ts.sdk.modelcontextprotocol.io/v2/llms.txt`
+- [⚡ TypeScript Guide (v2)](./reference/node_mcp_server_v2.md) - TypeScript patterns and examples
+- For v1 projects only: `https://raw.githubusercontent.com/modelcontextprotocol/typescript-sdk/v1.x/README.md` and the [TypeScript Guide (v1)](./reference/node_mcp_server.md)
+
+**For Python:**
+- **Python SDK**: Use WebFetch to load `https://raw.githubusercontent.com/modelcontextprotocol/python-sdk/main/README.md`
+- [🐍 Python Guide](./reference/python_mcp_server.md) - Python patterns and examples
+
+#### 1.4 Plan Your Implementation
+
+**Understand the API:**
+Review the service's API documentation to identify key endpoints, authentication requirements, and data models. Use web search and WebFetch as needed.
+
+**Tool Selection:**
+Prioritize comprehensive API coverage. List endpoints to implement, starting with the most common operations.
+
+---
+
+### Phase 2: Implementation
+
+#### 2.1 Set Up Project Structure
+
+See language-specific guides for project setup:
+- [⚡ TypeScript Guide (v2)](./reference/node_mcp_server_v2.md) - Project structure, package.json, tsconfig.json ([v1](./reference/node_mcp_server.md) for existing v1 projects)
+- [🐍 Python Guide](./reference/python_mcp_server.md) - Module organization, dependencies
+
+#### 2.2 Implement Core Infrastructure
+
+Create shared utilities:
+- API client with authentication
+- Error handling helpers
+- Response formatting (JSON/Markdown)
+- Pagination support
+
+#### 2.3 Implement Tools
+
+For each tool:
+
+**Input Schema:**
+- Use Zod (TypeScript) or Pydantic (Python)
+- Include constraints and clear descriptions
+- Add examples in field descriptions
+
+**Output Schema:**
+- Define `outputSchema` where possible for structured data
+- Use `structuredContent` in tool responses (TypeScript SDK feature)
+- Helps clients understand and process tool outputs
+
+**Tool Description:**
+- Concise summary of functionality
+- Parameter descriptions
+- Return type schema
+
+**Implementation:**
+- Async/await for I/O operations
+- Proper error handling with actionable messages
+- Support pagination where applicable
+- Return both text content and structured data when using modern SDKs
+
+**Annotations:**
+- `readOnlyHint`: true/false
+- `destructiveHint`: true/false
+- `idempotentHint`: true/false
+- `openWorldHint`: true/false
+
+---
+
+### Phase 3: Review and Test
+
+#### 3.1 Code Quality
+
+Review for:
+- No duplicated code (DRY principle)
+- Consistent error handling
+- Full type coverage
+- Clear tool descriptions
+
+#### 3.2 Build and Test
+
+**TypeScript:**
+- Run `npm run build` to verify compilation
+- v2 projects: run the self-check script from the [v2 guide](./reference/node_mcp_server_v2.md#verify-your-server) against the built server
+- Test with MCP Inspector: `npx @modelcontextprotocol/inspector`
+
+**Python:**
+- Verify syntax: `python -m py_compile your_server.py`
+- Test with MCP Inspector
+
+See language-specific guides for detailed testing approaches and quality checklists.
+
+---
+
+### Phase 4: Create Evaluations
+
+After implementing your MCP server, create comprehensive evaluations to test its effectiveness.
+
+**Load [✅ Evaluation Guide](./reference/evaluation.md) for complete evaluation guidelines.**
+
+#### 4.1 Understand Evaluation Purpose
+
+Use evaluations to test whether LLMs can effectively use your MCP server to answer realistic, complex questions.
+
+#### 4.2 Create 10 Evaluation Questions
+
+To create effective evaluations, follow the process outlined in the evaluation guide:
+
+1. **Tool Inspection**: List available tools and understand their capabilities
+2. **Content Exploration**: Use READ-ONLY operations to explore available data
+3. **Question Generation**: Create 10 complex, realistic questions
+4. **Answer Verification**: Solve each question yourself to verify answers
+
+#### 4.3 Evaluation Requirements
+
+Ensure each question is:
+- **Independent**: Not dependent on other questions
+- **Read-only**: Only non-destructive operations required
+- **Complex**: Requiring multiple tool calls and deep exploration
+- **Realistic**: Based on real use cases humans would care about
+- **Verifiable**: Single, clear answer that can be verified by string comparison
+- **Stable**: Answer won't change over time
+
+#### 4.4 Output Format
+
+Create an XML file with this structure:
+
+```xml
+<evaluation>
+  <qa_pair>
+    <question>Find discussions about AI model launches with animal codenames. One model needed a specific safety designation that uses the format ASL-X. What number X was being determined for the model named after a spotted wild cat?</question>
+    <answer>3</answer>
+  </qa_pair>
+<!-- More qa_pairs... -->
+</evaluation>
 ```
 
-### Stateless request model
-
-Every request must carry the protocol metadata required by the negotiated version. For 2026-07-28 this includes per-request protocol version and client capability metadata under reserved `_meta` keys.
-
-Servers must implement `server/discover` for protocol-version and capability discovery. Clients may call it before normal requests or use it as a backward-compatibility probe for stdio peers.
-
-Do not:
-
-- use a stdio process as a conversation or session boundary;
-- depend on request ordering to establish capabilities or identity;
-- keep hidden mutable state without an explicit handle;
-- use self-reported client/server information for authorization decisions.
-
-Do:
-
-- make task, thread, workspace, or subscription handles explicit;
-- validate every request independently;
-- tolerate interleaved requests from unrelated tasks;
-- document lifecycle, expiry, and cleanup for durable handles.
-
 ---
 
-## 3. Transports and authentication
+# Reference Files
 
-| Transport | Typical use | Security baseline |
-| --- | --- | --- |
-| `stdio` | Local process integration | Read credentials from the environment; constrain process and filesystem access |
-| Streamable HTTP | Remote or shared service | Use the MCP HTTP authorization framework, validate origins where applicable, and enforce network boundaries |
+## 📚 Documentation Library
 
-WebSocket is not a standard MCP transport unless defined by a separately negotiated extension or vendor adapter.
+Load these resources as needed during development:
 
-Transport concerns must not leak into protocol semantics. Reconnection or process replacement must not destroy logical state that is represented by an explicit durable handle.
+### Core MCP Documentation (Load First)
+- **MCP Protocol**: Start with sitemap at `https://modelcontextprotocol.io/sitemap.xml`, then fetch specific pages with `.md` suffix
+- [📋 MCP Best Practices](./reference/mcp_best_practices.md) - Universal MCP guidelines including:
+  - Server and tool naming conventions
+  - Response format guidelines (JSON vs Markdown)
+  - Pagination best practices
+  - Transport selection (streamable HTTP vs stdio)
+  - Security and error handling standards
 
----
+### SDK Documentation (Load During Phase 1/2)
+- **Python SDK**: Fetch from `https://raw.githubusercontent.com/modelcontextprotocol/python-sdk/main/README.md`
+- **TypeScript SDK (v2)**: Fetch from `https://raw.githubusercontent.com/modelcontextprotocol/typescript-sdk/main/README.md`; full docs index at `https://ts.sdk.modelcontextprotocol.io/v2/llms.txt`
+- **TypeScript SDK (v1, existing v1 projects only)**: Fetch from `https://raw.githubusercontent.com/modelcontextprotocol/typescript-sdk/v1.x/README.md`
 
-## 4. Schema design and validation
+### Language-Specific Implementation Guides (Load During Phase 2)
+- [🐍 Python Implementation Guide](./reference/python_mcp_server.md) - Complete Python/FastMCP guide with:
+  - Server initialization patterns
+  - Pydantic model examples
+  - Tool registration with `@mcp.tool`
+  - Complete working examples
+  - Quality checklist
 
-MCP defaults to **JSON Schema 2020-12** when `$schema` is absent. Implementations must support that dialect and should document any additional dialects.
+- [⚡ TypeScript Implementation Guide (SDK v2)](./reference/node_mcp_server_v2.md) - Complete TypeScript guide for `@modelcontextprotocol/server` with:
+  - Project setup and the server factory
+  - Tool design: Zod 4 schemas, output formats, pagination, errors
+  - A complete example serving stdio and Streamable HTTP, plus bearer auth
+  - Resources, prompts, and notifications
+  - A self-check script to verify the built server
+  - Links to SDK examples for advanced features
+  - A v1 → v2 translation table, migration steps, and a quality checklist
 
-### Tool input schemas
+- [⚡ TypeScript Implementation Guide (SDK v1)](./reference/node_mcp_server.md) - The equivalent guide for existing `@modelcontextprotocol/sdk` projects
 
-- Use an object root for tool arguments.
-- Give every property a clear, action-oriented description.
-- Declare required fields explicitly.
-- Prefer narrow enums, bounds, formats, and `additionalProperties: false` where forward compatibility does not require open objects.
-- Validate both the schema and each invocation payload.
-
-### Tool output schemas
-
-Use structured content and `outputSchema` when consumers need typed, predictable results. Keep human-readable text concise and ensure structured output remains the source of truth for automation.
-
-### `$ref` and validator safety
-
-- Never dereference network `$ref` values automatically.
-- If remote dereferencing is explicitly enabled, use a host allowlist; reject loopback, link-local, and private addresses; apply timeouts and response-size limits; and log resolved URIs without secrets.
-- Reject schemas with unresolved external references instead of treating them as permissive.
-- Bound schema depth, total subschemas, and validation time to prevent denial-of-service through composition keywords or recursive references.
-
----
-
-## 5. Tool, resource, and prompt design
-
-### Tools
-
-- Use clear action names and a single responsibility.
-- Mark read-only, destructive, idempotent, or open-world behavior with annotations when useful, but treat annotations as untrusted hints unless the server itself is trusted.
-- Require explicit user approval for consequential actions.
-- Return stable machine-readable errors without internal stack traces or secrets.
-
-### Resources
-
-- Use stable URIs and MIME types.
-- Separate discovery metadata from resource content.
-- Apply authorization per resource, not only per server connection.
-- Avoid silently forwarding resource data to another server or model without user consent.
-
-### Prompts
-
-- Treat prompts as user-visible templates, not hidden authority.
-- Keep tool permissions and policy enforcement outside prompt text.
-- Validate prompt arguments and clearly identify any data sources included in generated messages.
-
----
-
-## 6. Security requirements
-
-1. **Consent and least privilege** — expose only required data and obtain explicit approval before tool execution or data sharing.
-2. **Untrusted metadata** — do not use tool descriptions, annotations, client info, server info, or model-produced arguments as authorization evidence.
-3. **Input and output validation** — validate schemas, arguments, structured results, URIs, and content types at trust boundaries.
-4. **Secret handling** — load credentials from environment or a secret manager; never place real keys in repository configuration, logs, traces, prompts, or error payloads.
-5. **Network controls** — defend remote schema/resource fetching against SSRF, redirect abuse, oversized responses, and slow responses.
-6. **Execution isolation** — sandbox subprocesses and filesystem access; use explicit path grants and reject archive or symlink escapes.
-7. **Auditability** — record security-relevant decisions, approvals, tool identity, and result status without storing sensitive payloads unnecessarily.
-
----
-
-## 7. Extensions
-
-Extensions are negotiated independently from the core protocol.
-
-| Extension | Use | Guardrail |
-| --- | --- | --- |
-| Tasks | Long-running work, polling, durable handles, mid-flight input | Do not use the older experimental task API; negotiate the extension |
-| Skills over MCP | Discoverable structured agent instructions | Treat skill content as untrusted input and apply host policy |
-| MCP Apps | Interactive UI rendered in conversations | Constrain origins, content, data access, and action permissions |
-
-An adapter must fail gracefully when an extension is absent. Never silently downgrade a security requirement to preserve feature parity.
-
----
-
-## 8. Deprecated features and migration
-
-The 2026-07-28 specification deprecates legacy roots, sampling, and logging shapes while keeping a compatibility window. Do not remove compatibility abruptly, but avoid designing new architecture around deprecated forms.
-
-### Migration checklist from 2025-era implementations
-
-- [ ] Replace connection-scoped sessions and the `initialize` handshake with stateless per-request metadata.
-- [ ] Implement or consume `server/discover` for version and capability selection.
-- [ ] Move durable state behind explicit task, thread, workspace, or application handles.
-- [ ] Send and validate negotiated protocol version and client capabilities on every request.
-- [ ] Upgrade schema validation to JSON Schema 2020-12 by default.
-- [ ] Disable network `$ref` resolution by default and add validation resource limits.
-- [ ] Move experimental Tasks usage to the negotiated Tasks extension.
-- [ ] Accept legacy `-32002` resource-not-found responses, but emit current error semantics.
-- [ ] Treat a missing `resultType` from older servers as `"complete"`; require it for current-version results.
-- [ ] Audit roots, sampling, and logging integrations for their documented replacements and deprecation timeline.
-- [ ] Add interoperability tests against at least one older peer and one 2026-07-28 peer.
-
----
-
-## 9. Testing matrix
-
-| Test | Expected evidence |
-| --- | --- |
-| Contract | Invalid JSON-RPC, missing metadata, unsupported version/capability, schema dialect handling |
-| Statelessness | Interleaved requests, reconnects, process reuse, explicit-handle recovery |
-| Schema security | External `$ref`, recursive/composed schemas, depth/count/time limits |
-| Authorization | Denied resource/tool access, approval gates, credential isolation |
-| Extension negotiation | Extension absent, version mismatch, feature enabled, graceful fallback |
-| Compatibility | Current peer plus supported older protocol revision |
-| Failure handling | Timeouts, cancellation, partial results, structured errors, no secret leakage |
-
----
-
-## 10. Review checklist
-
-- [ ] Stable protocol version and extension status are documented.
-- [ ] Requests are stateless; cross-request state uses explicit handles.
-- [ ] Capabilities are negotiated and checked before optional operations.
-- [ ] JSON Schema 2020-12 is supported and validator resource use is bounded.
-- [ ] Network `$ref` resolution is disabled by default.
-- [ ] Tool annotations are not trusted as authorization.
-- [ ] User approval, least privilege, secret handling, and execution isolation are enforced outside prompts.
-- [ ] Deprecated features have a compatibility and migration plan.
-- [ ] Contract, security, extension, and cross-version tests pass.
+### Evaluation Guide (Load During Phase 4)
+- [✅ Evaluation Guide](./reference/evaluation.md) - Complete evaluation creation guide with:
+  - Question creation guidelines
+  - Answer verification strategies
+  - XML format specifications
+  - Example questions and answers
+  - Running an evaluation with the provided scripts
