@@ -5,3 +5,6 @@
 
 ## Contexto do produto (importação automática)
 @./CONTEXTO_PROJETO.md
+
+## Catálogo de Skills e Agentes
+@./CONTEXTO_SKILLS_AGENTES.md
