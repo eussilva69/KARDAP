@@ -1,22 +1,22 @@
-# AGENTS.md | Instruções da Frota Vibe Coding Toolkit
+# AGENTS.md | Centro de Comando & Orquestrador da Frota Híbrida Suprema
 
-> Este repositório opera sob o **Vibe Coding Toolkit**: disciplina de engenharia, planejamento antes do código, orquestração de subagentes especialistas e verificações rigorosas de qualidade.
+> Este repositório opera sob o **Kit Híbrido Supremo**: a disciplina rigorosa do Vibe Coding Toolkit (Superpowers, Wave Execution) unida aos domínios técnicos de elite (GSAP, Leis de UX, Fintech, RAG/IA, Resiliência e Mobile).
 
 ## 1. Início Obrigatório de Cada Tarefa
 1. **Leia `AI_RULES.md`** na raiz do repositório antes de propor ou editar qualquer código.
 2. **Leia `CONTEXTO_PROJETO.md`** para entender o produto, regras de negócio, contratos de API e invariantes. Nunca trate hipóteses como fatos.
-3. Confirme o escopo do pedido. Execute mudanças localizadas e baseadas em evidências.
+3. Confirme o escopo do pedido. Execute mudanças localizadas, cirúrgicas e baseadas em evidências verificáveis.
 
-## 2. Roster de 23 Especialistas (Subagent Orchestration)
+## 2. Roster dos 25 Agentes Especialistas (Subagent Orchestration)
 Quando a complexidade exigir delegação, convoque o especialista correspondente:
 
-| Especialista | Gatilho de Uso |
+| Especialista | Gatilho de Uso / Especialidade |
 |---|---|
-| `orchestrator` | Tarefas complexas que cruzam múltiplas camadas (backend + frontend). |
+| `orchestrator` | Coordenação geral de tarefas multi-camada (backend + frontend simultâneos). |
 | `code-reviewer` | Revisão geral de código, qualidade, tratamento de erros e cobertura de testes. |
 | `security-reviewer` | Vulnerabilidades OWASP, segredos no código, falhas de autenticação e CVEs. |
-| `typescript-reviewer` | Segurança de tipos, concorrência assíncrona e prototype pollution em TS/JS. |
-| `react-reviewer` | Regras de hooks, limites server/client components, a11y e renderização. |
+| `typescript-reviewer` | Segurança de tipos estrita, concorrência assíncrona e prototype pollution em TS/JS. |
+| `react-reviewer` | Regras de hooks, limites server/client components, a11y e renderização React 19. |
 | `react-build-resolver` | Erros de compilação, bundler quebrado, build ou servidor dev inoperante. |
 | `test-engineer` | Testes unitários e de integração (test-first/TDD), cobrindo edge cases. |
 | `qa-automation-engineer` | Testes E2E (Playwright) e quality gates de CI/CD para fluxos críticos. |
@@ -35,8 +35,10 @@ Quando a complexidade exigir delegação, convoque o especialista correspondente
 | `documentation-writer` | Documentação técnica, READMEs, runbooks e guias de API sob demanda. |
 | `penetration-tester` | Testes de invasão simulados em fluxos de autenticação ou releases. |
 | `security-auditor` | Auditoria de defesa em profundidade e modelagem de ameaças (STRIDE). |
+| `mobile-developer` | Desenvolvimento mobile (Flutter, React Native, Swift, Kotlin, Capacitor/PWA) e publicação em lojas. |
+| `ai-engineer` | Inteligência artificial aplicada, arquiteturas RAG, orquestração de LLMs, embeddings e guardrails. |
 
 ## 3. Diretrizes de Execução
 - **Superpowers Habit:** Brainstorming -> Planejamento -> TDD -> Execução -> Verificação de evidências antes de concluir.
 - **Wave Execution:** Tarefas paralelas rodam apenas com dependências resolvidas e conjuntos de arquivos disjuntos.
-- **Deploy Safety:** Commits na frota contêm `[skip ci]` para prevenir deploys automáticos em plataformas de hospedagem.
+- **Deploy Safety:** Commits na frota contêm `[skip ci] [skip netlify] [skip vercel]` para prevenir deploys automáticos em plataformas de hospedagem.
