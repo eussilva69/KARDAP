@@ -1,6 +1,6 @@
 # CONTEXTO_SKILLS_AGENTES.md | Centro de Inteligência & Despacho da Frota
 
-> **Kit Operacional:** Kit Híbrido Supremo (25 Agentes Especialistas | 70 Skills de Domínio)  
+> **Kit Operacional:** Kit Híbrido Supremo (25 Agentes Especialistas | 74 Skills de Domínio)  
 > **Finalidade:** Servir como guia definitivo e mapa de contexto imediato para Claude Code, Gemini CLI e Codex. Permite identificar em tempo constante qual agente ou skill deve ser convocado, eliminando adivinhações e otimizando o consumo de tokens.
 
 ---

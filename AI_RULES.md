@@ -22,7 +22,7 @@
 
 ---
 
-## 2. Catálogo das 70 Skills do Kit Híbrido Supremo
+## 2. Catálogo das 74 Skills do Kit Híbrido Supremo
 
 ### Metodologia & Engenharia Disciplinada (Superpowers & Caldo AI)
 | Skill | Gatilho de Uso / Escopo | Caminho do SKILL.md |
@@ -62,6 +62,10 @@
 | `gh-fix-ci` | Diagnóstico e correção de pipelines quebradas no GitHub Actions | `.agents/skills/gh-fix-ci/SKILL.md` |
 | `differential-review` | Revisão diferencial de segurança para PRs e alterações críticas | `.agents/skills/differential-review/SKILL.md` |
 | `web-design-guidelines` | Auditoria de UI contra diretrizes Web Interface Guidelines (WIG) | `.agents/skills/web-design-guidelines/SKILL.md` |
+| `modern-web-guidance` | Guia oficial do Google Chrome para arquitetura web moderna (INP, LCP, CSS, A11y, Forms, UI) | `.agents/skills/modern-web-guidance/SKILL.md` |
+| `chrome-extensions` | Desenvolvimento e auditoria de extensões Chrome Manifest V3 e side panels | `.agents/skills/chrome-extensions/SKILL.md` |
+| `sepia` | Humanização e des-iaficação de textos: elimina clichês de IA em copy, docs e posts | `.agents/skills/sepia/SKILL.md` |
+| `security-audit` | Auditoria defensiva de segurança e limites de confiança da Cloudflare | `.agents/skills/security-audit/SKILL.md` |
 | `writing-guidelines` | Revisão de prosa, documentação técnica e tom de voz | `.agents/skills/writing-guidelines/SKILL.md` |
 
 ### Domínio Criativo: Animações Avançadas & 3D (Resgate Estratégico)

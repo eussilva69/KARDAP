@@ -15,3 +15,5 @@ pubsub-debug.log
 firebase-debug.log
 *.log
 .next-perf*/
+
+.next-recovery*/

@@ -5,7 +5,7 @@
 ## 1. Início Obrigatório de Cada Tarefa
 1. **Leia `AI_RULES.md`** na raiz do repositório antes de propor ou editar qualquer código.
 2. **Leia `CONTEXTO_PROJETO.md`** para entender o produto, regras de negócio, contratos de API e o **Mapeamento de Pastas & Arquivos-Chave**. Nunca trate hipóteses como fatos e nunca faça buscas cegas.
-3. **Consulte `CONTEXTO_SKILLS_AGENTES.md`** para verificar a árvore de decisão, o catálogo de 25 agentes e as 70 skills disponíveis.
+3. **Consulte `CONTEXTO_SKILLS_AGENTES.md`** para verificar a árvore de decisão, o catálogo de 25 agentes e as 74 skills disponíveis.
 4. Confirme o escopo do pedido. Execute mudanças localizadas, cirúrgicas e baseadas em evidências verificáveis.
 
 ## 2. Roster dos 25 Agentes Especialistas (Subagent Orchestration)
