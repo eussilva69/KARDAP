@@ -10,18 +10,25 @@
    - Planeje antes de codificar (`writing-plans`, `brainstorming`).
    - Implemente com testes (`test-driven-development`).
    - Mantenha escopo enxuto (`ponytail`).
+   - Desembarace a arquitetura quando complexa (`untangle-codebase`, `prune-tests`).
    - Verifique exaustivamente antes de concluir (`verification-before-completion`).
 4. **Execução em Ondas Paralelas (Wave Execution):**
    - Só despache subagentes em paralelo quando as dependências forem nulas e os conjuntos de arquivos forem estritamente disjuntos.
 5. **Segurança e Segredos:** Nunca comite tokens, chaves ou senhas em arquivos de código ou documentação.
+6. **Política Estrita de Git (Anti-Auto-Commit e Sem Skip Indevido):**
+   - NUNCA faça commit ou push automaticamente. O agente deve solicitar aprovação ou aguardar comando explícito do usuário ("commita", "dá push").
+   - Quando o usuário pedir commit, o commit DEVE SER LIMPO, SEM flags de skip (`[skip ci]`, `[skip netlify]`, `[skip vercel]`), para permitir o fluxo normal de produção.
+   - Flags de skip SÓ DEVEM SER UTILIZADAS se o usuário pedir expressamente para pular deploy / subir com skip ("commita com skip", "não dê deploy").
 
 ---
 
-## 2. Catálogo das 68 Skills do Kit Híbrido Supremo
+## 2. Catálogo das 70 Skills do Kit Híbrido Supremo
 
-### Metodologia & Engenharia Disciplinada (Superpowers)
+### Metodologia & Engenharia Disciplinada (Superpowers & Caldo AI)
 | Skill | Gatilho de Uso / Escopo | Caminho do SKILL.md |
 |---|---|---|
+| `untangle-codebase` | Desembaraçar arquitetura em uma passada: eliminar acoplamentos ocultos, links desnecessários, casos especiais e código excedente | `.agents/skills/untangle-codebase/SKILL.md` |
+| `prune-tests` | Podar testes redundantes que não protegem comportamento real contra regressões | `.agents/skills/prune-tests/SKILL.md` |
 | `brainstorming` | Antes de qualquer trabalho criativo, arquitetura ou novas funcionalidades | `.agents/skills/brainstorming/SKILL.md` |
 | `using-superpowers` | Início de conversas para definir hábitos de planejamento e verificação | `.agents/skills/using-superpowers/SKILL.md` |
 | `writing-plans` | Planejamento cirúrgico de tarefas complexas antes de alterar código | `.agents/skills/writing-plans/SKILL.md` |

@@ -1,6 +1,6 @@
 # CONTEXTO_SKILLS_AGENTES.md | Centro de Inteligência & Despacho da Frota
 
-> **Kit Operacional:** Kit Híbrido Supremo (25 Agentes Especialistas | 68 Skills de Domínio)  
+> **Kit Operacional:** Kit Híbrido Supremo (25 Agentes Especialistas | 70 Skills de Domínio)  
 > **Finalidade:** Servir como guia definitivo e mapa de contexto imediato para Claude Code, Gemini CLI e Codex. Permite identificar em tempo constante qual agente ou skill deve ser convocado, eliminando adivinhações e otimizando o consumo de tokens.
 
 ---
@@ -11,6 +11,7 @@
 DEMANDA RECEBIDA
 │
 ├── Nova Funcionalidade / Criatividade / Arquitetura
+│   ├── Desembaraçar Código / Refatoração Profunda -> untangle-codebase, prune-tests
 │   ├── Antes de codificar -> brainstorming, writing-plans
 │   ├── Multi-camada (Front + Back) -> orchestrator
 │   └── Com testes primeiro (TDD) -> test-engineer + test-driven-development
@@ -95,9 +96,11 @@ eact-reviewer | Auditoria de regras React 19 e Server Components | Revisão de v
 
 ## 3. CATÁLOGO DAS 68 SKILLS DO KIT HÍBRIDO SUPREMO
 
-### 3.1 Metodologia & Engenharia Disciplinada (Superpowers)
+### 3.1 Metodologia & Engenharia Disciplinada (Superpowers & Caldo AI)
 | Skill | Finalidade & Gatilho de Uso | Caminho |
 |---|---|---|
+| `untangle-codebase` | Desembaraçar arquitetura em 1 passada: acoplamentos ocultos e casos especiais | `.agents/skills/untangle-codebase/SKILL.md` |
+| `prune-tests` | Podar testes redundantes que não protegem comportamento real | `.agents/skills/prune-tests/SKILL.md` |
 | rainstorming | Obrigatório antes de qualquer criação ou arquitetura | .agents/skills/brainstorming/SKILL.md |
 | using-superpowers | Estabelece hábitos de rigor e planejamento na sessão | .agents/skills/using-superpowers/SKILL.md |
 | writing-plans | Elaboração de planos de implementação atômicos | .agents/skills/writing-plans/SKILL.md |
@@ -212,4 +215,7 @@ edis-cache-stampede-prevention | Invalidação probabilística e mitigação de 
 
 1. **Evidência Antes de Afirmação:** Toda conclusão exige execução e prova real por comandos de teste/build.
 2. **Execução em Ondas Paralelas (Wave Execution):** Apenas dispare agentes em paralelo se os conjuntos de arquivos forem estritamente disjuntos.
-3. **Deploy Safety:** Todo commit deve incluir [skip ci] [skip netlify] [skip vercel].
+3. **Política Estrita de Git (Anti-Auto-Commit e Sem Skip Indevido):**
+   - NUNCA faça commit ou push automaticamente sem pedido explícito do usuário.
+   - Quando o usuário pedir commit, envie limpo SEM flags de skip para que os deploys ocorram normalmente.
+   - Flags de skip ([skip ci], [skip netlify], [skip vercel]) SÓ DEVEM ser usadas quando o usuário pedir expressamente para subir com skip / sem dar deploy.

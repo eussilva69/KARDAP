@@ -4,9 +4,9 @@
 
 ## 1. Início Obrigatório de Cada Tarefa
 1. **Leia `AI_RULES.md`** na raiz do repositório antes de propor ou editar qualquer código.
-2. **Leia `CONTEXTO_PROJETO.md`** (incluindo o Mapeamento de Pastas & Arquivos-Chave)
-3. **Consulte `CONTEXTO_SKILLS_AGENTES.md`** para saber o catálogo e árvore de decisão dos 25 agentes e 68 skills para entender o produto, regras de negócio, contratos de API e invariantes. Nunca trate hipóteses como fatos.
-3. Confirme o escopo do pedido. Execute mudanças localizadas, cirúrgicas e baseadas em evidências verificáveis.
+2. **Leia `CONTEXTO_PROJETO.md`** para entender o produto, regras de negócio, contratos de API e o **Mapeamento de Pastas & Arquivos-Chave**. Nunca trate hipóteses como fatos e nunca faça buscas cegas.
+3. **Consulte `CONTEXTO_SKILLS_AGENTES.md`** para verificar a árvore de decisão, o catálogo de 25 agentes e as 70 skills disponíveis.
+4. Confirme o escopo do pedido. Execute mudanças localizadas, cirúrgicas e baseadas em evidências verificáveis.
 
 ## 2. Roster dos 25 Agentes Especialistas (Subagent Orchestration)
 Quando a complexidade exigir delegação, convoque o especialista correspondente:
@@ -42,4 +42,12 @@ Quando a complexidade exigir delegação, convoque o especialista correspondente
 ## 3. Diretrizes de Execução
 - **Superpowers Habit:** Brainstorming -> Planejamento -> TDD -> Execução -> Verificação de evidências antes de concluir.
 - **Wave Execution:** Tarefas paralelas rodam apenas com dependências resolvidas e conjuntos de arquivos disjuntos.
-- **Deploy Safety:** Commits na frota contêm `[skip ci] [skip netlify] [skip vercel]` para prevenir deploys automáticos em plataformas de hospedagem.
+
+## 4. Política Estrita de Git, Commits & Deploys (INVARIANTE OBRIGATÓRIA)
+1. **PROIBIÇÃO ABSOLUTA DE AUTO-COMMIT E AUTO-PUSH:**
+   - O agente NUNCA deve executar `git commit` ou `git push` por iniciativa própria ou automaticamente ao concluir uma tarefa.
+   - Commits e pushes SÓ DEVEM OCORRER se o usuário solicitar expressamente nesta conversa (ex: "faça o commit", "pode commitar e subir", "dá push").
+   - Se o usuário pedir apenas para programar, refatorar, testar ou corrigir um erro, altere os arquivos, teste e pare — NUNCA commite sem ordem explícita.
+2. **COMMITS DEVEM IR LIMPOS (SEM SKIP POR PADRÃO):**
+   - Quando o usuário pedir para commitar, a mensagem de commit DEVE SER LIMPA, SEM tags de skip (`[skip ci]`, `[skip netlify]`, `[skip vercel]`), permitindo o fluxo normal de deploy e CI/CD da aplicação.
+   - **ÚNICA EXCEÇÃO PARA SKIP:** O agente só deve incluir flags de skip se o usuário pedir expressamente para pular deploy / commitar com skip naquela mensagem específica (ex: "commita sem dar deploy", "sobe com skip").
